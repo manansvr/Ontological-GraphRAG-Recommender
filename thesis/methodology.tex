@@ -1,0 +1,197 @@
+\chapter{Methodology}
+
+    \section{Knowledge Extraction}
+
+        \paragraph{} The knowledge extraction stage of this research is designed to transform fragmented regulatory and engineering artefacts into a \textbf{structured, queryable knowledge graph}, forming the foundation for subsequent \textbf{knowledge fusion and extension}. This stage integrates ontology-driven modelling, natural language processing, large language models, and graph database technologies to convert heterogeneous information into a semantically coherent framework.
+
+        \vspace{1cm}
+        \begin{figure}[h]
+            \centering
+            \includegraphics[width=1\linewidth]{Photos/Knowledge Graph Extraction.png}
+            \caption{Knowledge Extraction Data Sources}
+            \label{fig:knowledge extraction}
+        \end{figure}
+
+        \newpage
+        \paragraph{} The first step involves identifying and categorising the diverse data sources within Sunswift Racing’s SR8 project. This includes regulatory documents such as the Australian Design Rules (ADRs), technical specifications, test reports, simulation outputs, spreadsheets, and design notes. Each source is evaluated for its structure, completeness, semantic richness, and inter-connectivity potential. Structured sources, such as spreadsheets and simulation files, are easier to map to a formal ontology, whereas unstructured sources, such as PDF reports or free-text test logs, require natural language processing to extract meaning. The technologies employed in this stage include python-based document parsers (e.g., PDFMiner, Pandas), OCR tools for scanned documents (Tesseract), and text pre-processing libraries (NLTK, SpaCy). Anticipated challenges include inconsistencies in naming conventions, varying formats across departments, incomplete metadata, and potential loss of context during automated parsing.
+
+        \paragraph{} Once the sources are characterised, the next step is to formalise regulatory and engineering knowledge into an ontology. This involves defining entities (requirements, components, subsystems, tests), relationships (dependencies, applicability, exemptions), and hierarchical structures (nested rules, sub-system mappings). The ontology serves as the semantic backbone for aligning extracted knowledge across multiple sources. Technologies used include OWL/RDF for ontology definition, and Protégé for ontology design and validation. A key challenge at this stage is accurately capturing the complexity of the ADR rules, especially their conditional applicability and inter-dependencies, while avoiding over-simplification that could lead to misinterpretation in later stages.
+
+        \paragraph{} The knowledge extraction pipeline operationalises the ontology by identifying entities and relationships in source documents and mapping them into a structured format. First, documents are preprocessed to remove noise, standardise formatting, and preserve structural cues such as headings, tables, and figures. Next, entity recognition and relation extraction are performed using a combination of rule-based methods, NLP models, and LLMs. For instance, SpaCy or transformer-based models (BERT, RoBERTa) can identify technical terms, while LLMs can disambiguate complex or context-dependent phrases. Extracted entities are then mapped to the ontology to ensure consistency and semantic alignment. Challenges include handling ambiguous terminology, resolving conflicts between multiple sources, and ensuring accurate alignment with the ontology without excessive manual intervention.
+
+        \paragraph{} neo4j is used as the primary knowledge repository, providing a graph-based representation of extracted entities and their relationships. Each entity is stored as a node with attributes such as type, source, and confidence score, while relationships represent regulatory dependencies, subsystem interactions, or verification pathways. The neo4j python driver and nypher query language will be used to populate the graph and perform validation checks. The knowledge graph allows engineers to query regulatory and design dependencies interactively, visualise complex relationships, and identify potential gaps in compliance. Anticipated challenges include managing the scale of data (hundreds of thousands of nodes and edges), ensuring graph consistency during incremental updates, and maintaining efficient query performance as the graph grows.
+
+        \newpage
+        \paragraph{} After populating the graph, LLM-assisted reasoning is used to validate the extracted knowledge and provide context-aware interpretations. LLMs help reconcile ambiguous entities, verify semantic consistency, and flag potential inconsistencies or missing links in the graph. This stage relies on retrieval-augmented generation (RAG) approaches, where LLMs query neo4j to provide evidence-based outputs. Challenges include ensuring that the LLM outputs remain explainable, avoiding hallucinations, and maintaining alignment with the formal ontology.
+
+        \begin{figure}[h ]
+            \centering
+            \includegraphics[width=1\linewidth]{Photos/Knowledge Extraction Process Diagram.png}
+            \caption{Knowledge Extraction Process Diagram}
+            \label{fig:extraction process}
+        \end{figure}
+
+        \paragraph{} The knowledge extraction stage establishes a clean, structured, and semantically normalised graph that forms the input for subsequent knowledge fusion and extension. By resolving inconsistencies, preserving provenance, and capturing cross-source relationships in neo4j, this stage ensures that fusion processes can focus on merging overlapping entities, reconciling conflicting information, and inferring higher-level knowledge. Challenges in this preparatory stage include ensuring completeness without introducing noise, defining confidence thresholds for entity inclusion, and maintaining alignment between the extracted knowledge and the ontology to support scalable, model-based reasoning.
+
+    \newpage
+    \section{Knowledge Extension}
+
+        \paragraph{}
+        The knowledge extension stage of our methodology aspires to transform a static body of extracted regulatory requirements into an evolving and responsive semantic landscape, one that can gently shift and expand as Sunswift’s engineering context demands. Where the extraction phase provides a faithful and grounded transcription of the ADR requirements, knowledge extension breathes interpretative depth into these fragments by weaving them into a larger conceptual tapestry that brings together neural intuition, symbolic structure and domain logic. The literature reminds us that knowledge graphs achieve their deepest analytical strength only when their scaffolding is enriched with relational subtleties that are too delicate or too widely dispersed to be captured through direct extraction alone [13, 14, 21]. In our own system this means identifying implicit dependencies between rules, recognising conditional applicability, refining the distinction between essential and recommended requirements, and acknowledging project-specific characteristics that influence the weight and relevance of a regulation. Through this process the knowledge graph evolves from a carefully curated archive of obligations into a structured interpretative model that can support recommendation, explanation and cross-document reasoning with far greater elegance and clarity.
+
+        \paragraph{}
+        Central to this transformation is the introduction of an orchestrated multi-agent workflow, guided by the Model Context Protocol, which serves as the conductor of the system’s analytical ensemble. Within this environment each computational technique is expressed as a distinct agent with its own vantage point and capability, whether it be the LLM inference agent that listens for linguistic nuance, the link-prediction agent that perceives latent relational geometry, or the reinforcement-learning agent that slowly cultivates an instinct for prioritisation and design relevance. MCP acts as the coordinating presence that ensures each agent receives precisely the context it requires, while maintaining a transparent chain of reasoning that can be followed, interrogated and validated. This orchestrated architecture was chosen because the literature makes clear that complex reasoning tasks benefit from modular intelligence, where different analytical styles work in dialogue rather than competition [11, 12, 24, 25]. The result is a system that is not only more expressive but also more stable, because each agent’s strengths counterbalance the limitations of the others, allowing the knowledge graph to grow with both imagination and caution.
+        
+        \paragraph{}
+        A significant component of this pipeline is the use of LLM-supported inference to expand the graph beyond what explicit ADR text can supply. The literature demonstrates that language models possess an unusual sensitivity to paraphrase, implication and hierarchical dependency, qualities that are often essential for interpreting the unspoken architecture of a regulation [5, 13]. We therefore prompt the LLM to propose additional relational attributes that clarify each requirement’s operational meaning, such as hidden prerequisites, conditionals or structural assumptions. For example, if a rule concerning passenger safety implicitly presumes a particular subsystem configuration, the LLM can detect this dependence and articulate it as a formal relation within the KG. These suggestions are never accepted outright. Instead they are inspected and shaped by ontology constraints, ensuring that neural creativity remains within the conceptual boundaries of the domain and mirrors the harmony between symbolic discipline and neural expressiveness described in neuro-symbolic literature [16, 25]. This disciplined expansion allows the KG to grow in semantic richness without diluting the precision that regulatory engineering demands.
+
+        \paragraph{}
+        Beyond linguistic inference we employ neural link-prediction techniques to detect relationships that are not described in text but are strongly suggested by historical patterns, engineering logic or shared structural roles across subsystems. Studies in compliance, manufacturing and engineering consistently show that knowledge graph embeddings can reveal latent relational structures within complex systems that are otherwise only partially observable [16, 18, 19]. By embedding entities and relations into a continuous vector space the model can evaluate whether two requirements, two components or a requirement and a subsystem share a semantic closeness that points towards an unrecorded dependency. For instance, if battery-protection requirements and crash-worthiness requirements exhibit parallel structural behaviours in many vehicle designs, the model may recommend a new cross-domain link that alerts engineers to consider this interaction. These predicted connections are then refined and moderated through a filtering layer that ensures alignment with ADR logic and Sunswift’s system architecture, thereby avoiding the risks of representational drift or oversimplification that the literature warns against [16]. Through this process the KG deepens not only in breadth but in structural coherence.
+
+        \paragraph{}
+        An especially distinctive element of our methodology is the use of reinforcement learning to cultivate the system’s capacity for prioritisation, particularly when distinguishing between essential requirements, which impose non-negotiable constraints, and recommended requirements, which carry contextual weight but may depend on interpretation or design trade-offs. Although extraction can offer preliminary labels, the literature indicates that true understanding of importance emerges only when the system observes how requirements interact across multi-step reasoning sequences [18, 19, 23]. We therefore formulate requirement recommendation as a sequential decision process, where an RL agent traverses the knowledge graph, evaluates relevance, and receives feedback when its judgement resonates with engineering expertise. Over time the agent develops a sense of dependency and consequence that mirrors human reasoning and aligns with findings from RL-enhanced design and compliance systems [21, 23, 25]. This approach was chosen because it allows classification to emerge as a behavioural insight rather than a brittle static label, making the system more responsive to project changes and design evolution.
+
+        \paragraph{}
+        To maintain harmony among these different analytical styles our methodology relies on the MCP orchestration layer, which not only coordinates agent contributions but also enforces a transparent workflow: extraction output flows into symbolic validation, then into LLM-based refinement, then into neural or RL-driven extension, and finally through a consistency-checking mechanism that ensures all additions remain faithful to the ontology. This orchestrated flow was consciously selected because the literature reveals that multi-agent reasoning achieves greater coherence, interpretability and contextual memory when agents can retain state, reference prior outputs and collaborate without collapsing into a single monolithic model [11, 12, 24, 25]. MCP therefore acts as the guardian of order, ensuring that the knowledge graph evolves gracefully and that every extension remains both traceable and justifiable.
+
+        \newpage
+        \paragraph{}
+        Yet, despite its strengths, knowledge extension introduces risks that cannot be ignored. The literature warns of the dangers of unchecked neural inference, drifting memory states, biased embeddings and RL policies that adopt fragile heuristics when not properly supervised [7, 16, 18, 19, 28]. To guard against these vulnerabilities our methodology incorporates continuous validation mechanisms that inspect each proposed addition for logical compatibility, temporal coherence and ontological correctness. Every new triple, inferred dependency or prioritisation decision is annotated with provenance metadata identifying whether it arose from extraction, LLM inference, neural prediction or an RL recommendation. This practice ensures that engineers retain the ability to audit, confirm or revise the reasoning path behind each suggestion. In balancing neural creativity with symbolic rigour, and innovation with caution, the knowledge extension pipeline becomes both expansive and trustworthy, capable of supporting meaningful engineering decisions without surrendering to the opacity of purely neural reasoning.
+
+        \begin{figure}[h]
+            \centering
+            \includegraphics[width=1\linewidth]{Photos/Thesis UML Diagram.png}
+            \caption{Knowledge Extension UML Diagram}
+            \label{fig:uml}
+        \end{figure}
+
+        \newpage
+        \paragraph{}
+        The decision to adopt a multi-agent methodology orchestrated through the Model Context Protocol arises from the convergence of insights found across the literature, which repeatedly emphasises that no single computational paradigm is sufficient when dealing with the complex and interwoven structure of regulatory knowledge, especially within engineering contexts that sit between fixed legal constraints and evolving project realities [5, 13, 14, 21]. The earlier knowledge extraction work gave us a stable and semantically disciplined graph, yet the literature showed with steady insistence that deeper reasoning, contextual prioritisation, and relational inference emerge only when neural intuition, symbolic grounding, and behavioural decision models coexist within a coordinated framework [11, 12, 24, 25]. This encouraged the adoption of LLM-supported inference, since studies demonstrate that language models capture paraphrased intention, implicit dependencies, and subtle hierarchical meaning that rigid extraction techniques cannot fully discern [13, 5]. At the same time, the work on neural link prediction revealed that embeddings are adept at detecting latent structural affinities in engineering and manufacturing graphs, allowing the system to uncover connections that mirror real-world behaviours but may not be explicitly stated in the source documents [16, 18, 19]. Reinforcement learning, in turn, was selected because the literature shows that prioritisation, classification, and design relevance are most faithfully learned when an agent observes consequences across sequential decision paths, developing a form of behavioural discernment that aligns closely with engineering judgement [18, 19, 23, 25]. Therefore, the final methodology blends these techniques not as isolated tools but as complementary intellectual companions, each expanding a different horizon of understanding while remaining grounded within the stable ontology provided by the extracted knowledge graph.
+
+        \paragraph{}
+        This ensemble of agents was chosen because together they address the very limitations the literature warns against, bringing a coherence and analytical richness that no single model could achieve in isolation. LLM inference gives the system a gentle sensitivity to linguistic and conceptual nuance, yet it is kept within safe interpretative bounds by the anchoring presence of the ontology, which protects it from drifting into speculative hallucinations [16, 25]. Neural link prediction contributes a quiet but powerful structural awareness by revealing deep relational geometry within the graph, yet it is moderated through filtering layers that prevent oversimplification and ensure alignment with the ADR logic and Sunswift’s engineering architecture [18, 19]. Reinforcement learning adds the capacity to prioritise essential and recommended requirements through lived interaction with the graph and feedback signals, which allows classification to emerge as a subtle and adaptive behaviour rather than a brittle label derived solely from text [23, 25]. The Model Context Protocol then unites these diverse analytical styles into a single, ordered workflow, ensuring that each agent receives the precise context it needs, that each extension remains traceable to its provenance, and that the knowledge graph evolves with both creativity and discipline. In this way, the methodology not only reflects the lessons gleaned from the literature review but also transforms them into a practical solution that responds to the project’s needs with clarity, depth, and an evolving intelligence that grows alongside the Sunswift design environment.
+
+    \newpage
+    \section{Systems of Systems}
+
+        \begin{figure}[h]
+            \centering
+            \includegraphics[width=1\linewidth]{Photos/Systems of Sytems.png}
+            \caption{Systems of Systems}
+            \label{fig:sos}
+        \end{figure}
+    
+        \paragraph{}
+        The strength of our methodology lies in the quiet but profound synergy between knowledge extraction and knowledge extension, for neither process alone is sufficient to illuminate the full complexity of Sunswift’s regulatory landscape, yet together they form a complete analytical arc in which clarity, structure and inference are woven into a single coherent system. Extraction brings discipline and fidelity by grounding the knowledge graph in the literal substance of the ADRs, engineering documents and organisational artefacts, while extension brings vitality and interpretative depth by revealing what is implied rather than stated, what is dependent rather than isolated, and what is contextually relevant rather than uniformly applied. The value of this union becomes especially visible when viewed alongside the workflow represented in Figure shown above, where the two halves of the pipeline form a continuous movement from raw, heterogeneous sources to a refined, deeply contextual recommendation system that can support engineers as they navigate the intricate dependencies of vehicle design.
+
+        \paragraph{}
+        The technical marriage between extraction and extension begins with the establishment of a semantically disciplined knowledge graph, a structure that is meticulously assembled through ontology-guided parsing, entity normalisation and cross-source alignment so that the graph becomes a faithful, queryable representation of Sunswift’s regulatory obligations and design environment. This extracted graph ensures that every requirement is rooted in verifiable provenance and that all relationships, whether hierarchical, conditional or dependency based, are grounded in observable source material. Once this structured backbone exists, the extension pipeline can operate with precision, because each LLM-inferred relation, neural link prediction or reinforcement learning signal is anchored against a stable reference frame, which prevents hallucination from drifting into the graph and ensures that every proposed enrichment maintains semantic integrity. In this way extraction establishes the boundaries and the scaffolding, while extension begins to infuse this scaffolding with meaning, connectivity and an awareness of system-wide behaviour.
+
+        \paragraph{}
+        As the flow continues, extension enriches the extracted foundation through a carefully orchestrated sequence of analytical operations that add depth, relevance and contextual nuance in ways that traditional extraction methods cannot accomplish alone. LLM-supported inference reveals latent equivalences, uncovers hidden conditionality and articulates operational assumptions that would otherwise remain submerged within dense engineering language. Neural link prediction identifies structural affinities between components and requirements that emerge only when relational patterns are considered across multiple design cycles. Reinforcement learning, in turn, brings a behavioural intelligence that allows the system to prioritise essential and recommended requirements based on their dynamic significance to specific project contexts. All of these mechanisms operate under the coordination of the Model Context Protocol, which ensures that the agents involved remain aligned with the ontology and with one another. Through this interplay extension does not overwrite extraction but rather rests upon it, enhancing the graph with additional layers of reasoning that remain technically faithful to the original domain.
+
+        \paragraph{}
+        When these two processes are viewed as a single methodological continuum they reveal their real significance, for extraction provides the precision and stability required for regulatory trust, while extension offers the adaptability and interpretative breadth necessary for intelligent recommendation. The system achieves optimum performance because the technical rigour of extraction safeguards the semantic purity of the knowledge graph, while the analytical richness of extension allows the graph to evolve into a living model that can interpret, advise and adapt. Engineers are therefore able to explore not only what the rules state but also how the rules interact, how they propagate across subsystems and how design decisions reverberate throughout the regulatory landscape. The final system becomes valuable precisely because it brings together the certainty of structured knowledge and the fluid reasoning of advanced models, ensuring that every recommendation arises from both grounded data and informed inference, and thus supports Sunswift’s design processes with a degree of clarity, depth and responsiveness that neither component could provide in isolation.
+
+    \newpage
+    \section{Implementation Strategy}
+
+        \paragraph{}
+        Our implementation strategy unfolds across the thesis sequence in a manner that mirrors the gradual maturation of the system itself, beginning with the conceptual clarity established in Thesis A, flowing into the architectural construction in Thesis B, and culminating in the evaluation and refinement activities of Thesis C. The first stage focuses on grounding the project in a profound understanding of the regulatory, technical and methodological landscape, allowing us to examine the viability of alternative approaches with both critical rigour and imaginative breadth. Through this work we explore the strengths and limitations of ontology design, knowledge graph construction, retrieval augmented inference, neural link prediction, reinforcement learning and model orchestration, and gradually distil these findings into an integrated methodological vision. This phase serves as the intellectual scaffolding upon which the later system will be built, ensuring that every technical choice emerges from a well examined theoretical basis rather than isolated intuition.
+
+        \paragraph{}
+        Once this theoretical foundation has been laid with care, Thesis B transitions the work into the realm of tangible engineering practice, focusing on the construction and orchestration of the knowledge graph ecosystem. This stage involves building the ontology, establishing the data ingestion pipelines, constructing the graph within neo4j, and implementing the multi agent architecture supported through the Model Context Protocol. Here the conceptual models developed in Thesis A crystallise into concrete system modules, with the LLM inference agent, neural link prediction agent and reinforcement learning coordinator each implemented as distinct yet collaborating components. This period also introduces the machinery for consistency checking, provenance tracking, interface scripts and end to end experimentation within controlled project contexts. The work is supported by iterative testing cycles, validation against sample requirements and continuous refinement of the interfaces and agents to ensure interpretability, coherence and system level harmony.
+
+        \paragraph{}
+        In Thesis C the project shifts into a mode of reflective synthesis, taking the constructed framework and subjecting it to a structured programme of evaluation, validation and empirical analysis. This stage examines how well the system performs in realistic regulatory and engineering scenarios, how accurately it recommends essential and contextual requirements, how effectively the reinforcement learning agent adapts to feedback and how reliably the MCP orchestrator manages inter agent communication. We also assess the stability, computational performance and semantic quality of the extended knowledge graph, drawing upon test sets, synthetic scenarios, Sunswift design artefacts and expert review. Through a combination of quantitative metrics, qualitative assessment and comparative studies we refine the system until its behaviour reflects the reliability, clarity and analytical depth required of a compliance aware engineering tool. Thesis C therefore completes the cycle begun in Thesis A, allowing the project to move from conceptual exploration to technical creation and finally to measured validation.
+
+    \newpage
+    \section{Project Planning \& Gantt Chart}
+
+        \subsection{COMP4592 — Thesis B}
+
+            \subsubsection{Knowledge Extraction}
+                \begin{figure}[h]
+                    \centering
+                    \includegraphics[width=1\linewidth]{Photos/Thesis B Planning - Part 1.png}
+                    \caption{Knowledge Extraction Plan - Thesis B}
+                    \label{fig:Knowledge Extraction Plan - Thesis B}
+                \end{figure}
+
+            \newpage
+            \subsubsection{Knowledge Extension}
+                \begin{figure}[h]
+                    \centering
+                    \includegraphics[width=1\linewidth]{Photos/Thesis B Planning - Part 2.png}
+                    \caption{Knowledge Extension Plan - Thesis B}
+                    \label{fig:Knowledge Extraction Plan - Thesis C}
+                \end{figure}
+
+        \newpage
+        \subsection{COMP4593 — Thesis C}
+            
+            \subsubsection{Knowledge Extraction}
+                \begin{figure}[h]
+                    \centering
+                    \includegraphics[width=1\linewidth]{Photos/Thesis C Planning - Part 1.png}
+                    \caption{Knowledge Extraction Plan - Thesis C}
+                    \label{fig:Knowledge Extraction Plan - Thesis B}
+                \end{figure}
+
+            \subsubsection{Knowledge Extension}
+
+                \begin{figure}[h]
+                    \centering
+                    \includegraphics[width=1\linewidth]{Photos/Thesis C Planning - Part 2.png}
+                    \caption{Knowledge Extension Plan - Thesis C}
+                    \label{fig:Knowledge Extension Plan - Thesis C}
+                \end{figure}
+
+        \newpage
+        \section{Gantt Chart}
+
+            \subsection{COMP4592 — Thesis B}
+                    \begin{figure}[h]
+                        \centering
+                        \includegraphics[width=1\linewidth]{Photos/Thesis B Gantt Chart.png}
+                        \caption{Thesis B Gantt Chart}
+                        \label{fig:thesisb}
+                    \end{figure}
+
+            \newpage
+            \subsection{COMP4593 — Thesis C}
+                    \begin{figure}[h]
+                        \centering
+                        \includegraphics[width=1\linewidth]{Photos/Thesis C Gantt Chart.png}
+                        \caption{Thesis C Gantt Chart}
+                        \label{fig:thesisc}
+                    \end{figure}
+        
+        \paragraph{}
+        In guiding the transition from conceptual exploration to technical realisation, the implementation strategy draws heavily upon the architectural and analytical insights illustrated across Figures 1 to 5, for these diagrams collectively map the progressive maturation of the system from its earliest structural foundations to its most advanced agentic behaviours. Figure 1, which depicts the multi layer reasoning architecture, offers a visual anchor for the epistemic stability required during the initial construction of the ontology and the ingestion pipelines, since it reminds us that every design choice in Thesis B is shaped by the need to maintain coherent alignment between the knowledge structures in the lower layers and the interpretative operations that will eventually be performed within the upper reasoning pathways. Figure 2, which portrays the structured planning workflow, becomes especially relevant during the assembly of the graph ecosystem and the design of the pipeline orchestration, because its representation of branching pathways and hierarchical decision flows captures the texture of the dependencies that the system must respect when translating the conceptual models of Thesis A into implementable modules that interact cleanly and predictably with one another. Figure 3, which introduces the multi agent memory ecosystem, also becomes a guiding reference during this phase, as it highlights the need for persistent state tracking, curated historical context and smooth agentic communication, all of which inform the construction of the provenance tracking layer and the development of interfaces that allow the system to evolve gracefully as new knowledge is added.
+
+        \newpage
+        \paragraph{}
+        As construction gives way to evaluation, the remaining diagrams begin to exert their influence more distinctly, since they offer concrete visual representations of the dynamics that must be tested, validated and refined in Thesis C. Figure 4, which depicts the structured planning landscape, reinforces the importance of verifying that the system can navigate multi stage reasoning sequences without drifting from the ontology or losing sight of lifecycle dependencies, an expectation that guides the design of scenario based experiments and stress tests that examine the coherence of planning behaviours across extended chains of inference. Figure 5, which illustrates the hybrid knowledge graph and neural architecture, becomes the central reference for evaluating the system’s ability to balance symbolic precision with learned generalisation, and its depiction of the dual layered neuro symbolic flow shapes the testing procedures that assess for alignment, drift, representational collapse and stability under changing project conditions. Together these figures form an interconnected set of visual companions that mirror the methodological spine of the project, and their presence within the implementation strategy offers both a roadmap and a set of evaluative touchstones that ensure every stage of construction and refinement remains anchored in the conceptual clarity established at the outset of the thesis.
+
+        \newpage
+        \section{Project Dependent Work} 
+        
+        \paragraph{} As Manan will be working on the knowledge extraction, he has gone ahead and completed certifications in neo4j. This professional certification included the the following courses:
+        
+        \begin{itemize}
+            \item neo4j Fundamentals
+            \item Cypher Fundamentals
+            \item Graph Data Modelling Fundamentals
+            \item Importing Data Fundamentals
+            \item Intermediate Cypher Queries
+            \item Using neo4j With Python
+        \end{itemize}
+
+        \begin{figure}[h]
+            \centering
+            \includegraphics[width=1\linewidth]{Photos/neo4j Certification.png}
+            \caption{neo4j Certification}
+            \label{fig:neo4j Certification}
+        \end{figure}

@@ -1,0 +1,911 @@
+<?xml version="1.0"?>
+<rdf:RDF xmlns="http://www.sunswift.com/ontology/sr8-thesis#"
+     xml:base="http://www.sunswift.com/ontology/sr8-thesis"
+     xmlns:owl="http://www.w3.org/2002/07/owl#"
+     xmlns:rdf="http://www.w3.org/1999/02/22-rdf-syntax-ns#"
+     xmlns:xml="http://www.w3.org/XML/1998/namespace"
+     xmlns:xsd="http://www.w3.org/2001/XMLSchema#"
+     xmlns:rdfs="http://www.w3.org/2000/01/rdf-schema#"
+     xmlns:dcterms="http://purl.org/dc/terms/">
+    <owl:Ontology rdf:about="http://www.sunswift.com/ontology/sr8-thesis">
+        <dcterms:title>SR8 Ontology-Driven Knowledge Graph Framework</dcterms:title>
+        <dcterms:description>A comprehensive ontology for the Sunswift Racing SR8 systems engineering project, integrating regulatory compliance, knowledge extraction, and AI-assisted reasoning</dcterms:description>
+        <dcterms:creator>Manan Rathi</dcterms:creator>
+        <dcterms:creator>Ilina Sharma</dcterms:creator>
+        <dcterms:created>2026-02-26</dcterms:created>
+        <owl:versionInfo>1.0</owl:versionInfo>
+    </owl:Ontology>
+    
+    
+    <!-- =============================================== -->
+    <!-- TOP-LEVEL CLASSES                               -->
+    <!-- =============================================== -->
+    
+    <!-- Core Domain Classes -->
+    <owl:Class rdf:about="#Organization">
+        <rdfs:label>Organization</rdfs:label>
+        <rdfs:comment>Entities involved in the SR8 project</rdfs:comment>
+    </owl:Class>
+    
+    <owl:Class rdf:about="#Artifact">
+        <rdfs:label>Artifact</rdfs:label>
+        <rdfs:comment>Engineering artifacts, documents, and knowledge items</rdfs:comment>
+    </owl:Class>
+    
+    <owl:Class rdf:about="#Process">
+        <rdfs:label>Process</rdfs:label>
+        <rdfs:comment>Methodological processes and workflows</rdfs:comment>
+    </owl:Class>
+    
+    <owl:Class rdf:about="#Technology">
+        <rdfs:label>Technology</rdfs:label>
+        <rdfs:comment>Technical tools, frameworks, and systems used</rdfs:comment>
+    </owl:Class>
+    
+    <owl:Class rdf:about="#Concept">
+        <rdfs:label>Concept</rdfs:label>
+        <rdfs:comment>Theoretical and methodological concepts</rdfs:comment>
+    </owl:Class>
+    
+    <owl:Class rdf:about="#Agent">
+        <rdfs:label>Agent</rdfs:label>
+        <rdfs:comment>Computational agents in the multi-agent system</rdfs:comment>
+    </owl:Class>
+    
+    
+    <!-- =============================================== -->
+    <!-- ORGANIZATION HIERARCHY                          -->
+    <!-- =============================================== -->
+    
+    <owl:Class rdf:about="#SunswiftRacing">
+        <rdfs:subClassOf rdf:resource="#Organization"/>
+        <rdfs:label>Sunswift Racing</rdfs:label>
+        <rdfs:comment>Student engineering organization focused on solar-electric vehicles</rdfs:comment>
+    </owl:Class>
+    
+    <owl:Class rdf:about="#Department">
+        <rdfs:subClassOf rdf:resource="#Organization"/>
+        <rdfs:label>Department</rdfs:label>
+        <rdfs:comment>Technical or operational department within Sunswift</rdfs:comment>
+    </owl:Class>
+    
+    <owl:Class rdf:about="#TechnicalDepartment">
+        <rdfs:subClassOf rdf:resource="#Department"/>
+        <rdfs:label>Technical Department</rdfs:label>
+    </owl:Class>
+    
+    <owl:Class rdf:about="#OperationalDepartment">
+        <rdfs:subClassOf rdf:resource="#Department"/>
+        <rdfs:label>Operational Department</rdfs:label>
+    </owl:Class>
+    
+    <owl:Class rdf:about="#IndustryPartner">
+        <rdfs:subClassOf rdf:resource="#Organization"/>
+        <rdfs:label>Industry Partner</rdfs:label>
+    </owl:Class>
+    
+    <owl:Class rdf:about="#AcademicPartner">
+        <rdfs:subClassOf rdf:resource="#Organization"/>
+        <rdfs:label>Academic Partner</rdfs:label>
+    </owl:Class>
+    
+    
+    <!-- =============================================== -->
+    <!-- ARTIFACT HIERARCHY                              -->
+    <!-- =============================================== -->
+    
+    <owl:Class rdf:about="#Vehicle">
+        <rdfs:subClassOf rdf:resource="#Artifact"/>
+        <rdfs:label>Vehicle</rdfs:label>
+    </owl:Class>
+    
+    <owl:Class rdf:about="#SR8">
+        <rdfs:subClassOf rdf:resource="#Vehicle"/>
+        <rdfs:label>Sunswift 8 (SR8)</rdfs:label>
+        <rdfs:comment>World's first road-legal, student-built, tri-brid electric vehicle</rdfs:comment>
+    </owl:Class>
+    
+    <owl:Class rdf:about="#Document">
+        <rdfs:subClassOf rdf:resource="#Artifact"/>
+        <rdfs:label>Document</rdfs:label>
+    </owl:Class>
+    
+    <owl:Class rdf:about="#RegulatoryDocument">
+        <rdfs:subClassOf rdf:resource="#Document"/>
+        <rdfs:label>Regulatory Document</rdfs:label>
+    </owl:Class>
+    
+    <owl:Class rdf:about="#AustralianDesignRule">
+        <rdfs:subClassOf rdf:resource="#RegulatoryDocument"/>
+        <rdfs:label>Australian Design Rule (ADR)</rdfs:label>
+        <rdfs:comment>National regulatory framework for vehicle compliance</rdfs:comment>
+    </owl:Class>
+    
+    <owl:Class rdf:about="#EngineeringDocument">
+        <rdfs:subClassOf rdf:resource="#Document"/>
+        <rdfs:label>Engineering Document</rdfs:label>
+    </owl:Class>
+    
+    <owl:Class rdf:about="#TechnicalSpecification">
+        <rdfs:subClassOf rdf:resource="#EngineeringDocument"/>
+        <rdfs:label>Technical Specification</rdfs:label>
+    </owl:Class>
+    
+    <owl:Class rdf:about="#TestReport">
+        <rdfs:subClassOf rdf:resource="#EngineeringDocument"/>
+        <rdfs:label>Test Report</rdfs:label>
+    </owl:Class>
+    
+    <owl:Class rdf:about="#DesignNote">
+        <rdfs:subClassOf rdf:resource="#EngineeringDocument"/>
+        <rdfs:label>Design Note</rdfs:label>
+    </owl:Class>
+    
+    <owl:Class rdf:about="#SimulationOutput">
+        <rdfs:subClassOf rdf:resource="#EngineeringDocument"/>
+        <rdfs:label>Simulation Output</rdfs:label>
+    </owl:Class>
+    
+    <owl:Class rdf:about="#EngineeringDrawing">
+        <rdfs:subClassOf rdf:resource="#EngineeringDocument"/>
+        <rdfs:label>Engineering Drawing</rdfs:label>
+    </owl:Class>
+    
+    <owl:Class rdf:about="#Requirement">
+        <rdfs:subClassOf rdf:resource="#Artifact"/>
+        <rdfs:label>Requirement</rdfs:label>
+    </owl:Class>
+    
+    <owl:Class rdf:about="#EssentialRequirement">
+        <rdfs:subClassOf rdf:resource="#Requirement"/>
+        <rdfs:label>Essential Requirement</rdfs:label>
+        <rdfs:comment>Non-negotiable requirement imposing strict constraints</rdfs:comment>
+    </owl:Class>
+    
+    <owl:Class rdf:about="#RecommendedRequirement">
+        <rdfs:subClassOf rdf:resource="#Requirement"/>
+        <rdfs:label>Recommended Requirement</rdfs:label>
+        <rdfs:comment>Contextual requirement with interpretative flexibility</rdfs:comment>
+    </owl:Class>
+    
+    <owl:Class rdf:about="#InternalRequirement">
+        <rdfs:subClassOf rdf:resource="#Requirement"/>
+        <rdfs:label>Internal Requirement</rdfs:label>
+    </owl:Class>
+    
+    <owl:Class rdf:about="#ExternalRequirement">
+        <rdfs:subClassOf rdf:resource="#Requirement"/>
+        <rdfs:label>External Requirement</rdfs:label>
+    </owl:Class>
+    
+    <owl:Class rdf:about="#Component">
+        <rdfs:subClassOf rdf:resource="#Artifact"/>
+        <rdfs:label>Component</rdfs:label>
+    </owl:Class>
+    
+    <owl:Class rdf:about="#Subsystem">
+        <rdfs:subClassOf rdf:resource="#Artifact"/>
+        <rdfs:label>Subsystem</rdfs:label>
+    </owl:Class>
+    
+    <owl:Class rdf:about="#Interface">
+        <rdfs:subClassOf rdf:resource="#Artifact"/>
+        <rdfs:label>Interface</rdfs:label>
+        <rdfs:comment>Connection or interaction point between subsystems</rdfs:comment>
+    </owl:Class>
+    
+    <owl:Class rdf:about="#Project">
+        <rdfs:subClassOf rdf:resource="#Artifact"/>
+        <rdfs:label>Project</rdfs:label>
+    </owl:Class>
+    
+    <owl:Class rdf:about="#TestPlan">
+        <rdfs:subClassOf rdf:resource="#Artifact"/>
+        <rdfs:label>Test Plan</rdfs:label>
+    </owl:Class>
+    
+    
+    <!-- =============================================== -->
+    <!-- PROCESS HIERARCHY                               -->
+    <!-- =============================================== -->
+    
+    <owl:Class rdf:about="#KnowledgeExtraction">
+        <rdfs:subClassOf rdf:resource="#Process"/>
+        <rdfs:label>Knowledge Extraction</rdfs:label>
+        <rdfs:comment>Process of transforming raw artifacts into structured knowledge</rdfs:comment>
+    </owl:Class>
+    
+    <owl:Class rdf:about="#DataSourceIdentification">
+        <rdfs:subClassOf rdf:resource="#KnowledgeExtraction"/>
+        <rdfs:label>Data Source Identification</rdfs:label>
+    </owl:Class>
+    
+    <owl:Class rdf:about="#OntologyFormalization">
+        <rdfs:subClassOf rdf:resource="#KnowledgeExtraction"/>
+        <rdfs:label>Ontology Formalization</rdfs:label>
+    </owl:Class>
+    
+    <owl:Class rdf:about="#EntityRecognition">
+        <rdfs:subClassOf rdf:resource="#KnowledgeExtraction"/>
+        <rdfs:label>Entity Recognition</rdfs:label>
+    </owl:Class>
+    
+    <owl:Class rdf:about="#RelationExtraction">
+        <rdfs:subClassOf rdf:resource="#KnowledgeExtraction"/>
+        <rdfs:label>Relation Extraction</rdfs:label>
+    </owl:Class>
+    
+    <owl:Class rdf:about="#KnowledgeExtension">
+        <rdfs:subClassOf rdf:resource="#Process"/>
+        <rdfs:label>Knowledge Extension</rdfs:label>
+        <rdfs:comment>Process of enriching extracted knowledge through inference and reasoning</rdfs:comment>
+    </owl:Class>
+    
+    <owl:Class rdf:about="#LLMInference">
+        <rdfs:subClassOf rdf:resource="#KnowledgeExtension"/>
+        <rdfs:label>LLM-Supported Inference</rdfs:label>
+    </owl:Class>
+    
+    <owl:Class rdf:about="#LinkPrediction">
+        <rdfs:subClassOf rdf:resource="#KnowledgeExtension"/>
+        <rdfs:label>Neural Link Prediction</rdfs:label>
+    </owl:Class>
+    
+    <owl:Class rdf:about="#ReinforcementLearning">
+        <rdfs:subClassOf rdf:resource="#KnowledgeExtension"/>
+        <rdfs:label>Reinforcement Learning</rdfs:label>
+    </owl:Class>
+    
+    <owl:Class rdf:about="#KnowledgeFusion">
+        <rdfs:subClassOf rdf:resource="#Process"/>
+        <rdfs:label>Knowledge Fusion</rdfs:label>
+        <rdfs:comment>Merging and reconciling knowledge from multiple sources</rdfs:comment>
+    </owl:Class>
+    
+    <owl:Class rdf:about="#ComplianceVerification">
+        <rdfs:subClassOf rdf:resource="#Process"/>
+        <rdfs:label>Compliance Verification</rdfs:label>
+    </owl:Class>
+    
+    <owl:Class rdf:about="#RiskPropagation">
+        <rdfs:subClassOf rdf:resource="#Process"/>
+        <rdfs:label>Risk Propagation</rdfs:label>
+    </owl:Class>
+    
+    <owl:Class rdf:about="#SemanticAlignment">
+        <rdfs:subClassOf rdf:resource="#Process"/>
+        <rdfs:label>Semantic Alignment</rdfs:label>
+    </owl:Class>
+    
+    <owl:Class rdf:about="#Validation">
+        <rdfs:subClassOf rdf:resource="#Process"/>
+        <rdfs:label>Validation</rdfs:label>
+    </owl:Class>
+    
+    
+    <!-- =============================================== -->
+    <!-- TECHNOLOGY HIERARCHY                            -->
+    <!-- =============================================== -->
+    
+    <owl:Class rdf:about="#KnowledgeGraph">
+        <rdfs:subClassOf rdf:resource="#Technology"/>
+        <rdfs:label>Knowledge Graph</rdfs:label>
+        <rdfs:comment>Graph-based semantic knowledge representation</rdfs:comment>
+    </owl:Class>
+    
+    <owl:Class rdf:about="#GraphDatabase">
+        <rdfs:subClassOf rdf:resource="#Technology"/>
+        <rdfs:label>Graph Database</rdfs:label>
+    </owl:Class>
+    
+    <owl:Class rdf:about="#Neo4j">
+        <rdfs:subClassOf rdf:resource="#GraphDatabase"/>
+        <rdfs:label>Neo4j</rdfs:label>
+        <rdfs:comment>Native graph database for modeling connected data</rdfs:comment>
+    </owl:Class>
+    
+    <owl:Class rdf:about="#OntologyTool">
+        <rdfs:subClassOf rdf:resource="#Technology"/>
+        <rdfs:label>Ontology Tool</rdfs:label>
+    </owl:Class>
+    
+    <owl:Class rdf:about="#Protege">
+        <rdfs:subClassOf rdf:resource="#OntologyTool"/>
+        <rdfs:label>Protégé</rdfs:label>
+    </owl:Class>
+    
+    <owl:Class rdf:about="#NLPTool">
+        <rdfs:subClassOf rdf:resource="#Technology"/>
+        <rdfs:label>NLP Tool</rdfs:label>
+    </owl:Class>
+    
+    <owl:Class rdf:about="#SpaCy">
+        <rdfs:subClassOf rdf:resource="#NLPTool"/>
+        <rdfs:label>SpaCy</rdfs:label>
+    </owl:Class>
+    
+    <owl:Class rdf:about="#NLTK">
+        <rdfs:subClassOf rdf:resource="#NLPTool"/>
+        <rdfs:label>NLTK</rdfs:label>
+    </owl:Class>
+    
+    <owl:Class rdf:about="#LanguageModel">
+        <rdfs:subClassOf rdf:resource="#Technology"/>
+        <rdfs:label>Language Model</rdfs:label>
+    </owl:Class>
+    
+    <owl:Class rdf:about="#LargeLanguageModel">
+        <rdfs:subClassOf rdf:resource="#LanguageModel"/>
+        <rdfs:label>Large Language Model (LLM)</rdfs:label>
+    </owl:Class>
+    
+    <owl:Class rdf:about="#TransformerModel">
+        <rdfs:subClassOf rdf:resource="#LanguageModel"/>
+        <rdfs:label>Transformer Model</rdfs:label>
+    </owl:Class>
+    
+    <owl:Class rdf:about="#BERT">
+        <rdfs:subClassOf rdf:resource="#TransformerModel"/>
+        <rdfs:label>BERT</rdfs:label>
+    </owl:Class>
+    
+    <owl:Class rdf:about="#RoBERTa">
+        <rdfs:subClassOf rdf:resource="#TransformerModel"/>
+        <rdfs:label>RoBERTa</rdfs:label>
+    </owl:Class>
+    
+    <owl:Class rdf:about="#QueryLanguage">
+        <rdfs:subClassOf rdf:resource="#Technology"/>
+        <rdfs:label>Query Language</rdfs:label>
+    </owl:Class>
+    
+    <owl:Class rdf:about="#Cypher">
+        <rdfs:subClassOf rdf:resource="#QueryLanguage"/>
+        <rdfs:label>Cypher</rdfs:label>
+        <rdfs:comment>Neo4j's declarative graph query language</rdfs:comment>
+    </owl:Class>
+    
+    <owl:Class rdf:about="#SemanticWeb">
+        <rdfs:subClassOf rdf:resource="#Technology"/>
+        <rdfs:label>Semantic Web Technology</rdfs:label>
+    </owl:Class>
+    
+    <owl:Class rdf:about="#OWL">
+        <rdfs:subClassOf rdf:resource="#SemanticWeb"/>
+        <rdfs:label>OWL (Web Ontology Language)</rdfs:label>
+    </owl:Class>
+    
+    <owl:Class rdf:about="#RDF">
+        <rdfs:subClassOf rdf:resource="#SemanticWeb"/>
+        <rdfs:label>RDF (Resource Description Framework)</rdfs:label>
+    </owl:Class>
+    
+    <owl:Class rdf:about="#DocumentParser">
+        <rdfs:subClassOf rdf:resource="#Technology"/>
+        <rdfs:label>Document Parser</rdfs:label>
+    </owl:Class>
+    
+    <owl:Class rdf:about="#PDFMiner">
+        <rdfs:subClassOf rdf:resource="#DocumentParser"/>
+        <rdfs:label>PDFMiner</rdfs:label>
+    </owl:Class>
+    
+    <owl:Class rdf:about="#Tesseract">
+        <rdfs:subClassOf rdf:resource="#Technology"/>
+        <rdfs:label>Tesseract OCR</rdfs:label>
+    </owl:Class>
+    
+    
+    <!-- =============================================== -->
+    <!-- CONCEPT HIERARCHY                               -->
+    <!-- =============================================== -->
+    
+    <owl:Class rdf:about="#Ontology">
+        <rdfs:subClassOf rdf:resource="#Concept"/>
+        <rdfs:label>Ontology</rdfs:label>
+        <rdfs:comment>Formal representation of knowledge with concepts and relationships</rdfs:comment>
+    </owl:Class>
+    
+    <owl:Class rdf:about="#SemanticModel">
+        <rdfs:subClassOf rdf:resource="#Concept"/>
+        <rdfs:label>Semantic Model</rdfs:label>
+    </owl:Class>
+    
+    <owl:Class rdf:about="#SystemsEngineering">
+        <rdfs:subClassOf rdf:resource="#Concept"/>
+        <rdfs:label>Systems Engineering</rdfs:label>
+    </owl:Class>
+    
+    <owl:Class rdf:about="#ModelBasedEngineering">
+        <rdfs:subClassOf rdf:resource="#SystemsEngineering"/>
+        <rdfs:label>Model-Based Engineering</rdfs:label>
+    </owl:Class>
+    
+    <owl:Class rdf:about="#SystemsOfSystems">
+        <rdfs:subClassOf rdf:resource="#SystemsEngineering"/>
+        <rdfs:label>Systems of Systems</rdfs:label>
+    </owl:Class>
+    
+    <owl:Class rdf:about="#RegulatoryCompliance">
+        <rdfs:subClassOf rdf:resource="#Concept"/>
+        <rdfs:label>Regulatory Compliance</rdfs:label>
+    </owl:Class>
+    
+    <owl:Class rdf:about="#Traceability">
+        <rdfs:subClassOf rdf:resource="#Concept"/>
+        <rdfs:label>Traceability</rdfs:label>
+    </owl:Class>
+    
+    <owl:Class rdf:about="#Explainability">
+        <rdfs:subClassOf rdf:resource="#Concept"/>
+        <rdfs:label>Explainability</rdfs:label>
+    </owl:Class>
+    
+    <owl:Class rdf:about="#Provenance">
+        <rdfs:subClassOf rdf:resource="#Concept"/>
+        <rdfs:label>Provenance</rdfs:label>
+        <rdfs:comment>Origin and history of knowledge artifacts</rdfs:comment>
+    </owl:Class>
+    
+    <owl:Class rdf:about="#NeuroSymbolicAI">
+        <rdfs:subClassOf rdf:resource="#Concept"/>
+        <rdfs:label>Neuro-Symbolic AI</rdfs:label>
+        <rdfs:comment>Integration of neural and symbolic reasoning</rdfs:comment>
+    </owl:Class>
+    
+    <owl:Class rdf:about="#RetrievalAugmentedGeneration">
+        <rdfs:subClassOf rdf:resource="#Concept"/>
+        <rdfs:label>Retrieval-Augmented Generation (RAG)</rdfs:label>
+    </owl:Class>
+    
+    <owl:Class rdf:about="#GraphEmbedding">
+        <rdfs:subClassOf rdf:resource="#Concept"/>
+        <rdfs:label>Graph Embedding</rdfs:label>
+    </owl:Class>
+    
+    <owl:Class rdf:about="#MultiAgentSystem">
+        <rdfs:subClassOf rdf:resource="#Concept"/>
+        <rdfs:label>Multi-Agent System</rdfs:label>
+    </owl:Class>
+    
+    <owl:Class rdf:about="#ModelContextProtocol">
+        <rdfs:subClassOf rdf:resource="#Concept"/>
+        <rdfs:label>Model Context Protocol (MCP)</rdfs:label>
+        <rdfs:comment>Orchestration layer for coordinating multi-agent workflows</rdfs:comment>
+    </owl:Class>
+    
+    
+    <!-- =============================================== -->
+    <!-- AGENT HIERARCHY                                 -->
+    <!-- =============================================== -->
+    
+    <owl:Class rdf:about="#LLMAgent">
+        <rdfs:subClassOf rdf:resource="#Agent"/>
+        <rdfs:label>LLM Inference Agent</rdfs:label>
+        <rdfs:comment>Agent for linguistic nuance and contextual reasoning</rdfs:comment>
+    </owl:Class>
+    
+    <owl:Class rdf:about="#LinkPredictionAgent">
+        <rdfs:subClassOf rdf:resource="#Agent"/>
+        <rdfs:label>Link Prediction Agent</rdfs:label>
+        <rdfs:comment>Agent for detecting latent relational patterns</rdfs:comment>
+    </owl:Class>
+    
+    <owl:Class rdf:about="#RLAgent">
+        <rdfs:subClassOf rdf:resource="#Agent"/>
+        <rdfs:label>Reinforcement Learning Agent</rdfs:label>
+        <rdfs:comment>Agent for requirement prioritization and classification</rdfs:comment>
+    </owl:Class>
+    
+    <owl:Class rdf:about="#ValidationAgent">
+        <rdfs:subClassOf rdf:resource="#Agent"/>
+        <rdfs:label>Validation Agent</rdfs:label>
+        <rdfs:comment>Agent for consistency checking and ontology alignment</rdfs:comment>
+    </owl:Class>
+    
+    
+    <!-- =============================================== -->
+    <!-- OBJECT PROPERTIES (RELATIONSHIPS)               -->
+    <!-- =============================================== -->
+    
+    <!-- Organizational Relationships -->
+    <owl:ObjectProperty rdf:about="#hasDepartment">
+        <rdfs:domain rdf:resource="#SunswiftRacing"/>
+        <rdfs:range rdf:resource="#Department"/>
+        <rdfs:label>has department</rdfs:label>
+    </owl:ObjectProperty>
+    
+    <owl:ObjectProperty rdf:about="#collaboratesWith">
+        <rdfs:domain rdf:resource="#Organization"/>
+        <rdfs:range rdf:resource="#Organization"/>
+        <rdfs:label>collaborates with</rdfs:label>
+    </owl:ObjectProperty>
+    
+    <!-- Artifact Relationships -->
+    <owl:ObjectProperty rdf:about="#hasRequirement">
+        <rdfs:domain rdf:resource="#Artifact"/>
+        <rdfs:range rdf:resource="#Requirement"/>
+        <rdfs:label>has requirement</rdfs:label>
+    </owl:ObjectProperty>
+    
+    <owl:ObjectProperty rdf:about="#hasComponent">
+        <rdfs:domain rdf:resource="#Subsystem"/>
+        <rdfs:range rdf:resource="#Component"/>
+        <rdfs:label>has component</rdfs:label>
+    </owl:ObjectProperty>
+    
+    <owl:ObjectProperty rdf:about="#hasSubsystem">
+        <rdfs:domain rdf:resource="#Vehicle"/>
+        <rdfs:range rdf:resource="#Subsystem"/>
+        <rdfs:label>has subsystem</rdfs:label>
+    </owl:ObjectProperty>
+    
+    <owl:ObjectProperty rdf:about="#interfacesWith">
+        <rdfs:domain rdf:resource="#Subsystem"/>
+        <rdfs:range rdf:resource="#Subsystem"/>
+        <rdfs:label>interfaces with</rdfs:label>
+        <rdf:type rdf:resource="http://www.w3.org/2002/07/owl#SymmetricProperty"/>
+    </owl:ObjectProperty>
+    
+    <owl:ObjectProperty rdf:about="#dependsOn">
+        <rdfs:domain rdf:resource="#Requirement"/>
+        <rdfs:range rdf:resource="#Requirement"/>
+        <rdfs:label>depends on</rdfs:label>
+    </owl:ObjectProperty>
+    
+    <owl:ObjectProperty rdf:about="#appliesTo">
+        <rdfs:domain rdf:resource="#Requirement"/>
+        <rdfs:range rdf:resource="#Artifact"/>
+        <rdfs:label>applies to</rdfs:label>
+    </owl:ObjectProperty>
+    
+    <owl:ObjectProperty rdf:about="#derivedFrom">
+        <rdfs:domain rdf:resource="#Requirement"/>
+        <rdfs:range rdf:resource="#AustralianDesignRule"/>
+        <rdfs:label>derived from</rdfs:label>
+    </owl:ObjectProperty>
+    
+    <owl:ObjectProperty rdf:about="#documentedIn">
+        <rdfs:domain rdf:resource="#Artifact"/>
+        <rdfs:range rdf:resource="#Document"/>
+        <rdfs:label>documented in</rdfs:label>
+    </owl:ObjectProperty>
+    
+    <!-- Process Relationships -->
+    <owl:ObjectProperty rdf:about="#hasInput">
+        <rdfs:domain rdf:resource="#Process"/>
+        <rdfs:range rdf:resource="#Artifact"/>
+        <rdfs:label>has input</rdfs:label>
+    </owl:ObjectProperty>
+    
+    <owl:ObjectProperty rdf:about="#hasOutput">
+        <rdfs:domain rdf:resource="#Process"/>
+        <rdfs:range rdf:resource="#Artifact"/>
+        <rdfs:label>has output</rdfs:label>
+    </owl:ObjectProperty>
+    
+    <owl:ObjectProperty rdf:about="#uses">
+        <rdfs:domain rdf:resource="#Process"/>
+        <rdfs:range rdf:resource="#Technology"/>
+        <rdfs:label>uses</rdfs:label>
+    </owl:ObjectProperty>
+    
+    <owl:ObjectProperty rdf:about="#employs">
+        <rdfs:domain rdf:resource="#Process"/>
+        <rdfs:range rdf:resource="#Agent"/>
+        <rdfs:label>employs</rdfs:label>
+    </owl:ObjectProperty>
+    
+    <owl:ObjectProperty rdf:about="#precedesProcess">
+        <rdfs:domain rdf:resource="#Process"/>
+        <rdfs:range rdf:resource="#Process"/>
+        <rdfs:label>precedes process</rdfs:label>
+    </owl:ObjectProperty>
+    
+    <owl:ObjectProperty rdf:about="#extractsKnowledgeFrom">
+        <rdfs:subPropertyOf rdf:resource="#hasInput"/>
+        <rdfs:domain rdf:resource="#KnowledgeExtraction"/>
+        <rdfs:range rdf:resource="#Document"/>
+        <rdfs:label>extracts knowledge from</rdfs:label>
+    </owl:ObjectProperty>
+    
+    <owl:ObjectProperty rdf:about="#extendsKnowledgeGraph">
+        <rdfs:subPropertyOf rdf:resource="#hasInput"/>
+        <rdfs:domain rdf:resource="#KnowledgeExtension"/>
+        <rdfs:range rdf:resource="#KnowledgeGraph"/>
+        <rdfs:label>extends knowledge graph</rdfs:label>
+    </owl:ObjectProperty>
+    
+    <!-- Technology Relationships -->
+    <owl:ObjectProperty rdf:about="#representsKnowledge">
+        <rdfs:domain rdf:resource="#KnowledgeGraph"/>
+        <rdfs:range rdf:resource="#Artifact"/>
+        <rdfs:label>represents knowledge</rdfs:label>
+    </owl:ObjectProperty>
+    
+    <owl:ObjectProperty rdf:about="#storedIn">
+        <rdfs:domain rdf:resource="#KnowledgeGraph"/>
+        <rdfs:range rdf:resource="#GraphDatabase"/>
+        <rdfs:label>stored in</rdfs:label>
+    </owl:ObjectProperty>
+    
+    <owl:ObjectProperty rdf:about="#queriedBy">
+        <rdfs:domain rdf:resource="#GraphDatabase"/>
+        <rdfs:range rdf:resource="#QueryLanguage"/>
+        <rdfs:label>queried by</rdfs:label>
+    </owl:ObjectProperty>
+    
+    <owl:ObjectProperty rdf:about="#basedOnOntology">
+        <rdfs:domain rdf:resource="#KnowledgeGraph"/>
+        <rdfs:range rdf:resource="#Ontology"/>
+        <rdfs:label>based on ontology</rdfs:label>
+    </owl:ObjectProperty>
+    
+    <!-- Agent Relationships -->
+    <owl:ObjectProperty rdf:about="#orchestratedBy">
+        <rdfs:domain rdf:resource="#Agent"/>
+        <rdfs:range rdf:resource="#ModelContextProtocol"/>
+        <rdfs:label>orchestrated by</rdfs:label>
+    </owl:ObjectProperty>
+    
+    <owl:ObjectProperty rdf:about="#collaboratesWithAgent">
+        <rdfs:domain rdf:resource="#Agent"/>
+        <rdfs:range rdf:resource="#Agent"/>
+        <rdfs:label>collaborates with agent</rdfs:label>
+        <rdf:type rdf:resource="http://www.w3.org/2002/07/owl#SymmetricProperty"/>
+    </owl:ObjectProperty>
+    
+    <owl:ObjectProperty rdf:about="#inferredBy">
+        <rdfs:domain rdf:resource="#Requirement"/>
+        <rdfs:range rdf:resource="#Agent"/>
+        <rdfs:label>inferred by</rdfs:label>
+    </owl:ObjectProperty>
+    
+    <!-- Compliance and Risk -->
+    <owl:ObjectProperty rdf:about="#compliesWith">
+        <rdfs:domain rdf:resource="#Artifact"/>
+        <rdfs:range rdf:resource="#AustralianDesignRule"/>
+        <rdfs:label>complies with</rdfs:label>
+    </owl:ObjectProperty>
+    
+    <owl:ObjectProperty rdf:about="#hasRisk">
+        <rdfs:domain rdf:resource="#Artifact"/>
+        <rdfs:range rdf:resource="#Requirement"/>
+        <rdfs:label>has risk</rdfs:label>
+    </owl:ObjectProperty>
+    
+    <owl:ObjectProperty rdf:about="#propagatesRiskTo">
+        <rdfs:domain rdf:resource="#Subsystem"/>
+        <rdfs:range rdf:resource="#Subsystem"/>
+        <rdfs:label>propagates risk to</rdfs:label>
+    </owl:ObjectProperty>
+    
+    
+    <!-- =============================================== -->
+    <!-- DATA PROPERTIES (ATTRIBUTES)                    -->
+    <!-- =============================================== -->
+    
+    <owl:DatatypeProperty rdf:about="#hasID">
+        <rdfs:domain rdf:resource="#Artifact"/>
+        <rdfs:range rdf:resource="http://www.w3.org/2001/XMLSchema#string"/>
+        <rdfs:label>has ID</rdfs:label>
+    </owl:DatatypeProperty>
+    
+    <owl:DatatypeProperty rdf:about="#hasName">
+        <rdfs:range rdf:resource="http://www.w3.org/2001/XMLSchema#string"/>
+        <rdfs:label>has name</rdfs:label>
+    </owl:DatatypeProperty>
+    
+    <owl:DatatypeProperty rdf:about="#hasDescription">
+        <rdfs:range rdf:resource="http://www.w3.org/2001/XMLSchema#string"/>
+        <rdfs:label>has description</rdfs:label>
+    </owl:DatatypeProperty>
+    
+    <owl:DatatypeProperty rdf:about="#hasConfidenceScore">
+        <rdfs:domain rdf:resource="#Requirement"/>
+        <rdfs:range rdf:resource="http://www.w3.org/2001/XMLSchema#float"/>
+        <rdfs:label>has confidence score</rdfs:label>
+    </owl:DatatypeProperty>
+    
+    <owl:DatatypeProperty rdf:about="#hasSource">
+        <rdfs:domain rdf:resource="#Artifact"/>
+        <rdfs:range rdf:resource="http://www.w3.org/2001/XMLSchema#string"/>
+        <rdfs:label>has source</rdfs:label>
+    </owl:DatatypeProperty>
+    
+    <owl:DatatypeProperty rdf:about="#hasProvenance">
+        <rdfs:domain rdf:resource="#Artifact"/>
+        <rdfs:range rdf:resource="http://www.w3.org/2001/XMLSchema#string"/>
+        <rdfs:label>has provenance</rdfs:label>
+    </owl:DatatypeProperty>
+    
+    <owl:DatatypeProperty rdf:about="#isEssential">
+        <rdfs:domain rdf:resource="#Requirement"/>
+        <rdfs:range rdf:resource="http://www.w3.org/2001/XMLSchema#boolean"/>
+        <rdfs:label>is essential</rdfs:label>
+    </owl:DatatypeProperty>
+    
+    <owl:DatatypeProperty rdf:about="#hasRiskLevel">
+        <rdfs:domain rdf:resource="#Requirement"/>
+        <rdfs:range rdf:resource="http://www.w3.org/2001/XMLSchema#string"/>
+        <rdfs:label>has risk level</rdfs:label>
+    </owl:DatatypeProperty>
+    
+    <owl:DatatypeProperty rdf:about="#hasTimestamp">
+        <rdfs:range rdf:resource="http://www.w3.org/2001/XMLSchema#dateTime"/>
+        <rdfs:label>has timestamp</rdfs:label>
+    </owl:DatatypeProperty>
+    
+    <owl:DatatypeProperty rdf:about="#numberOfMembers">
+        <rdfs:domain rdf:resource="#Organization"/>
+        <rdfs:range rdf:resource="http://www.w3.org/2001/XMLSchema#integer"/>
+        <rdfs:label>number of members</rdfs:label>
+    </owl:DatatypeProperty>
+    
+    <owl:DatatypeProperty rdf:about="#numberOfDepartments">
+        <rdfs:domain rdf:resource="#Organization"/>
+        <rdfs:range rdf:resource="http://www.w3.org/2001/XMLSchema#integer"/>
+        <rdfs:label>number of departments</rdfs:label>
+    </owl:DatatypeProperty>
+    
+    <owl:DatatypeProperty rdf:about="#numberOfProjects">
+        <rdfs:domain rdf:resource="#Organization"/>
+        <rdfs:range rdf:resource="http://www.w3.org/2001/XMLSchema#integer"/>
+        <rdfs:label>number of projects</rdfs:label>
+    </owl:DatatypeProperty>
+    
+    <owl:DatatypeProperty rdf:about="#numberOfComponents">
+        <rdfs:domain rdf:resource="#Vehicle"/>
+        <rdfs:range rdf:resource="http://www.w3.org/2001/XMLSchema#integer"/>
+        <rdfs:label>number of components</rdfs:label>
+    </owl:DatatypeProperty>
+    
+    <owl:DatatypeProperty rdf:about="#numberOfRequirements">
+        <rdfs:range rdf:resource="http://www.w3.org/2001/XMLSchema#integer"/>
+        <rdfs:label>number of requirements</rdfs:label>
+    </owl:DatatypeProperty>
+    
+    <owl:DatatypeProperty rdf:about="#isRoadLegal">
+        <rdfs:domain rdf:resource="#Vehicle"/>
+        <rdfs:range rdf:resource="http://www.w3.org/2001/XMLSchema#boolean"/>
+        <rdfs:label>is road legal</rdfs:label>
+    </owl:DatatypeProperty>
+    
+    <owl:DatatypeProperty rdf:about="#isConditional">
+        <rdfs:domain rdf:resource="#Requirement"/>
+        <rdfs:range rdf:resource="http://www.w3.org/2001/XMLSchema#boolean"/>
+        <rdfs:label>is conditional</rdfs:label>
+    </owl:DatatypeProperty>
+    
+    <owl:DatatypeProperty rdf:about="#hasExemption">
+        <rdfs:domain rdf:resource="#AustralianDesignRule"/>
+        <rdfs:range rdf:resource="http://www.w3.org/2001/XMLSchema#string"/>
+        <rdfs:label>has exemption</rdfs:label>
+    </owl:DatatypeProperty>
+    
+    
+    <!-- =============================================== -->
+    <!-- INDIVIDUALS (INSTANCES)                         -->
+    <!-- =============================================== -->
+    
+    <!-- Organization Instances -->
+    <owl:NamedIndividual rdf:about="#SunswiftRacingOrg">
+        <rdf:type rdf:resource="#SunswiftRacing"/>
+        <hasName>Sunswift Racing</hasName>
+        <numberOfMembers rdf:datatype="http://www.w3.org/2001/XMLSchema#integer">80</numberOfMembers>
+        <numberOfDepartments rdf:datatype="http://www.w3.org/2001/XMLSchema#integer">16</numberOfDepartments>
+        <numberOfProjects rdf:datatype="http://www.w3.org/2001/XMLSchema#integer">189</numberOfProjects>
+    </owl:NamedIndividual>
+    
+    <owl:NamedIndividual rdf:about="#Neo4jPartner">
+        <rdf:type rdf:resource="#IndustryPartner"/>
+        <hasName>Neo4j</hasName>
+        <hasDescription>Leading native graph database management system</hasDescription>
+    </owl:NamedIndividual>
+    
+    <!-- Vehicle Instance -->
+    <owl:NamedIndividual rdf:about="#SR8Vehicle">
+        <rdf:type rdf:resource="#SR8"/>
+        <hasName>Sunswift 8</hasName>
+        <hasDescription>World's first road-legal, student-built, tri-brid electric vehicle</hasDescription>
+        <isRoadLegal rdf:datatype="http://www.w3.org/2001/XMLSchema#boolean">true</isRoadLegal>
+        <numberOfComponents rdf:datatype="http://www.w3.org/2001/XMLSchema#integer">100000</numberOfComponents>
+    </owl:NamedIndividual>
+    
+    <!-- Process Instances -->
+    <owl:NamedIndividual rdf:about="#ExtractionProcess">
+        <rdf:type rdf:resource="#KnowledgeExtraction"/>
+        <hasName>Knowledge Extraction Pipeline</hasName>
+        <hasDescription>Transforms fragmented regulatory and engineering artifacts into structured knowledge graph</hasDescription>
+    </owl:NamedIndividual>
+    
+    <owl:NamedIndividual rdf:about="#ExtensionProcess">
+        <rdf:type rdf:resource="#KnowledgeExtension"/>
+        <hasName>Knowledge Extension Pipeline</hasName>
+        <hasDescription>Enriches extracted knowledge through multi-agent inference and reasoning</hasDescription>
+    </owl:NamedIndividual>
+    
+    <!-- Technology Instances -->
+    <owl:NamedIndividual rdf:about="#SR8KnowledgeGraph">
+        <rdf:type rdf:resource="#KnowledgeGraph"/>
+        <hasName>SR8 Regulatory Knowledge Graph</hasName>
+        <hasDescription>Ontology-driven knowledge graph for SR8 systems engineering</hasDescription>
+        <storedIn rdf:resource="#Neo4jDatabase"/>
+    </owl:NamedIndividual>
+    
+    <owl:NamedIndividual rdf:about="#Neo4jDatabase">
+        <rdf:type rdf:resource="#Neo4j"/>
+        <hasName>Neo4j Graph Database</hasName>
+        <queriedBy rdf:resource="#CypherQuery"/>
+    </owl:NamedIndividual>
+    
+    <owl:NamedIndividual rdf:about="#CypherQuery">
+        <rdf:type rdf:resource="#Cypher"/>
+        <hasName>Cypher Query Language</hasName>
+    </owl:NamedIndividual>
+    
+    <!-- Agent Instances -->
+    <owl:NamedIndividual rdf:about="#LLMInferenceAgent">
+        <rdf:type rdf:resource="#LLMAgent"/>
+        <hasName>LLM Inference Agent</hasName>
+        <hasDescription>Detects linguistic nuance and implicit dependencies</hasDescription>
+    </owl:NamedIndividual>
+    
+    <owl:NamedIndividual rdf:about="#NeuralLinkAgent">
+        <rdf:type rdf:resource="#LinkPredictionAgent"/>
+        <hasName>Neural Link Prediction Agent</hasName>
+        <hasDescription>Perceives latent relational geometry in knowledge graph</hasDescription>
+    </owl:NamedIndividual>
+    
+    <owl:NamedIndividual rdf:about="#ReinforcementAgent">
+        <rdf:type rdf:resource="#RLAgent"/>
+        <hasName>RL Prioritization Agent</hasName>
+        <hasDescription>Cultivates prioritization instinct for requirement classification</hasDescription>
+    </owl:NamedIndividual>
+    
+    <owl:NamedIndividual rdf:about="#MCPOrchestrator">
+        <rdf:type rdf:resource="#ModelContextProtocol"/>
+        <hasName>MCP Orchestration Layer</hasName>
+        <hasDescription>Coordinates multi-agent workflow and maintains reasoning transparency</hasDescription>
+    </owl:NamedIndividual>
+    
+    
+    <!-- =============================================== -->
+    <!-- AXIOMS AND CONSTRAINTS                          -->
+    <!-- =============================================== -->
+    
+    <!-- Disjoint Classes -->
+    <rdf:Description rdf:about="#EssentialRequirement">
+        <owl:disjointWith rdf:resource="#RecommendedRequirement"/>
+    </rdf:Description>
+    
+    <rdf:Description rdf:about="#InternalRequirement">
+        <owl:disjointWith rdf:resource="#ExternalRequirement"/>
+    </rdf:Description>
+    
+    <rdf:Description rdf:about="#KnowledgeExtraction">
+        <owl:disjointWith rdf:resource="#KnowledgeExtension"/>
+    </rdf:Description>
+    
+    <!-- Inverse Properties -->
+    <owl:ObjectProperty rdf:about="#hasInput">
+        <owl:inverseOf rdf:resource="#isInputTo"/>
+    </owl:ObjectProperty>
+    
+    <owl:ObjectProperty rdf:about="#isInputTo">
+        <rdfs:domain rdf:resource="#Artifact"/>
+        <rdfs:range rdf:resource="#Process"/>
+        <rdfs:label>is input to</rdfs:label>
+    </owl:ObjectProperty>
+    
+    <!-- Transitive Properties -->
+    <rdf:Description rdf:about="#dependsOn">
+        <rdf:type rdf:resource="http://www.w3.org/2002/07/owl#TransitiveProperty"/>
+    </rdf:Description>
+    
+    <rdf:Description rdf:about="#hasComponent">
+        <rdf:type rdf:resource="http://www.w3.org/2002/07/owl#TransitiveProperty"/>
+    </rdf:Description>
+
+
+</rdf:RDF>

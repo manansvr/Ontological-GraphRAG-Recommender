@@ -1,0 +1,87 @@
+Label,ParentLabel,Description,Type,Category
+Organization,,Entities involved in the SR8 project,TopLevel,Organization
+Artifact,,Engineering artifacts documents and knowledge items,TopLevel,Artifact
+Process,,Methodological processes and workflows,TopLevel,Process
+Technology,,Technical tools frameworks and systems used,TopLevel,Technology
+Concept,,Theoretical and methodological concepts,TopLevel,Concept
+Agent,,Computational agents in the multi-agent system,TopLevel,Agent
+SunswiftRacing,Organization,Student engineering organization focused on solar-electric vehicles,Derived,Organization
+Department,Organization,Technical or operational department within Sunswift,Derived,Organization
+TechnicalDepartment,Department,,Derived,Organization
+OperationalDepartment,Department,,Derived,Organization
+IndustryPartner,Organization,,Derived,Organization
+AcademicPartner,Organization,,Derived,Organization
+Vehicle,Artifact,,Derived,Artifact
+SR8,Vehicle,World's first road-legal student-built tri-brid electric vehicle,Derived,Artifact
+Document,Artifact,,Derived,Artifact
+RegulatoryDocument,Document,,Derived,Artifact
+AustralianDesignRule,RegulatoryDocument,National regulatory framework for vehicle compliance,Derived,Artifact
+EngineeringDocument,Document,,Derived,Artifact
+TechnicalSpecification,EngineeringDocument,,Derived,Artifact
+TestReport,EngineeringDocument,,Derived,Artifact
+DesignNote,EngineeringDocument,,Derived,Artifact
+SimulationOutput,EngineeringDocument,,Derived,Artifact
+EngineeringDrawing,EngineeringDocument,,Derived,Artifact
+Requirement,Artifact,,Derived,Artifact
+EssentialRequirement,Requirement,Non-negotiable requirement imposing strict constraints,Derived,Artifact
+RecommendedRequirement,Requirement,Contextual requirement with interpretative flexibility,Derived,Artifact
+InternalRequirement,Requirement,,Derived,Artifact
+ExternalRequirement,Requirement,,Derived,Artifact
+Component,Artifact,,Derived,Artifact
+Subsystem,Artifact,,Derived,Artifact
+Interface,Artifact,Connection or interaction point between subsystems,Derived,Artifact
+Project,Artifact,,Derived,Artifact
+TestPlan,Artifact,,Derived,Artifact
+KnowledgeExtraction,Process,Process of transforming raw artifacts into structured knowledge,Derived,Process
+DataSourceIdentification,KnowledgeExtraction,,Derived,Process
+OntologyFormalization,KnowledgeExtraction,,Derived,Process
+EntityRecognition,KnowledgeExtraction,,Derived,Process
+RelationExtraction,KnowledgeExtraction,,Derived,Process
+KnowledgeExtension,Process,Process of enriching extracted knowledge through inference and reasoning,Derived,Process
+LLMInference,KnowledgeExtension,,Derived,Process
+LinkPrediction,KnowledgeExtension,,Derived,Process
+ReinforcementLearning,KnowledgeExtension,,Derived,Process
+KnowledgeFusion,Process,Merging and reconciling knowledge from multiple sources,Derived,Process
+ComplianceVerification,Process,,Derived,Process
+RiskPropagation,Process,,Derived,Process
+SemanticAlignment,Process,,Derived,Process
+Validation,Process,,Derived,Process
+KnowledgeGraph,Technology,Graph-based semantic knowledge representation,Derived,Technology
+GraphDatabase,Technology,,Derived,Technology
+Neo4j,GraphDatabase,Native graph database for modeling connected data,Derived,Technology
+OntologyTool,Technology,,Derived,Technology
+Protege,OntologyTool,,Derived,Technology
+NLPTool,Technology,,Derived,Technology
+SpaCy,NLPTool,,Derived,Technology
+NLTK,NLPTool,,Derived,Technology
+LanguageModel,Technology,,Derived,Technology
+LargeLanguageModel,LanguageModel,,Derived,Technology
+TransformerModel,LanguageModel,,Derived,Technology
+BERT,TransformerModel,,Derived,Technology
+RoBERTa,TransformerModel,,Derived,Technology
+QueryLanguage,Technology,,Derived,Technology
+Cypher,QueryLanguage,Neo4j's declarative graph query language,Derived,Technology
+SemanticWeb,Technology,,Derived,Technology
+OWL,SemanticWeb,,Derived,Technology
+RDF,SemanticWeb,,Derived,Technology
+DocumentParser,Technology,,Derived,Technology
+PDFMiner,DocumentParser,,Derived,Technology
+Tesseract,Technology,,Derived,Technology
+Ontology,Concept,Formal representation of knowledge with concepts and relationships,Derived,Concept
+SemanticModel,Concept,,Derived,Concept
+SystemsEngineering,Concept,,Derived,Concept
+ModelBasedEngineering,SystemsEngineering,,Derived,Concept
+SystemsOfSystems,SystemsEngineering,,Derived,Concept
+RegulatoryCompliance,Concept,,Derived,Concept
+Traceability,Concept,,Derived,Concept
+Explainability,Concept,,Derived,Concept
+Provenance,Concept,Origin and history of knowledge artifacts,Derived,Concept
+NeuroSymbolicAI,Concept,Integration of neural and symbolic reasoning,Derived,Concept
+RetrievalAugmentedGeneration,Concept,,Derived,Concept
+GraphEmbedding,Concept,,Derived,Concept
+MultiAgentSystem,Concept,,Derived,Concept
+ModelContextProtocol,Concept,Orchestration layer for coordinating multi-agent workflows,Derived,Concept
+LLMAgent,Agent,Agent for linguistic nuance and contextual reasoning,Derived,Agent
+LinkPredictionAgent,Agent,Agent for detecting latent relational patterns,Derived,Agent
+RLAgent,Agent,Agent for requirement prioritization and classification,Derived,Agent
+ValidationAgent,Agent,Agent for consistency checking and ontology alignment,Derived,Agent
