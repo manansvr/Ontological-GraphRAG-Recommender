@@ -8,8 +8,6 @@ This repository contains a comprehensive OWL/RDF ontology for the Sunswift Racin
 2. **Parts Management System** - Component/BOM hierarchy with full lifecycle tracking
 3. **ADR Management System** - 100 Australian Design Rules with verification tracking
 
-**→ See [THREE-SYSTEM-ALIGNMENT.md](THREE-SYSTEM-ALIGNMENT.md) for detailed system structure**
-
 **Ontology Statistics:**
 - 48 classes (node labels) including Member class
 - 36 object properties (relationships)
@@ -17,12 +15,6 @@ This repository contains a comprehensive OWL/RDF ontology for the Sunswift Racin
 - 180+ total semantic elements
 
 ## 🚀 Quick Start
-
-**→ See [COMPLETE-SYSTEM-GUIDE.md](COMPLETE-SYSTEM-GUIDE.md) for comprehensive documentation**
-
-**→ See [THREE-SYSTEM-ALIGNMENT.md](THREE-SYSTEM-ALIGNMENT.md) for system architecture**
-
-**→ See [DOCUMENTATION-INDEX.md](DOCUMENTATION-INDEX.md) for documentation roadmap**
 
 ## Accessing Neo4j Browser
 
@@ -63,8 +55,7 @@ open http://localhost:7474
 
 ### 1. Project Tracking System (189 Projects)
 - **Projects**: projectID, projectName, projectDescription
-- **DTHREE-SYSTEM-ALIGNMENT.md](THREE-SYSTEM-ALIGNMENT.md)** | **Three-system architecture** (Project Tracking, Parts, ADR Management) |
-| **[epartments** (15): Primary and Secondary assignments
+- **Departments** (15): Primary and Secondary assignments
 - **Members** (100): Project assignees/owners
 - **Relationships**: hasPrimaryDepartment, hasSecondaryDepartment, hasAssignee
 
@@ -86,7 +77,6 @@ open http://localhost:7474
 
 | Document | Description |
 |----------|-------------|
-| **[COMPLETE-SYSTEM-GUIDE.md](COMPLETE-SYSTEM-GUIDE.md)** | **Comprehensive system guide** (START HERE) |
 | [ontology-documentation.md](ontology-documentation.md) | Detailed class/property reference |
 | [ontology-quick-reference.md](ontology-quick-reference.md) | Quick reference guide |
 | [neo4j-examples.cypher](neo4j-examples.cypher) | 50+ ready-to-use queries |
@@ -154,28 +144,12 @@ RETURN n.category as Category, count(*) as Count
 ORDER BY Count DESC
 ```
 
-### 6. Find All Agent Types
-
-```cypher
-MATCH (n:SchemaLabel)
-WHERE n.category = 'Agent'
-RETURN n.name, n.description
-```
-
-### 7. View Requirements-Related Relationships
+### 5. View Requirements-Related Relationships
 
 ```cypher
 MATCH (r:SchemaRelationship)
 WHERE r.sourceLabel = 'Requirement' OR r.targetLabel = 'Requirement'
 RETURN r.name, r.sourceLabel, r.targetLabel
-```
-
-### 8. Explore Technology Stack
-
-```cypher
-MATCH (child:SchemaLabel)-[:SUBCLASS_OF*]->(parent:SchemaLabel {name: 'Technology'})
-RETURN child.name as Technology, child.description
-ORDER BY Technology
 ```
 
 ## Command Line Access
@@ -230,8 +204,6 @@ python3 import.py --uri bolt://localhost:7687 \
 ## Files in This Repository
 
 ### Documentation
-- **[COMPLETE-SYSTEM-GUIDE.md](COMPLETE-SYSTEM-GUIDE.md)** ⭐ - Comprehensive system guide (start here)
-- **[DOCUMENTATION-INDEX.md](DOCUMENTATION-INDEX.md)** - Documentation navigation roadmap
 - **[ontology-documentation.md](ontology-documentation.md)** - Complete class and property reference
 - **[ontology-quick-reference.md](ontology-quick-reference.md)** - Quick reference guide
 - **[ontology-diagrams.md](ontology-diagrams.md)** - 14 Mermaid diagrams
@@ -271,10 +243,8 @@ Reference this ontology in:
 ## Support
 
 For issues or questions about the ontology:
-1. Check [COMPLETE-SYSTEM-GUIDE.md](COMPLETE-SYSTEM-GUIDE.md) for comprehensive documentation
-2. Review [DOCUMENTATION-INDEX.md](DOCUMENTATION-INDEX.md) for navigation help
-3. See [ontology-documentation.md](ontology-documentation.md) for detailed class reference
-4. Consult [neo4j-examples.cypher](neo4j-examples.cypher) for 50+ query examples
+1. See [ontology-documentation.md](ontology-documentation.md) for detailed class reference
+2. Consult [neo4j-examples.cypher](neo4j-examples.cypher) for 50+ query examples
 
 ## License
 
@@ -292,25 +262,22 @@ Your ontology consists of three files:
 
 ---
 
-## 6 Main Pillars
+## 3 Main Hierarchies
 
 ```
-1. ORGANIZATION  → Who is involved (Sunswift, departments, partners)
-2. ARTIFACT      → What is created (vehicles, documents, requirements, components)
+1. ORGANIZATION  → Who is involved (Sunswift, departments, partners, members)
+2. ARTIFACT      → What is created (vehicles, documents, requirements, components, ADRs)
 3. PROCESS       → How work is done (extraction, extension, validation)
-4. TECHNOLOGY    → What tools are used (Neo4j, LLMs, NLP tools)
-5. CONCEPT       → Theoretical foundations (ontology, systems engineering, AI)
-6. AGENT         → Intelligent actors (LLM, link prediction, RL, validation)
 ```
 
 ---
 
-## Most Important Classes (Top 20)
+## Most Important Classes (Top 12)
 
 | Class | Description | Count/Scale |
 |-------|-------------|-------------|
 | `SR8` | The vehicle being built | 1 vehicle |
-| `AustralianDesignRule` | Regulatory framework | 113 rules |
+| `AustralianDesignRule` | Regulatory framework | 100 rules |
 | `Requirement` | Engineering requirements | 600,000+ |
 | `Component` | Vehicle parts | 100,000+ |
 | `Subsystem` | Major vehicle systems | ~10-20 |
@@ -319,17 +286,8 @@ Your ontology consists of three files:
 | `VerificationProcedure` | ADR verification procedures | Subclass of Requirement |
 | `VerificationMethod` | Verification methods | 6 types (subclass of VerificationProcedure) |
 | `Evidence` | Verification evidence | 6 types (subclass of Component) |
-| `Department` | Organizational units | 16 |
-| `KnowledgeGraph` | Semantic knowledge store | Neo4j-based |
-| `Neo4j` | Graph database technology | Tool |
-| `LLMAgent` | Language model reasoning | Multi-agent |
-| `LinkPredictionAgent` | Pattern detection | Multi-agent |
-| `RLAgent` | Prioritization learning | Multi-agent |
-| `ModelContextProtocol` | Agent orchestration | Framework |
-| `Ontology` | Formal knowledge model | This! |
-| `RegulatoryCompliance` | ADR adherence | Concept |
-| `Traceability` | Requirement tracking | Concept |
-| `NeuroSymbolicAI` | Neural + symbolic fusion | Concept |
+| `Department` | Organizational units | 15 |
+| `Member` | Team members and project assignees | 100 |
 
 ---
 
@@ -355,8 +313,6 @@ Your ontology consists of three files:
 | `extractsKnowledgeFrom` | Process → Document | Extract from ADR PDF |
 | `extendsKnowledgeGraph` | Process → KG | Extension enriches KG |
 | `storedIn` | KG → Database | KG stored in Neo4j |
-| `orchestratedBy` | Agent → MCP | LLM agent orchestrated by MCP |
-| `inferredBy` | Requirement → Agent | Req inferred by LLM agent |
 
 ---
 
@@ -400,16 +356,10 @@ KNOWLEDGE GRAPH (Neo4j)
     • Semantic relationships
     • Ontology-aligned schema
     ↓
-KNOWLEDGE EXTENSION
-    • LLM Agent → Linguistic inference
-    • Link Prediction Agent → Pattern detection
-    • RL Agent → Prioritization
-    • Validation Agent → Consistency checking
-    ↓
-MCP ORCHESTRATION
-    • Agent coordination
-    • Context management
-    • Transparency & traceability
+DATA VALIDATION
+    • Consistency checking
+    • Relationship verification
+    • Completeness validation
     ↓
 ENGINEERING SUPPORT
     • Compliance verification
@@ -446,18 +396,7 @@ RETURN affected.hasName, affected.hasRiskLevel
 ORDER BY affected.hasRiskLevel DESC
 ```
 
-### Scenario 3: Identifying Agent Inferences
-
-**Question**: Which requirements were inferred by AI agents vs. extracted directly?
-
-**Cypher Query**:
-```cypher
-MATCH (req:Requirement)-[:inferredBy]->(agent:Agent)
-RETURN agent.hasName, COUNT(req) AS inferredCount
-ORDER BY inferredCount DESC
-```
-
-### Scenario 4: Finding Cross-Department Interfaces
+### Scenario 3: Finding Cross-Department Interfaces
 
 **Question**: What interfaces exist between Powertrain and Electronics departments?
 
@@ -587,8 +526,7 @@ brew install --cask protege
 3. **Context** - Domain model formalization
 4. **Literature Review** - Knowledge representation techniques
 5. **Methodology Section 5.1** - Ontology formalization process
-6. **Methodology Section 5.2** - Multi-agent integration via ontology
-7. **Methodology Section 5.3** - Systems of systems modeling
+6. **Methodology Section 5.2** - Systems of systems modeling
 8. **Appendix** - Include ontology diagrams
 
 ### Thesis Deliverables
@@ -596,7 +534,7 @@ brew install --cask protege
 - [ ] Reference ontology file in appendix
 - [ ] Include class hierarchy diagram in methodology
 - [ ] Show example Cypher queries for validation
-- [ ] Demonstrate agent-ontology alignment
+- [ ] Demonstrate ontology-based validation
 - [ ] Provide traceability examples using ontology
 - [ ] Document provenance through ontology metadata
 
@@ -610,8 +548,7 @@ brew install --cask protege
 - [ ] All 16 departments linked to SunswiftRacing?
 - [ ] All 189 projects instantiated?
 - [ ] All 5,000+ interfaces modeled?
-- [ ] All 4 agents (LLM, LP, RL, Validation) defined?
-- [ ] MCP orchestration relationships established?
+- [ ] All verification methods and evidence types defined?
 - [ ] Provenance tracking implemented?
 - [ ] Confidence scores for inferred knowledge?
 
@@ -631,8 +568,8 @@ brew install --cask protege
 ### Issue 4: Too many relationships (performance)
 **Solution**: Create indexes on high-cardinality properties
 
-### Issue 5: Agent inferences conflict with ontology
-**Solution**: Strengthen validation agent rules, add consistency constraints
+### Issue 5: Validation conflicts with ontology
+**Solution**: Strengthen validation rules, add consistency constraints
 
 ---
 
@@ -1067,20 +1004,7 @@ Artifact
 ### Process Relations
 - `hasInput` / `isInputTo`: Process ↔ Artifact (inverse)
 - `hasOutput`: Process → Artifact
-- `uses`: Process → Technology
-- `employs`: Process → Agent
 - `precedesProcess`: Process → Process
-
-### Technology Relations
-- `representsKnowledge`: KnowledgeGraph → Artifact
-- `storedIn`: KnowledgeGraph → GraphDatabase
-- `queriedBy`: GraphDatabase → QueryLanguage
-- `basedOnOntology`: KnowledgeGraph → Ontology
-
-### Agent Relations
-- `orchestratedBy`: Agent → ModelContextProtocol
-- `collaboratesWithAgent`: Agent ↔ Agent (symmetric)
-- `inferredBy`: Requirement → Agent
 
 ### Compliance & Risk
 - `compliesWith`: Artifact → AustralianDesignRule
@@ -1169,7 +1093,7 @@ Artifact
 - `InternalRequirement` ⊥ `ExternalRequirement`
 
 ### Property Characteristics
-- **Symmetric**: `interfacesWith`, `collaboratesWithAgent`, `collaboratesWith`
+- **Symmetric**: `interfacesWith`, `collaboratesWith`
 - **Transitive**: `dependsOn`, `hasComponent`
 - **Inverse**: `hasInput` ↔ `isInputTo`
 
@@ -1218,25 +1142,12 @@ WHERE NOT (c)-[:compliesWith]->(:AustralianDesignRule)
 RETURN c.hasName, r.hasDescription
 ```
 
-### Example 4: Tracing Agent Inferences
-```cypher
-MATCH (req:Requirement)-[:inferredBy]->(agent:Agent)
-WHERE req.hasConfidenceScore < 0.8
-RETURN req, agent, req.hasProvenance
-```
-
 ---
 
 ## Integration with Thesis Structure
 
 ### Manan's Focus (Knowledge Extraction)
 - **Technologies**: `OWL`, `RDF`, `Protégé`, `Neo4j`, `Cypher`
-
-### Ilina's Focus (Knowledge Extension)
-- **Agents**: `LLMAgent`, `LinkPredictionAgent`, `RLAgent`
-- **Concepts**: `ModelContextProtocol`, `NeuroSymbolicAI`, `MultiAgentSystem`
-
-### Shared Components
 - **Core Domain**: `AustralianDesignRule`, `SR8`, `Requirement`, `Subsystem`
 - **Collaboration**: `SunswiftRacing`, `Neo4jPartner`, `AcademicPartner`
 
@@ -1276,8 +1187,7 @@ RETURN req, agent, req.hasProvenance
 - **Introduction**: Knowledge representation and semantic models
 - **Context**: SR8 project metrics (80 members, 600K requirements)
 - **Methodology - Section 5.1**: Knowledge Extraction processes
-- **Methodology - Section 5.2**: Knowledge Extension and multi-agent system
-- **Methodology - Section 5.3**: Systems of Systems integration
+- **Methodology - Section 5.2**: Systems of Systems integration
 - **Collaboration**: Industry (Neo4j) and academic partnerships
 
 ---
@@ -1294,17 +1204,11 @@ graph TD
     Root --> Org[Organization]
     Root --> Art[Artifact]
     Root --> Proc[Process]
-    Root --> Tech[Technology]
-    Root --> Conc[Concept]
-    Root --> Agnt[Agent]
     
     style Root fill:#e1f5ff
     style Org fill:#ffe1e1
     style Art fill:#e1ffe1
     style Proc fill:#fff0e1
-    style Tech fill:#f0e1ff
-    style Conc fill:#ffe1f0
-    style Agnt fill:#fff9e1
 ```
 
 ## 2. Organization Hierarchy
@@ -1387,107 +1291,7 @@ graph TD
     style Rec fill:#66ff66
 ```
 
-## 4. Technology Stack
-
-```mermaid
-graph TD
-    Tech[Technology]
-    
-    Tech --> KG[KnowledgeGraph]
-    Tech --> GDB[GraphDatabase]
-    Tech --> Ont[OntologyTool]
-    Tech --> NLP[NLPTool]
-    Tech --> LM[LanguageModel]
-    Tech --> QL[QueryLanguage]
-    Tech --> SW[SemanticWeb]
-    Tech --> DP[DocumentParser]
-    Tech --> OCR[Tesseract OCR]
-    
-    KG --> SR8KG[SR8 Regulatory<br/>Knowledge Graph]
-    GDB --> Neo[Neo4j]
-    Ont --> Prot[Protégé]
-    
-    NLP --> Sp[SpaCy]
-    NLP --> NL[NLTK]
-    
-    LM --> LLM[LargeLanguageModel]
-    LM --> Trans[TransformerModel]
-    
-    Trans --> B[BERT]
-    Trans --> R[RoBERTa]
-    
-    QL --> Cyp[Cypher]
-    
-    SW --> OWL[OWL]
-    SW --> RDF[RDF]
-    
-    DP --> PDF[PDFMiner]
-    
-    style Neo fill:#99ff99
-    style SR8KG fill:#9999ff
-    style LLM fill:#ff99ff
-```
-
-## 5. Concept Map
-
-```mermaid
-graph TD
-    Conc[Concept]
-    
-    Conc --> Ont[Ontology]
-    Conc --> Sem[SemanticModel]
-    Conc --> SE[SystemsEngineering]
-    Conc --> RC[RegulatoryCompliance]
-    Conc --> Trace[Traceability]
-    Conc --> Expl[Explainability]
-    Conc --> Prov[Provenance]
-    Conc --> Neuro[NeuroSymbolicAI]
-    Conc --> RAG[RetrievalAugmented<br/>Generation]
-    Conc --> GE[GraphEmbedding]
-    Conc --> MAS[MultiAgentSystem]
-    Conc --> MCP[ModelContext<br/>Protocol]
-    
-    SE --> MBE[ModelBasedEngineering]
-    SE --> SoS[SystemsOfSystems]
-    
-    style MCP fill:#ffff99
-    style Neuro fill:#ff99cc
-    style RAG fill:#99ffcc
-```
-
-## 6. Multi-Agent System
-
-```mermaid
-graph TD
-    Agent[Agent]
-    
-    Agent --> LLMA[LLMAgent]
-    Agent --> LPA[LinkPredictionAgent]
-    Agent --> RLA[RLAgent]
-    Agent --> ValA[ValidationAgent]
-    
-    LLMA --> |orchestratedBy| MCP[Model Context<br/>Protocol]
-    LPA --> |orchestratedBy| MCP
-    RLA --> |orchestratedBy| MCP
-    ValA --> |orchestratedBy| MCP
-    
-    LLMA -.collaboratesWithAgent.- LPA
-    LPA -.collaboratesWithAgent.- RLA
-    RLA -.collaboratesWithAgent.- ValA
-    
-    LLMA[LLMAgent<br/>Linguistic nuance<br/>Implicit dependencies]
-    LPA[LinkPredictionAgent<br/>Latent relational<br/>patterns]
-    RLA[RLAgent<br/>Requirement<br/>prioritization]
-    ValA[ValidationAgent<br/>Consistency<br/>checking]
-    
-    style MCP fill:#ffcc00
-    style LLMA fill:#cc99ff
-    style LPA fill:#99ccff
-    style RLA fill:#99ffcc
-    style ValA fill:#ffcc99
-```
-
-## 7. Key Relationships (Object Properties)
+## 4. Key Relationships (Object Properties)
 
 ```mermaid
 graph LR
@@ -1504,20 +1308,14 @@ graph LR
     
     A4[Process] -->|hasInput| B4[Artifact]
     A4 -->|hasOutput| B4
-    A4 -->|uses| C4[Technology]
-    A4 -->|employs| D4[Agent]
-    
-    A5[KnowledgeGraph] -->|storedIn| B5[GraphDatabase]
-    A5 -->|basedOnOntology| C5[Ontology]
     
     style A1 fill:#ffe1e1
     style A2 fill:#e1ffe1
     style A3 fill:#e1e1ff
     style A4 fill:#fff0e1
-    style A5 fill:#f0e1ff
 ```
 
-## 8. Three-System Architecture
+## 5. Three-System Architecture
 
 ```mermaid
 graph TB
@@ -1577,7 +1375,7 @@ graph TB
     style A fill:#99ffcc
 ```
 
-## 9. Complete Workflow Architecture
+## 6. Complete Workflow Architecture
 
 ```mermaid
 graph TB
@@ -1602,19 +1400,6 @@ graph TB
         Schema[Ontology Schema<br/>Protégé]
     end
     
-    subgraph Extension[Extension Pipeline]
-        LLM[LLM Agent<br/>Linguistic Inference]
-        LP[Link Prediction Agent<br/>Neural Embeddings]
-        RL[RL Agent<br/>Prioritization]
-        Val[Validation Agent<br/>Consistency Check]
-    end
-    
-    subgraph Orchestration[MCP Orchestration Layer]
-        MCP[Model Context Protocol<br/>Agent Coordination]
-        Context[Context Management]
-        Memory[State Retention]
-    end
-    
     subgraph Output[Engineering Support]
         Comply[Compliance<br/>Verification]
         RiskP[Risk<br/>Propagation]
@@ -1636,17 +1421,6 @@ graph TB
     Onto --> KG
     Onto --> Schema
     
-    KG --> LLM
-    KG --> LP
-    KG --> RL
-    
-    LLM --> MCP
-    LP --> MCP
-    RL --> MCP
-    
-    MCP --> Val
-    Val --> KG
-    
     KG --> Comply
     KG --> RiskP
     KG --> Rec
@@ -1655,12 +1429,10 @@ graph TB
     style Sources fill:#ffe1e1
     style Extraction fill:#e1ffe1
     style Storage fill:#e1e1ff
-    style Extension fill:#fff0e1
-    style Orchestration fill:#ffff99
     style Output fill:#e1f5ff
 ```
 
-## 10. Requirement Classification System
+## 7. Requirement Classification System
 
 ```mermaid
 graph TD
@@ -1684,7 +1456,6 @@ graph TD
     Rel --> Dep[dependsOn<br/>Transitive]
     Rel --> App[appliesTo<br/>Components]
     Rel --> Der[derivedFrom<br/>ADR rules]
-    Rel --> Inf[inferredBy<br/>Agent source]
     
     style Ess fill:#ff6666
     style Rec fill:#66ff66
@@ -1692,7 +1463,7 @@ graph TD
     style Ext fill:#ff9966
 ```
 
-## 11. SR8 Systems Architecture
+## 8. SR8 Systems Architecture
 
 ```mermaid
 graph TD
@@ -1733,7 +1504,7 @@ graph TD
     style ADR fill:#ff9999
 ```
 
-## 12. Data Properties Overview
+## 9. Data Properties Overview
 
 ```mermaid
 graph LR
@@ -1772,7 +1543,7 @@ graph LR
     style Metrics fill:#e1ffe1
 ```
 
-## 13. Ontology Usage in Neo4j
+## 10. Ontology Usage in Neo4j
 
 ```cypher
 // Example: Create SR8 vehicle node
@@ -1796,15 +1567,9 @@ CREATE (req:EssentialRequirement {
 })
 CREATE (req)-[:derivedFrom]->(adr)
 CREATE (req)-[:appliesTo]->(sr8)
-
-// Example: Multi-agent inference
-CREATE (llm:LLMAgent {hasName: "LLM Inference Agent"})
-CREATE (mcp:ModelContextProtocol {hasName: "MCP Orchestrator"})
-CREATE (llm)-[:orchestratedBy]->(mcp)
-CREATE (req)-[:inferredBy]->(llm)
 ```
 
-## 14. Semantic Integration
+## 11. Semantic Integration
 
 ```mermaid
 graph TB
@@ -2510,7 +2275,7 @@ This directory contains CSV files that map the SR8 ontology to Neo4j node labels
 1. **neo4j-node-labels.csv** (5.1K)
    - 86 node labels mapped from OWL classes
    - Includes parent-child hierarchy
-   - Categories: Organization, Artifact, Process, Technology, Concept, Agent
+   - Categories: Organization, Artifact, Process
    
 2. **neo4j-relationships.csv** (1.6K)
    - 28 relationship types from OWL object properties
@@ -2534,25 +2299,19 @@ This directory contains CSV files that map the SR8 ontology to Neo4j node labels
    - Imports all CSV data
    - Runs verification queries
 
-### Node Labels Breakdown (86 total)
+### Node Labels Breakdown (48 total)
 
 **By Category:**
-- **Artifact:** 27 labels (31%) - Vehicles, documents, requirements
-- **Technology:** 21 labels (24%) - Neo4j, LLMs, NLP tools
-- **Concept:** 14 labels (16%) - Systems engineering, compliance
-- **Process:** 13 labels (15%) - Extraction, extension, validation
-- **Organization:** 7 labels (8%) - Sunswift, departments, partners
-- **Agent:** 4 labels (5%) - LLM, link prediction, RL, validation
+- **Artifact:** 27 labels (56%) - Vehicles, documents, requirements, components
+- **Process:** 13 labels (27%) - Extraction, validation workflows
+- **Organization:** 8 labels (17%) - Sunswift, departments, partners
 
-**Top-Level Categories (6):**
+**Top-Level Categories (3):**
 1. **Organization** - Entities involved in SR8 project
 2. **Artifact** - Engineering artifacts and knowledge items
 3. **Process** - Methodological processes and workflows
-4. **Technology** - Technical tools and frameworks
-5. **Concept** - Theoretical and methodological concepts
-6. **Agent** - Computational agents in multi-agent system
 
-### Relationships Overview (28 total)
+### Relationships Overview (32 total)
 
 **Structural Relationships:**
 - `hasSubsystem` (Vehicle → Subsystem)
@@ -2568,13 +2327,6 @@ This directory contains CSV files that map the SR8 ontology to Neo4j node labels
 **Process Relationships:**
 - `hasInput` (Process → Artifact)
 - `hasOutput` (Process → Artifact)
-- `uses` (Process → Technology)
-- `employs` (Process → Agent)
-
-**Agent Relationships:**
-- `orchestratedBy` (Agent → ModelContextProtocol)
-- `collaboratesWithAgent` (Agent ↔ Agent) [symmetric]
-- `inferredBy` (Requirement → Agent)
 
 **Compliance Relationships:**
 - `compliesWith` (Artifact → AustralianDesignRule)
@@ -2652,14 +2404,13 @@ These CSV files enable:
 - ✓ Traceability analysis
 - ✓ Risk propagation modeling
 - ✓ Compliance verification
-- ✓ Multi-agent workflow representation
 
 ---
 
 ## CSV Files Created
 
-1. **neo4j-node-labels.csv** - Maps all 86 ontology classes to Neo4j node labels
-2. **neo4j-relationships.csv** - Maps all 29 object properties to Neo4j relationships
+1. **neo4j-node-labels.csv** - Maps all 48 ontology classes to Neo4j node labels
+2. **neo4j-relationships.csv** - Maps all 32 object properties to Neo4j relationships
 3. **neo4j-node-properties.csv** - Maps all 17 data properties to Neo4j node properties
 
 ---
@@ -2675,21 +2426,19 @@ Label,ParentLabel,Description,Type,Category
 - **Label**: The Neo4j node label name (corresponds to owl:Class)
 - **ParentLabel**: The parent class (from rdfs:subClassOf)
 - **Description**: Human-readable description (from rdfs:comment)
-- **Type**: Either "TopLevel" (6 main categories) or "Derived" (subclasses)
-- **Category**: The root category hierarchy (Organization, Artifact, Process, Technology, Concept, Agent)
+- **Type**: Either "TopLevel" (3 main categories) or "Derived" (subclasses)
+- **Category**: The root category hierarchy (Organization, Artifact, Process)
 
 ### Statistics
 - **Total Labels**: 86
-- **Top-Level Labels**: 6
-- **Derived Labels**: 80
+- **Top-Level Labels48
+- **Top-Level Labels**: 3
+- **Derived Labels**: 45
 
 ### Top-Level Categories
-1. **Organization** (11 labels) - Entities involved in SR8 project
+1. **Organization** (8 labels) - Entities involved in SR8 project
 2. **Artifact** (27 labels) - Documents, requirements, components, vehicles
-3. **Process** (13 labels) - Extraction, extension, validation workflows
-4. **Technology** (21 labels) - Tools, databases, NLP, LLMs
-5. **Concept** (14 labels) - Theoretical foundations, compliance, traceability
-6. **Agent** (4 labels) - Multi-agent AI system components
+3. **Process** (13 labels) - Extraction, validation workflows
 
 ---
 
@@ -2708,17 +2457,17 @@ RelationshipType,SourceLabel,TargetLabel,Description,Properties
 - **Properties**: Special properties (symmetric, transitive, inverseOf, subPropertyOf)
 
 ### Statistics
-- **Total Relationships**: 28
-- **Symmetric**: 3 (interfacesWith, collaboratesWith, collaboratesWithAgent)
-- **Transitive**: 2 (dependsOn, hasComponent)
+- **Total Relationships**: 32
+- **Symmetric**: 2 (interfacesWith, collaboratesWith)
+- **Transitive**: 3 (dependsOn, hasComponent, partOfComponent)
 
 ### Key Relationship Types
 1. **Organizational**: hasDepartment, collaboratesWith
 2. **Structural**: hasSubsystem, hasComponent, interfacesWith
 3. **Requirements**: hasRequirement, dependsOn, appliesTo, derivedFrom
-4. **Process**: hasInput, hasOutput, uses, employs
-5. **Agent**: orchestratedBy, collaboratesWithAgent, inferredBy
-6. **Compliance**: compliesWith, hasRisk, propagatesRiskTo
+4. **Process**: hasInput, hasOutput, precedesProcess
+5. **Compliance**: compliesWith, hasRisk, propagatesRiskTo
+6. **Verification**: hasVerificationProcedure, hasVerificationMethod, verifiedBy
 
 ---
 
@@ -2902,7 +2651,7 @@ SHOW CONSTRAINTS;
 ### Query 1: Find all subclasses of a category
 ```cypher
 MATCH (n:SchemaLabel)
-WHERE n.category = 'Agent'
+WHERE n.category = 'Artifact'
 RETURN n.name, n.description;
 ```
 
