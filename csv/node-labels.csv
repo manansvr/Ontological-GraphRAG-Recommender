@@ -47,3 +47,8 @@ TestEvidence,Evidence,Evidence Obtained Through Physical Or Functional Testing,D
 AnalysisEvidence,Evidence,Evidence Obtained Through Simulations And Calculations,Derived,Artifact
 ADRAnnexEvidence,Evidence,Evidence Obtained Through ADR Annex Procedures,Derived,Artifact
 ADRTestingProcedureEvidence,Evidence,Evidence Obtained Through Official ADR Testing Procedures,Derived,Artifact
+Clause,Artifact,Specific Clause Reference Within An ADR,Derived,Artifact
+RequirementName,Artifact,Name Or Title Of A Requirement,Derived,Artifact
+RequirementDescription,Artifact,Detailed Description Of A Requirement,Derived,Artifact
+ProjectID,Artifact,Unique Identifier For A Project,Derived,Artifact
+ProjectName,Artifact,Name Of A Project,Derived,Artifact

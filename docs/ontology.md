@@ -9,10 +9,10 @@ This repository contains a comprehensive OWL/RDF ontology for the Sunswift Racin
 3. **ADR Management System** - 100 Australian Design Rules with verification tracking
 
 **Ontology Statistics:**
-- 48 classes (node labels) including Member class
-- 36 object properties (relationships)
+- 53 classes (node labels) including Member class
+- 41 object properties (relationships)
 - 51 data properties (attributes)
-- 180+ total semantic elements
+- 185+ total semantic elements
 
 ## 🚀 Quick Start
 
@@ -67,7 +67,7 @@ open http://localhost:7474
 - **Supply Chain**: suppliedBy → IndustryPartner
 
 ### 3. ADR Management System (100 ADRs)
-- **ADR Attributes**: hasClause, requirementName, requirementDescription
+- **ADR Related Nodes**: Clause, RequirementName, RequirementDescription, ProjectID, ProjectName
 - **Verification Methods**: Inspection, Demonstration, Test, Analysis (Simulations/Calculations)
 - **Testing Procedures**: testingProcedurePerRequirement
 - **Project/Department Links**: assignedToProject, hasRelevantProject, hasRelevantDepartment
@@ -288,10 +288,15 @@ Your ontology consists of three files:
 | `Evidence` | Verification evidence | 6 types (subclass of Component) |
 | `Department` | Organizational units | 15 |
 | `Member` | Team members and project assignees | 100 |
+| `Clause` | Specific clause references within ADRs | Connected to ADRs |
+| `RequirementName` | Names/titles of requirements | Connected to ADRs |
+| `RequirementDescription` | Detailed descriptions of requirements | Connected to ADRs |
+| `ProjectID` | Unique project identifiers | Connected to ADRs |
+| `ProjectName` | Project names | Connected to ADRs |
 
 ---
 
-## Most Important Relationships (Top 15)
+## Most Important Relationships (Top 20)
 
 | Relationship | Direction | Example |
 |--------------|-----------|---------|
@@ -310,6 +315,11 @@ Your ontology consists of three files:
 | `verifiedBy` | ADR → Evidence | ADR verified by simulation |
 | `hasRisk` | Artifact → Requirement | Battery has thermal risk |
 | `propagatesRiskTo` | Subsystem → Subsystem | Battery risk → Electronics |
+| `hasClause` | ADR → Clause | ADR-42 has Clause 7.1.2 |
+| `hasRequirementName` | ADR → RequirementName | ADR-42 has "Brake System" |
+| `hasRequirementDescription` | ADR → RequirementDescription | ADR-42 has detailed description |
+| `hasProjectID` | ADR → ProjectID | ADR-42 has ProjectID "P-189" |
+| `hasProjectName` | ADR → ProjectName | ADR-42 has "Braking System" |
 | `extractsKnowledgeFrom` | Process → Document | Extract from ADR PDF |
 | `extendsKnowledgeGraph` | Process → KG | Extension enriches KG |
 | `storedIn` | KG → Database | KG stored in Neo4j |
@@ -684,13 +694,17 @@ This document shows how the ontology aligns with the three core management syste
 #### Basic Information
 - `hasID` - ADR identifier (e.g., "ADR-42")
 - `hasName` - ADR name
-- `hasClause` - Clause reference within ADR
-- `requirementName` - Short name/title of requirement
 - `requirementText` - Full requirement text
-- `requirementDescription` - Detailed description of the requirement
+
+#### ADR Related Nodes (Connected via Relationships)
+- Uses `hasClause` relationship → Clause node - Specific clause reference
+- Uses `hasRequirementName` relationship → RequirementName node - Short name/title of requirement
+- Uses `hasRequirementDescription` relationship → RequirementDescription node - Detailed requirement description
+- Uses `hasProjectID` relationship → ProjectID node - Unique project identifier
+- Uses `hasProjectName` relationship → ProjectName node - Project name
 
 #### Project Connection (Connected to PTS)
-- Uses `hasRelevantProject` relationship to link to Project (which has `projectID` and `projectName`)
+- Uses `hasRelevantProject` relationship to link to Project node
 - Uses `hasPrimaryDepartment` and `hasSecondaryDepartment` relationships to link to Departments
 
 #### Verification Information
@@ -706,6 +720,13 @@ This document shows how the ontology aligns with the three core management syste
 - `isConditional` - Conditional applicability (boolean)
 
 **Relationships**:
+
+#### ADR Related Nodes
+- `hasClause` → Clause - Specific clause reference within ADR
+- `hasRequirementName` → RequirementName - Short name/title of requirement
+- `hasRequirementDescription` → RequirementDescription - Detailed requirement description
+- `hasProjectID` → ProjectID - Unique project identifier
+- `hasProjectName` → ProjectName - Project name
 
 #### Project & Department Connections
 - `assignedToProject` → Project - Project assigned to handle this ADR
@@ -797,8 +818,11 @@ MATCH (adr:AustralianDesignRule)
 OPTIONAL MATCH (adr)-[:hasVerificationMethod]->(vm:VerificationMethod)
 OPTIONAL MATCH (adr)-[:assignedToProject]->(p:Project)
 OPTIONAL MATCH (adr)-[:hasRelevantDepartment]->(d:Department)
-RETURN adr.hasID, adr.requirementName, 
-       adr.hasClause,
+OPTIONAL MATCH (adr)-[:hasClause]->(clause:Clause)
+OPTIONAL MATCH (adr)-[:hasRequirementName]->(reqName:RequirementName)
+RETURN adr.hasID, 
+       reqName.hasName AS RequirementName,
+       clause.hasName AS Clause,
        vm.hasName AS VerificationMethod,
        p.projectID AS AssignedProject,
        collect(DISTINCT d.hasName) AS RelevantDepartments;
@@ -946,7 +970,12 @@ Artifact
 ├── Subsystem
 ├── Interface (5,000+ interactions)
 ├── Project (189 concurrent)
-└── TestPlan
+├── TestPlan
+├── Clause (specific clause references within ADRs)
+├── RequirementName (names/titles of requirements)
+├── RequirementDescription (detailed descriptions of requirements)
+├── ProjectID (unique project identifiers)
+└── ProjectName (project names)
 ```
 
 **Key Relationships**:
@@ -964,6 +993,11 @@ Artifact
 - `hasVerificationMethod`: Procedures linked to verification methods
 - `supportedByEvidence`: Procedures linked to evidence
 - `verifiedBy`: ADRs linked to verification evidence
+- `hasClause`: ADRs linked to Clause nodes
+- `hasRequirementName`: ADRs linked to RequirementName nodes
+- `hasRequirementDescription`: ADRs linked to RequirementDescription nodes
+- `hasProjectID`: ADRs linked to ProjectID nodes
+- `hasProjectName`: ADRs linked to ProjectName nodes
 
 ---
 
@@ -991,6 +1025,11 @@ Artifact
 - `supportedByEvidence`: VerificationProcedure → Evidence
 - `verifiedBy`: AustralianDesignRule → Evidence
 - `compliesWith`: Artifact → AustralianDesignRule
+- `hasClause`: AustralianDesignRule → Clause
+- `hasRequirementName`: AustralianDesignRule → RequirementName
+- `hasRequirementDescription`: AustralianDesignRule → RequirementDescription
+- `hasProjectID`: AustralianDesignRule → ProjectID
+- `hasProjectName`: AustralianDesignRule → ProjectName
 
 ### Component Management Relations
 - `usedInProject`: Component → Project
@@ -2039,10 +2078,12 @@ ORDER BY Inventory_Value DESC;
 #### 6. Unverified ADRs
 ```cypher
 MATCH (adr:AustralianDesignRule)
+OPTIONAL MATCH (adr)-[:hasRequirementName]->(reqName:RequirementName)
+OPTIONAL MATCH (adr)-[:hasClause]->(clause:Clause)
 WHERE adr.isVerified = false
 RETURN adr.hasID AS ADR_ID,
-       adr.requirementName AS Requirement,
-       adr.hasClause AS Clause
+       reqName.hasName AS Requirement,
+       clause.hasName AS Clause
 ORDER BY adr.hasID;
 ```
 
@@ -2075,11 +2116,12 @@ ORDER BY ADR_Count DESC;
 ```cypher
 MATCH (c:Component)-[:generatesEvidence]->(ev:Evidence)
       <-[:verifiedBy]-(adr:AustralianDesignRule)
+OPTIONAL MATCH (adr)-[:hasRequirementName]->(reqName:RequirementName)
 RETURN c.partNumber AS Part_Number,
        c.partDescription AS Component,
        labels(ev)[0] AS Evidence_Type,
        adr.hasID AS ADR_ID,
-       adr.requirementName AS Requirement
+       reqName.hasName AS Requirement
 ORDER BY adr.hasID;
 ```
 

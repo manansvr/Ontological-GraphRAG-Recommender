@@ -334,13 +334,32 @@ ORDER BY nodeCount DESC;
 CREATE (adr42:AustralianDesignRule {
     hasID: "ADR-042",
     hasName: "ADR-42",
-    hasClause: "42.2.3",
-    requirementName: "Headlamp Performance",
     requirementText: "Headlamps shall provide adequate illumination under all operating conditions",
     isVerified: false,
     usesAlternativeTesting: true,
     rightProjectAssigned: true
 })
+
+// Create related nodes for ADR-42
+CREATE (clause42:Clause {
+    hasID: "CLAUSE-042",
+    hasName: "42.2.3"
+})
+
+CREATE (reqName42:RequirementName {
+    hasID: "REQNAME-042",
+    hasName: "Headlamp Performance"
+})
+
+CREATE (reqDesc42:RequirementDescription {
+    hasID: "REQDESC-042",
+    hasName: "Photometric performance standards for vehicle headlamps"
+})
+
+// Link ADR to related nodes
+CREATE (adr42)-[:hasClause]->(clause42)
+CREATE (adr42)-[:hasRequirementName]->(reqName42)
+CREATE (adr42)-[:hasRequirementDescription]->(reqDesc42)
 
 // Create verification procedure
 CREATE (proc1:VerificationProcedure {
@@ -388,8 +407,9 @@ CREATE (adr42)-[:verifiedBy]->(evidence);
 MATCH (adr:AustralianDesignRule)
 OPTIONAL MATCH (adr)-[:hasVerificationProcedure]->(proc:VerificationProcedure)
 OPTIONAL MATCH (proc)-[:supportedByEvidence]->(ev:Evidence)
+OPTIONAL MATCH (adr)-[:hasRequirementName]->(reqName:RequirementName)
 RETURN adr.hasID AS ADR_ID,
-       adr.requirementName AS Requirement,
+       reqName.hasName AS Requirement,
        adr.isVerified AS Verified,
        proc.hasName AS Procedure,
        ev.hasName AS Evidence
@@ -397,10 +417,12 @@ ORDER BY adr.hasID;
 
 // Query: Find all unverified ADRs
 MATCH (adr:AustralianDesignRule)
+OPTIONAL MATCH (adr)-[:hasRequirementName]->(reqName:RequirementName)
+OPTIONAL MATCH (adr)-[:hasClause]->(clause:Clause)
 WHERE adr.isVerified = false
 RETURN adr.hasID AS ADR_ID,
-       adr.requirementName AS Requirement,
-       adr.hasClause AS Clause,
+       reqName.hasName AS Requirement,
+       clause.hasName AS Clause,
        adr.requirementText AS Description
 ORDER BY adr.hasID;
 
@@ -421,35 +443,40 @@ ORDER BY ADR_Count DESC;
 
 // Query: Find all ADRs assigned to a specific project
 MATCH (adr:AustralianDesignRule)-[:assignedToProject]->(p:Project)
+OPTIONAL MATCH (adr)-[:hasRequirementName]->(reqName:RequirementName)
 WHERE p.projectID = "PROJ-ELEC-01"
 RETURN adr.hasID AS ADR_ID,
-       adr.requirementName AS Requirement,
+       reqName.hasName AS Requirement,
        adr.isVerified AS Verified,
        p.hasName AS Project
 ORDER BY adr.hasID;
 
 // Query: Find ADRs assigned to a specific department
 MATCH (adr:AustralianDesignRule)-[:assignedToDepartment]->(d:Department)
+OPTIONAL MATCH (adr)-[:hasRequirementName]->(reqName:RequirementName)
 WHERE d.hasName = "Electrical Department"
 RETURN adr.hasID AS ADR_ID,
-       adr.requirementName AS Requirement,
+       reqName.hasName AS Requirement,
        adr.isVerified AS Verified,
        d.hasName AS Department
 ORDER BY adr.hasID;
 
 // Query: Find ADRs using alternative testing methods
 MATCH (adr:AustralianDesignRule)
+OPTIONAL MATCH (adr)-[:hasRequirementName]->(reqName:RequirementName)
+OPTIONAL MATCH (adr)-[:hasClause]->(clause:Clause)
 WHERE adr.usesAlternativeTesting = true
 RETURN adr.hasID AS ADR_ID,
-       adr.requirementName AS Requirement,
-       adr.hasClause AS Clause
+       reqName.hasName AS Requirement,
+       clause.hasName AS Clause
 ORDER BY adr.hasID;
 
 // Query: Find ADRs with incorrect project assignments
 MATCH (adr:AustralianDesignRule)
+OPTIONAL MATCH (adr)-[:hasRequirementName]->(reqName:RequirementName)
 WHERE adr.rightProjectAssigned = false
 RETURN adr.hasID AS ADR_ID,
-       adr.requirementName AS Requirement,
+       reqName.hasName AS Requirement,
        adr.alternativeProjectSuggestion AS SuggestedProject
 ORDER BY adr.hasID;
 
@@ -477,24 +504,28 @@ RETURN adr.hasID AS ADR,
 
 // Query: Find ADRs missing verification procedures
 MATCH (adr:AustralianDesignRule)
+OPTIONAL MATCH (adr)-[:hasRequirementName]->(reqName:RequirementName)
+OPTIONAL MATCH (adr)-[:hasClause]->(clause:Clause)
 WHERE NOT (adr)-[:hasVerificationProcedure]->(:VerificationProcedure)
 RETURN adr.hasID AS ADR_ID,
-       adr.requirementName AS Requirement,
-       adr.hasClause AS Clause,
+       reqName.hasName AS Requirement,
+       clause.hasName AS Clause,
        "Missing Verification Procedure" AS Status;
 
 // Query: Find ADRs missing evidence
 MATCH (adr:AustralianDesignRule)
+OPTIONAL MATCH (adr)-[:hasRequirementName]->(reqName:RequirementName)
 WHERE NOT (adr)-[:verifiedBy]->(:Evidence)
 RETURN adr.hasID AS ADR_ID,
-       adr.requirementName AS Requirement,
+       reqName.hasName AS Requirement,
        "Missing Evidence" AS Status;
 
 // Query: Find ADRs not assigned to any project
 MATCH (adr:AustralianDesignRule)
+OPTIONAL MATCH (adr)-[:hasRequirementName]->(reqName:RequirementName)
 WHERE NOT (adr)-[:assignedToProject]->(:Project)
 RETURN adr.hasID AS ADR_ID,
-       adr.requirementName AS Requirement,
+       reqName.hasName AS Requirement,
        "Not Assigned to Project" AS Status;
 
 // Query: Comprehensive ADR verification checklist
@@ -504,8 +535,10 @@ OPTIONAL MATCH (adr)-[:assignedToDepartment]->(d:Department)
 OPTIONAL MATCH (adr)-[:hasVerificationProcedure]->(proc:VerificationProcedure)
 OPTIONAL MATCH (proc)-[:hasVerificationMethod]->(method:VerificationMethod)
 OPTIONAL MATCH (proc)-[:supportedByEvidence]->(ev:Evidence)
-RETURN adr.hasClause AS Clause,
-       adr.requirementName AS Requirement_Name,
+OPTIONAL MATCH (adr)-[:hasClause]->(clause:Clause)
+OPTIONAL MATCH (adr)-[:hasRequirementName]->(reqName:RequirementName)
+RETURN clause.hasName AS Clause,
+       reqName.hasName AS Requirement_Name,
        adr.requirementText AS Text,
        p.projectID AS Project_ID,
        p.hasName AS Project,
@@ -577,9 +610,16 @@ CREATE (supplierTI:IndustryPartner {
 // Create ADR
 CREATE (adr42:AustralianDesignRule {
     hasID: "ADR-042",
-    hasName: "ADR-42",
-    requirementName: "Lighting Systems"
+    hasName: "ADR-42"
 })
+
+// Create related node for ADR
+CREATE (reqName42Alt:RequirementName {
+    hasID: "REQNAME-042-ALT",
+    hasName: "Lighting Systems"
+})
+
+CREATE (adr42)-[:hasRequirementName]->(reqName42Alt)
 
 // Create evidence
 CREATE (testEv:TestEvidence {
@@ -713,12 +753,13 @@ ORDER BY c.partNumber;
 
 // Query: Components generating evidence for ADR verification
 MATCH (c:Component)-[:generatesEvidence]->(ev:Evidence)<-[:verifiedBy]-(adr:AustralianDesignRule)
+OPTIONAL MATCH (adr)-[:hasRequirementName]->(reqName:RequirementName)
 RETURN c.partNumber AS Part_Number,
        c.partDescription AS Component,
        labels(ev)[0] AS Evidence_Type,
        ev.hasName AS Evidence_Name,
        adr.hasID AS ADR_ID,
-       adr.requirementName AS ADR_Requirement
+       reqName.hasName AS ADR_Requirement
 ORDER BY adr.hasID;
 
 // Query: Component readiness by milestone

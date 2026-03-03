@@ -31,3 +31,8 @@ usedInProject,Component,Project,Used In Project,
 usedInADR,Component,AustralianDesignRule,Used In ADR,
 generatesEvidence,Component,Evidence,Generates Evidence,
 partOfComponent,Component,Component,Part Of Component,transitive
+hasClause,AustralianDesignRule,Clause,Has Clause,
+hasRequirementName,AustralianDesignRule,RequirementName,Has Requirement Name,
+hasRequirementDescription,AustralianDesignRule,RequirementDescription,Has Requirement Description,
+hasProjectID,AustralianDesignRule,ProjectID,Has Project ID,
+hasProjectName,AustralianDesignRule,ProjectName,Has Project Name,
