@@ -1,0 +1,42 @@
+RelationshipType,SourceLabel,TargetLabel,Description,Properties
+hasDepartment,SunswiftRacing,Department,Has Department,
+hasPrimaryDepartment,Project,Department,Has Primary Department,
+hasSecondaryDepartment,Project,Department,Has Secondary Department,
+hasAssignee,Project,Member,Has Assignee (Project Assignee),
+collaboratesWith,Organization,Organization,Collaborates With,symmetric
+hasRequirement,Artifact,Requirement,Has Requirement,
+hasComponent,Subsystem,Component,Has Component,transitive
+hasSubsystem,Vehicle,Subsystem,Has Subsystem,
+interfacesWith,Subsystem,Subsystem,Interfaces With,symmetric
+dependsOn,Requirement,Requirement,Depends On,transitive
+appliesTo,Requirement,Artifact,Applies To,
+derivedFrom,Requirement,AustralianDesignRule,Derived From,
+documentedIn,Artifact,Document,Documented In,
+hasInput,Process,Artifact,Has Input,
+hasOutput,Process,Artifact,Has Output,
+uses,Process,Technology,Uses,
+employs,Process,Agent,Employs,
+precedesProcess,Process,Process,Precedes Process,
+representsKnowledge,KnowledgeGraph,Artifact,Represents Knowledge,
+storedIn,KnowledgeGraph,GraphDatabase,Stored In,
+queriedBy,GraphDatabase,QueryLanguage,Queried By,
+basedOnOntology,KnowledgeGraph,Ontology,Based On Ontology,
+orchestratedBy,Agent,ModelContextProtocol,Orchestrated By,
+collaboratesWithAgent,Agent,Agent,Collaborates With Agent,symmetric
+inferredBy,Requirement,Agent,Inferred By,
+compliesWith,Artifact,AustralianDesignRule,Complies With,
+hasRisk,Artifact,Requirement,Has Risk,
+propagatesRiskTo,Subsystem,Subsystem,Propagates Risk To,
+isInputTo,Artifact,Process,Is Input To,inverseOf:hasInput
+hasVerificationProcedure,AustralianDesignRule,VerificationProcedure,Has Verification Procedure,
+hasVerificationMethod,VerificationProcedure,VerificationMethod,Has Verification Method,
+assignedToProject,AustralianDesignRule,Project,Assigned To Project,
+assignedToDepartment,AustralianDesignRule,Department,Assigned To Department,
+hasRelevantProject,AustralianDesignRule,Project,Has Relevant Project,
+hasRelevantDepartment,AustralianDesignRule,Department,Has Relevant Department,
+verifiedBy,AustralianDesignRule,Evidence,Verified By,
+providesEvidenceFor,Evidence,AustralianDesignRule,Provides Evidence For,inverseOf:verifiedBy
+usedInProject,Component,Project,Used In Project,
+usedInADR,Component,AustralianDesignRule,Used In ADR,
+generatesEvidence,Component,Evidence,Generates Evidence,
+partOfComponent,Component,Component,Part Of Component,transitive

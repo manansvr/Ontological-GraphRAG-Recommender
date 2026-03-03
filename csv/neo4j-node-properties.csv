@@ -1,0 +1,20 @@
+PropertyName,ApplicableLabels,DataType,Description,Constraints
+hasID,Artifact,string,Has ID,
+hasName,All,string,Has Name,
+hasDescription,All,string,Has Description,
+hasConfidenceScore,Requirement,float,Has Confidence Score,range:0.0-1.0
+hasSource,Artifact,string,Has Source,
+hasProvenance,Artifact,string,Has Provenance,
+isEssential,Requirement,boolean,Is Essential,
+hasRiskLevel,Requirement,string,Has Risk Level,values:Low|Medium|High|Critical
+hasTimestamp,All,dateTime,Has Timestamp,
+numberOfMembers,Organization,integer,Number Of Members,
+numberOfDepartments,Organization,integer,Number Of Departments,
+numberOfProjects,Organization,integer,Number Of Projects,
+numberOfComponents,Vehicle,integer,Number Of Components,
+numberOfRequirements,All,integer,Number Of Requirements,
+isRoadLegal,Vehicle,boolean,Is Road Legal,
+isConditional,Requirement,boolean,Is Conditional,
+hasExemption,AustralianDesignRule,string,Has Exemption,
+componentProjectName,Component,string,Project Name For Component,
+clause,Component,string,ADR Clause Reference,

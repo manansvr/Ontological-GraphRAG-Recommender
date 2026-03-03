@@ -1,0 +1,2992 @@
+# SR8 Thesis Ontology - Neo4j Database
+
+## Overview
+
+This repository contains a comprehensive OWL/RDF ontology for the Sunswift Racing SR8 tri-brid electric vehicle project, structured around three integrated management systems:
+
+1. **Project Tracking System (PTS)** - 189 Projects, 15 Departments, 100 Members
+2. **Parts Management System** - Component/BOM hierarchy with full lifecycle tracking
+3. **ADR Management System** - 100 Australian Design Rules with verification tracking
+
+**→ See [THREE-SYSTEM-ALIGNMENT.md](THREE-SYSTEM-ALIGNMENT.md) for detailed system structure**
+
+**Ontology Statistics:**
+- 48 classes (node labels) including Member class
+- 36 object properties (relationships)
+- 51 data properties (attributes)
+- 180+ total semantic elements
+
+## 🚀 Quick Start
+
+**→ See [COMPLETE-SYSTEM-GUIDE.md](COMPLETE-SYSTEM-GUIDE.md) for comprehensive documentation**
+
+**→ See [THREE-SYSTEM-ALIGNMENT.md](THREE-SYSTEM-ALIGNMENT.md) for system architecture**
+
+**→ See [DOCUMENTATION-INDEX.md](DOCUMENTATION-INDEX.md) for documentation roadmap**
+
+## Accessing Neo4j Browser
+
+### Start Neo4j
+
+```bash
+brew services start neo4j
+```
+
+### Open Neo4j Browser
+
+Open your browser and navigate to:
+```
+http://localhost:7474
+```
+
+Or run:
+```bash
+open http://localhost:7474
+```
+
+### Login Credentials
+
+- **Connect URL:** `bolt://localhost:7687`
+- **Username:** `neo4j`
+- **Password:** `password123`
+
+## Key Features
+
+✅ **Project Tracking System** - 189 projects with primary/secondary departments and 100 member assignees  
+✅ **ADR Management** - Track 100 Australian Design Rules with 4 verification types (Inspection, Demonstration, Test, Analysis)  
+✅ **Component Management** - Full BOM hierarchy with part-to-project-to-ADR traceability  
+✅ **Verification Evidence** - 6 evidence types aligned with verification methods (Inspection, Demonstration, Test, Analysis, ADR Annex, ADR Testing Procedure)  
+✅ **Multi-System Integration** - Seamless connections between Projects, Parts, and ADRs  
+✅ **Supply Chain** - Supplier, procurement, and inventory management
+
+## Core Systems
+
+### 1. Project Tracking System (189 Projects)
+- **Projects**: projectID, projectName, projectDescription
+- **DTHREE-SYSTEM-ALIGNMENT.md](THREE-SYSTEM-ALIGNMENT.md)** | **Three-system architecture** (Project Tracking, Parts, ADR Management) |
+| **[epartments** (15): Primary and Secondary assignments
+- **Members** (100): Project assignees/owners
+- **Relationships**: hasPrimaryDepartment, hasSecondaryDepartment, hasAssignee
+
+### 2. Parts Management System
+- **Components**: partNumber, partDescription, bomLevel
+- **BOM Hierarchy**: Multi-level assembly structure
+- **Project Linkage**: usedInProject relationship
+- **ADR Compliance**: relatedADRs, usedInADR
+- **Supply Chain**: suppliedBy → IndustryPartner
+
+### 3. ADR Management System (100 ADRs)
+- **ADR Attributes**: hasClause, requirementName, requirementDescription
+- **Verification Methods**: Inspection, Demonstration, Test, Analysis (Simulations/Calculations)
+- **Testing Procedures**: testingProcedurePerRequirement
+- **Project/Department Links**: assignedToProject, hasRelevantProject, hasRelevantDepartment
+- **Evidence Tracking**: verifiedBy → InspectionEvidence, DemonstrationEvidence, TestEvidence, AnalysisEvidence, ADRAnnexEvidence, ADRTestingProcedureEvidence
+
+## Documentation
+
+| Document | Description |
+|----------|-------------|
+| **[COMPLETE-SYSTEM-GUIDE.md](COMPLETE-SYSTEM-GUIDE.md)** | **Comprehensive system guide** (START HERE) |
+| [ontology-documentation.md](ontology-documentation.md) | Detailed class/property reference |
+| [ontology-quick-reference.md](ontology-quick-reference.md) | Quick reference guide |
+| [neo4j-examples.cypher](neo4j-examples.cypher) | 50+ ready-to-use queries |
+| [project-ontology.owl](project-ontology.owl) | OWL/RDF specification |
+
+## Quick Start Queries
+
+### 1. View All Components by Project
+
+```cypher
+MATCH (c:Component)-[:usedInProject]->(p:Project)
+RETURN p.hasName AS Project,
+       COUNT(c) AS Components,
+       SUM(c.actualWeight) AS Total_Weight_kg
+ORDER BY Components DESC;
+```
+
+### 2. ADR Verification Status
+
+```cypher
+MATCH (adr:AustralianDesignRule)
+RETURN adr.isVerified AS Verified,
+       COUNT(adr) AS Count
+ORDER BY Verified DESC;
+```
+
+### 3. Component Lifecycle Progress
+
+```cypher
+MATCH (c:Component)
+RETURN 
+    SUM(CASE WHEN c.usedInCarBuild THEN 1 ELSE 0 END) AS Car_Build_Ready,
+    SUM(CASE WHEN c.usedInTrackTest01 THEN 1 ELSE 0 END) AS Track_Test_Ready,
+    SUM(CASE WHEN c.usedInRoadTest01 THEN 1 ELSE 0 END) AS Road_Test_Ready;
+```
+
+### 2. View Complete Ontology Structure
+
+```cypher
+MATCH (n:SchemaLabel)-[r:SUBCLASS_OF*]->(root)
+WHERE root.type = 'TopLevel'
+RETURN n, r, root
+LIMIT 100
+```
+
+### 3. Explore Artifact Hierarchy
+
+```cypher
+MATCH path = (:SchemaLabel {name: 'Artifact'})<-[:SUBCLASS_OF*]-(child)
+RETURN path
+```
+
+### 4. View All Relationship Types
+
+```cypher
+MATCH (r:SchemaRelationship)
+RETURN r.name, r.sourceLabel, r.targetLabel, r.description
+```
+
+### 5. Count Classes by Category
+
+```cypher
+MATCH (n:SchemaLabel)
+RETURN n.category as Category, count(*) as Count
+ORDER BY Count DESC
+```
+
+### 6. Find All Agent Types
+
+```cypher
+MATCH (n:SchemaLabel)
+WHERE n.category = 'Agent'
+RETURN n.name, n.description
+```
+
+### 7. View Requirements-Related Relationships
+
+```cypher
+MATCH (r:SchemaRelationship)
+WHERE r.sourceLabel = 'Requirement' OR r.targetLabel = 'Requirement'
+RETURN r.name, r.sourceLabel, r.targetLabel
+```
+
+### 8. Explore Technology Stack
+
+```cypher
+MATCH (child:SchemaLabel)-[:SUBCLASS_OF*]->(parent:SchemaLabel {name: 'Technology'})
+RETURN child.name as Technology, child.description
+ORDER BY Technology
+```
+
+## Command Line Access
+
+### Using cypher-shell
+
+```bash
+# View top-level categories
+cypher-shell -u neo4j -p password123 \
+  "MATCH (n:SchemaLabel) WHERE n.type = 'TopLevel' RETURN n.name, n.description;"
+
+# Count all nodes
+cypher-shell -u neo4j -p password123 \
+  "MATCH (n:SchemaLabel) RETURN n.category, count(*) ORDER BY count(*) DESC;"
+
+# View all relationships
+cypher-shell -u neo4j -p password123 \
+  "MATCH (r:SchemaRelationship) RETURN r.name LIMIT 10;"
+```
+
+## Managing Neo4j
+
+### Stop Neo4j
+
+```bash
+brew services stop neo4j
+```
+
+### Restart Neo4j
+
+```bash
+brew services restart neo4j
+```
+
+### Check Neo4j Status
+
+```bash
+brew services info neo4j
+```
+
+## Re-importing the Ontology
+
+If you need to re-import the ontology from scratch:
+
+```bash
+python3 import.py --uri bolt://localhost:7687 \
+                  --user neo4j \
+                  --password password123 \
+                  --clear
+```
+
+## Files in This Repository
+
+### Documentation
+- **[COMPLETE-SYSTEM-GUIDE.md](COMPLETE-SYSTEM-GUIDE.md)** ⭐ - Comprehensive system guide (start here)
+- **[DOCUMENTATION-INDEX.md](DOCUMENTATION-INDEX.md)** - Documentation navigation roadmap
+- **[ontology-documentation.md](ontology-documentation.md)** - Complete class and property reference
+- **[ontology-quick-reference.md](ontology-quick-reference.md)** - Quick reference guide
+- **[ontology-diagrams.md](ontology-diagrams.md)** - 14 Mermaid diagrams
+- **[ONTOLOGY-SUMMARY.txt](ONTOLOGY-SUMMARY.txt)** - Statistics and validation summary
+
+### Core Ontology Files
+- **[project-ontology.owl](project-ontology.owl)** - OWL/RDF ontology specification (48 classes, 36 properties)
+- **[validate.py](validate.py)** - Python script to validate OWL structure
+
+### Neo4j Integration
+- **[neo4j-examples.cypher](neo4j-examples.cypher)** - 50+ ready-to-use Cypher queries
+- **[neo4j-node-labels.csv](neo4j-node-labels.csv)** - Node labels mapped from OWL classes
+- **[neo4j-relationships.csv](neo4j-relationships.csv)** - Relationship types from object properties
+- **[neo4j-node-properties.csv](neo4j-node-properties.csv)** - Data property definitions
+- **[import.py](import.py)** - Python script for automated Neo4j import
+- **[NEO4J-IMPORT-GUIDE.md](NEO4J-IMPORT-GUIDE.md)** - Detailed import documentation
+- **[NEO4J-CSV-SUMMARY.txt](NEO4J-CSV-SUMMARY.txt)** - CSV export summary
+
+## Ontology Categories
+
+### 1. Organization (7 classes)
+Entities involved in the SR8 project - Sunswift Racing, departments, partners
+
+### 2. Artifact (22 classes)
+Engineering artifacts - vehicles, subsystems, components, requirements, documents, evidence
+
+### 3. Process (15 classes)
+Methodological workflows - extraction, extension, validation
+
+## Integration with Thesis
+
+Reference this ontology in:
+- **Methodology Section 5.1** - Knowledge Extraction
+- **Methodology Section 5.2** - Knowledge Extension
+- **Appendix** - Include sample queries and visualizations
+
+## Support
+
+For issues or questions about the ontology:
+1. Check [COMPLETE-SYSTEM-GUIDE.md](COMPLETE-SYSTEM-GUIDE.md) for comprehensive documentation
+2. Review [DOCUMENTATION-INDEX.md](DOCUMENTATION-INDEX.md) for navigation help
+3. See [ontology-documentation.md](ontology-documentation.md) for detailed class reference
+4. Consult [neo4j-examples.cypher](neo4j-examples.cypher) for 50+ query examples
+
+## License
+
+This ontology is part of the COMP4951 thesis project for Sunswift Racing SR8.
+# SR8 Ontology Quick Reference Guide
+
+## File Overview
+
+Your ontology consists of three files:
+
+1. **project-ontology.owl** - Machine-readable OWL/RDF format (formal specification)
+2. **ontology-documentation.md** - Comprehensive documentation (human-readable)
+3. **ontology-diagrams.md** - Visual diagrams (Mermaid format)
+4. **ontology-quick-reference.md** - This quick guide
+
+---
+
+## 6 Main Pillars
+
+```
+1. ORGANIZATION  → Who is involved (Sunswift, departments, partners)
+2. ARTIFACT      → What is created (vehicles, documents, requirements, components)
+3. PROCESS       → How work is done (extraction, extension, validation)
+4. TECHNOLOGY    → What tools are used (Neo4j, LLMs, NLP tools)
+5. CONCEPT       → Theoretical foundations (ontology, systems engineering, AI)
+6. AGENT         → Intelligent actors (LLM, link prediction, RL, validation)
+```
+
+---
+
+## Most Important Classes (Top 20)
+
+| Class | Description | Count/Scale |
+|-------|-------------|-------------|
+| `SR8` | The vehicle being built | 1 vehicle |
+| `AustralianDesignRule` | Regulatory framework | 113 rules |
+| `Requirement` | Engineering requirements | 600,000+ |
+| `Component` | Vehicle parts | 100,000+ |
+| `Subsystem` | Major vehicle systems | ~10-20 |
+| `Interface` | Cross-system connections | 5,000+ |
+| `Project` | Concurrent engineering projects | 189 |
+| `VerificationProcedure` | ADR verification procedures | Subclass of Requirement |
+| `VerificationMethod` | Verification methods | 6 types (subclass of VerificationProcedure) |
+| `Evidence` | Verification evidence | 6 types (subclass of Component) |
+| `Department` | Organizational units | 16 |
+| `KnowledgeGraph` | Semantic knowledge store | Neo4j-based |
+| `Neo4j` | Graph database technology | Tool |
+| `LLMAgent` | Language model reasoning | Multi-agent |
+| `LinkPredictionAgent` | Pattern detection | Multi-agent |
+| `RLAgent` | Prioritization learning | Multi-agent |
+| `ModelContextProtocol` | Agent orchestration | Framework |
+| `Ontology` | Formal knowledge model | This! |
+| `RegulatoryCompliance` | ADR adherence | Concept |
+| `Traceability` | Requirement tracking | Concept |
+| `NeuroSymbolicAI` | Neural + symbolic fusion | Concept |
+
+---
+
+## Most Important Relationships (Top 15)
+
+| Relationship | Direction | Example |
+|--------------|-----------|---------|
+| `hasSubsystem` | Vehicle → Subsystem | SR8 has Battery Subsystem |
+| `hasComponent` | Subsystem → Component | Battery has BMS |
+| `hasRequirement` | Artifact → Requirement | SR8 has safety requirements |
+| `dependsOn` | Requirement → Requirement | Req A depends on Req B |
+| `derivedFrom` | Requirement → ADR | Req derived from ADR-42 |
+| `appliesTo` | Requirement → Artifact | Req applies to Battery |
+| `interfacesWith` | Subsystem ↔ Subsystem | Battery interfaces with Motor |
+| `compliesWith` | Artifact → ADR | SR8 complies with ADR-42 |
+| `assignedToProject` | ADR → Project | ADR-42 assigned to Electrical |
+| `hasVerificationProcedure` | ADR → Procedure | ADR-42 has test procedure |
+| `hasVerificationMethod` | Procedure → Method | Procedure uses Test method |
+| `supportedByEvidence` | Procedure → Evidence | Procedure has test evidence |
+| `verifiedBy` | ADR → Evidence | ADR verified by simulation |
+| `hasRisk` | Artifact → Requirement | Battery has thermal risk |
+| `propagatesRiskTo` | Subsystem → Subsystem | Battery risk → Electronics |
+| `extractsKnowledgeFrom` | Process → Document | Extract from ADR PDF |
+| `extendsKnowledgeGraph` | Process → KG | Extension enriches KG |
+| `storedIn` | KG → Database | KG stored in Neo4j |
+| `orchestratedBy` | Agent → MCP | LLM agent orchestrated by MCP |
+| `inferredBy` | Requirement → Agent | Req inferred by LLM agent |
+
+---
+
+## Key Metrics (SR8 Project Scale)
+
+```
+TEAM STRUCTURE
+├── 80 members
+├── 16 departments (technical + operational)
+└── 189 concurrent projects
+
+ENGINEERING COMPLEXITY
+├── 100,000+ components
+├── 600,000+ requirements (internal + external)
+├── 5,000+ subsystem interfaces
+└── 113 Australian Design Rules
+
+DATA VOLUME
+├── 4 TB documents, reports, spreadsheets
+├── 1.5 TB mechanical simulations
+├── 1 TB electrical drawings
+└── 500 GB code (high-level + low-level)
+```
+
+---
+
+## Workflow Summary
+
+```
+DATA SOURCES
+    ↓
+KNOWLEDGE EXTRACTION
+    • Document parsing (PDFMiner, Tesseract)
+    • NLP processing (SpaCy, NLTK)
+    • Entity recognition (BERT, RoBERTa)
+    • Relation extraction
+    • Ontology mapping (OWL/RDF)
+    ↓
+KNOWLEDGE GRAPH (Neo4j)
+    • Structured entities
+    • Semantic relationships
+    • Ontology-aligned schema
+    ↓
+KNOWLEDGE EXTENSION
+    • LLM Agent → Linguistic inference
+    • Link Prediction Agent → Pattern detection
+    • RL Agent → Prioritization
+    • Validation Agent → Consistency checking
+    ↓
+MCP ORCHESTRATION
+    • Agent coordination
+    • Context management
+    • Transparency & traceability
+    ↓
+ENGINEERING SUPPORT
+    • Compliance verification
+    • Risk propagation
+    • Design recommendations
+    • Traceability analysis
+```
+
+---
+
+## Usage Scenarios
+
+### Scenario 1: Finding Requirements for a Component
+
+**Question**: What ADR requirements apply to the Battery Management System?
+
+**Cypher Query**:
+```cypher
+MATCH (bms:Component {hasName: "Battery Management System"})
+      -[:appliesTo]-(req:Requirement)
+      -[:derivedFrom]->(adr:AustralianDesignRule)
+RETURN bms.hasName, req.hasDescription, adr.hasName
+```
+
+### Scenario 2: Tracing Risk Propagation
+
+**Question**: What subsystems are affected if the battery has a thermal risk?
+
+**Cypher Query**:
+```cypher
+MATCH (battery:Subsystem {hasName: "Battery Subsystem"})
+      -[:propagatesRiskTo*1..3]->(affected:Subsystem)
+RETURN affected.hasName, affected.hasRiskLevel
+ORDER BY affected.hasRiskLevel DESC
+```
+
+### Scenario 3: Identifying Agent Inferences
+
+**Question**: Which requirements were inferred by AI agents vs. extracted directly?
+
+**Cypher Query**:
+```cypher
+MATCH (req:Requirement)-[:inferredBy]->(agent:Agent)
+RETURN agent.hasName, COUNT(req) AS inferredCount
+ORDER BY inferredCount DESC
+```
+
+### Scenario 4: Finding Cross-Department Interfaces
+
+**Question**: What interfaces exist between Powertrain and Electronics departments?
+
+**Cypher Query**:
+```cypher
+MATCH (d1:Department {hasName: "Powertrain"})-[:owns]->(s1:Subsystem)
+      -[:interfacesWith]-(s2:Subsystem)<-[:owns]-(d2:Department {hasName: "Electronics"})
+RETURN s1.hasName, s2.hasName
+```
+
+### Scenario 5: Compliance Gap Analysis
+
+**Question**: Which components don't comply with their applicable ADRs?
+
+**Cypher Query**:
+```cypher
+MATCH (c:Component)-[:appliesTo]-(req:Requirement)
+      -[:derivedFrom]->(adr:AustralianDesignRule)
+WHERE NOT (c)-[:compliesWith]->(adr)
+RETURN c.hasName, adr.hasName, req.hasDescription
+```
+
+---
+
+## Import Into Neo4j
+
+### Step 1: Install Neo4j
+```bash
+# macOS
+brew install neo4j
+
+# Start Neo4j
+neo4j start
+
+# Open browser
+open http://localhost:7474
+```
+
+### Step 2: Create Constraints
+```cypher
+// Unique IDs
+CREATE CONSTRAINT req_id IF NOT EXISTS FOR (r:Requirement) REQUIRE r.hasID IS UNIQUE;
+CREATE CONSTRAINT comp_id IF NOT EXISTS FOR (c:Component) REQUIRE c.hasID IS UNIQUE;
+CREATE CONSTRAINT adr_id IF NOT EXISTS FOR (a:AustralianDesignRule) REQUIRE a.hasID IS UNIQUE;
+
+// Indexes for performance
+CREATE INDEX req_name IF NOT EXISTS FOR (r:Requirement) ON (r.hasName);
+CREATE INDEX comp_name IF NOT EXISTS FOR (c:Component) ON (c.hasName);
+```
+
+### Step 3: Import Ontology Schema
+```cypher
+// Create node labels from ontology classes
+CALL apoc.meta.load("file:///project-ontology.owl")
+```
+
+### Step 4: Verify Schema
+```cypher
+CALL db.schema.visualization()
+```
+
+---
+
+## Open in Protégé
+
+### Installation
+```bash
+# Download from https://protege.stanford.edu/
+# OR via Homebrew
+brew install --cask protege
+```
+
+### Open Ontology
+1. Launch Protégé
+2. File → Open → Select `project-ontology.owl`
+3. Navigate tabs:
+   - **Classes**: See hierarchy
+   - **Object Properties**: See relationships
+   - **Data Properties**: See attributes
+   - **Individuals**: See instances
+
+### Run Reasoner
+1. Reasoner → HermiT
+2. Reasoner → Start reasoner
+3. View inferred class hierarchy
+4. Check for inconsistencies
+
+---
+
+## Extend the Ontology
+
+### Add a New Class
+```xml
+<owl:Class rdf:about="#NewSubsystem">
+    <rdfs:subClassOf rdf:resource="#Subsystem"/>
+    <rdfs:label>New Subsystem Type</rdfs:label>
+    <rdfs:comment>Description of new subsystem</rdfs:comment>
+</owl:Class>
+```
+
+### Add a New Relationship
+```xml
+<owl:ObjectProperty rdf:about="#newRelationship">
+    <rdfs:domain rdf:resource="#SourceClass"/>
+    <rdfs:range rdf:resource="#TargetClass"/>
+    <rdfs:label>new relationship</rdfs:label>
+</owl:ObjectProperty>
+```
+
+### Add a New Individual
+```xml
+<owl:NamedIndividual rdf:about="#NewInstance">
+    <rdf:type rdf:resource="#ClassName"/>
+    <hasName>Instance Name</hasName>
+    <hasDescription>Instance description</hasDescription>
+</owl:NamedIndividual>
+```
+
+---
+
+## Integration with Thesis
+
+### Where to Reference
+
+1. **Abstract** - "ontology-driven framework"
+2. **Introduction** - Semantic representation approach
+3. **Context** - Domain model formalization
+4. **Literature Review** - Knowledge representation techniques
+5. **Methodology Section 5.1** - Ontology formalization process
+6. **Methodology Section 5.2** - Multi-agent integration via ontology
+7. **Methodology Section 5.3** - Systems of systems modeling
+8. **Appendix** - Include ontology diagrams
+
+### Thesis Deliverables
+
+- [ ] Reference ontology file in appendix
+- [ ] Include class hierarchy diagram in methodology
+- [ ] Show example Cypher queries for validation
+- [ ] Demonstrate agent-ontology alignment
+- [ ] Provide traceability examples using ontology
+- [ ] Document provenance through ontology metadata
+
+---
+
+## Validation Checklist
+
+- [ ] All 113 ADRs mapped to RegulatoryDocument class?
+- [ ] All 600,000 requirements captured in Requirement hierarchy?
+- [ ] All 100,000+ components represented?
+- [ ] All 16 departments linked to SunswiftRacing?
+- [ ] All 189 projects instantiated?
+- [ ] All 5,000+ interfaces modeled?
+- [ ] All 4 agents (LLM, LP, RL, Validation) defined?
+- [ ] MCP orchestration relationships established?
+- [ ] Provenance tracking implemented?
+- [ ] Confidence scores for inferred knowledge?
+
+---
+
+## Common Issues & Solutions
+
+### Issue 1: Ontology won't load in Protégé
+**Solution**: Validate XML syntax, check namespace declarations
+
+### Issue 2: Reasoner finds inconsistencies
+**Solution**: Check disjoint classes, ensure proper subclass relationships
+
+### Issue 3: Neo4j import fails
+**Solution**: Use APOC plugin for OWL import or manually map schema
+
+### Issue 4: Too many relationships (performance)
+**Solution**: Create indexes on high-cardinality properties
+
+### Issue 5: Agent inferences conflict with ontology
+**Solution**: Strengthen validation agent rules, add consistency constraints
+
+---
+
+## Next Steps
+
+1. **Validate**: Run HermiT reasoner in Protégé
+2. **Import**: Load into Neo4j and create sample instances
+3. **Populate**: Add SR8 project data (requirements, components, etc.)
+4. **Test**: Run example queries to verify relationships
+5. **Extend**: Add domain-specific classes and properties as needed
+6. **Document**: Reference in thesis methodology section
+
+---
+
+## Support Resources
+
+- **OWL Documentation**: https://www.w3.org/OWL/
+- **Protégé Tutorial**: https://protege.stanford.edu/support.php
+- **Neo4j Cypher**: https://neo4j.com/docs/cypher-manual/
+- **Ontology Best Practices**: https://www.w3.org/TR/owl2-primer/
+
+---
+
+*This quick reference provides the essential information needed to understand, use, and extend the SR8 thesis ontology.*
+# Three-System Alignment
+
+This document shows how the ontology aligns with the three core management systems for the SR8 project.
+
+## 1. Project Tracking System (PTS)
+
+### Projects (189 Projects) - All as Single Nodes
+
+**Class**: `Project`
+
+**Properties**:
+- `projectName` - Name of the project
+- `projectID` - Unique project identifier
+- `projectDescription` - Description of the project
+
+**Relationships**:
+- `hasPrimaryDepartment` → Department - Primary responsible department
+- `hasSecondaryDepartment` → Department - Secondary supporting department
+- `hasAssignee` → Member - Project assignee/owner
+
+### Departments (15 Departments) - All as Single Nodes
+
+**Class**: `Department`
+
+**Subclasses**:
+- `TechnicalDepartment` - Technical departments
+- `OperationalDepartment` - Operational departments
+
+**Properties**:
+- `hasID` - Department identifier
+- `hasName` - Department name
+
+### Project Assignee (100 Members) - All as Single Nodes
+
+**Class**: `Member`
+
+**Properties**:
+- `hasID` - Member identifier
+- `hasName` - Member name
+
+**Relationships**:
+- Project → Member via `hasAssignee`
+
+---
+
+## 2. Parts Management System
+
+### Component/Part Management
+
+**Class**: `Component`
+
+**Properties**:
+- `partNumber` - Unique part number identifier
+- `partDescription` - Description of the component/part
+- `bomLevel` - Bill of Materials hierarchy level
+- `approvalStatus` - Component approval status
+- `componentStatus` - Current status
+- `quantityPer` - Quantity per assembly
+- `estimatedWeight` - Estimated weight (kg)
+- `actualWeight` - Actual weight (kg)
+- `procurementStatus` - Procurement status
+- `supplier` - Supplier name
+- `orderStatus` - Order status
+- `stockQuantity` - Stock quantity
+- `stockLocation` - Stock location
+- `relatedADRs` - Related ADR identifiers
+- `componentProjectName` - Name of the project using this component
+- `clause` - ADR clause reference for this component
+
+**Relationships**:
+- `usedInProject` → Project - Project that uses this component
+- `belongsToDepartment` → Department - Responsible department
+- `usedInADR` → AustralianDesignRule - ADRs this component relates to
+- `generatesEvidence` → Evidence - Evidence generated by this component
+- `suppliedBy` → IndustryPartner - Procurement partner/supplier
+- `partOfBOM` → Component - BOM hierarchy (component assemblies)
+
+---
+
+## 3. ADR Management System
+
+### ADRs (100 ADRs) - All as Single Nodes
+
+**Class**: `AustralianDesignRule`
+
+**Properties**:
+
+#### Basic Information
+- `hasID` - ADR identifier (e.g., "ADR-42")
+- `hasName` - ADR name
+- `hasClause` - Clause reference within ADR
+- `requirementName` - Short name/title of requirement
+- `requirementText` - Full requirement text
+- `requirementDescription` - Detailed description of the requirement
+
+#### Project Connection (Connected to PTS)
+- Uses `hasRelevantProject` relationship to link to Project (which has `projectID` and `projectName`)
+- Uses `hasPrimaryDepartment` and `hasSecondaryDepartment` relationships to link to Departments
+
+#### Verification Information
+- `verificationMethodDescription` - Detailed verification description
+- `testingProcedurePerRequirement` - Testing procedure per requirement
+- `isVerified` - Verification status (boolean)
+- `usesAlternativeTesting` - Alternative testing method flag (boolean)
+
+#### Other Attributes
+- `hasRiskLevel` - Risk categorization
+- `hasExemption` - ADR exemption details
+- `isEssential` - Essential vs. recommended (boolean)
+- `isConditional` - Conditional applicability (boolean)
+
+**Relationships**:
+
+#### Project & Department Connections
+- `assignedToProject` → Project - Project assigned to handle this ADR
+- `assignedToDepartment` → Department - Department assigned to this ADR
+- `hasRelevantProject` → Project - Relevant projects for this ADR
+- `hasRelevantDepartment` → Department - Relevant departments for this ADR
+
+#### Verification Method (4 Types)
+- `hasVerificationMethod` → VerificationMethod
+  - `Inspection`
+  - `Demonstration`
+  - `Test`
+  - `Analysis` (Simulations/Calculations)
+
+#### Verification Procedure
+- `hasVerificationProcedure` → VerificationProcedure
+  - Links to detailed procedures
+  - `hasVerificationMethod` → VerificationMethod
+  - `supportedByEvidence` → Evidence
+
+#### Evidence
+- `verifiedBy` → Evidence
+  - `SimulationEvidence`
+  - `MathematicalEvidence`
+  - `TestEvidence`
+
+#### Requirements & Artifacts
+- `derivedFrom` (inverse) → Requirement - Requirements derived from this ADR
+- `appliesTo` (via Requirement) → Artifact - Artifacts this ADR applies to
+- `compliesWith` (inverse) → Artifact - Artifacts that comply with this ADR
+
+---
+
+## System Integration
+
+### Data Flow Between Systems
+
+```
+┌─────────────────────────┐
+│  Project Tracking (PTS) │
+│  - 189 Projects         │
+│  - 15 Departments       │
+│  - 100 Members          │
+└───────┬─────────────────┘
+        │
+        │ assignedToProject
+        │ hasRelevantProject
+        │ hasPrimaryDepartment
+        │
+┌───────▼─────────────────┐         ┌──────────────────────┐
+│  ADR Management         │◄────────┤  Parts Management    │
+│  - 100 ADRs             │         │  - Components        │
+│  - 4 Verification Types │         │  - BOM Hierarchy     │
+│  - Evidence             │         │                      │
+└─────────────────────────┘         └──────────────────────┘
+        │                                      │
+        │ usedInADR                           │
+        │ relatedADRs                         │
+        └──────────────────────────────────────┘
+```
+
+### Key Metrics
+
+| System | Nodes | Key Relationships |
+|--------|-------|-------------------|
+| Project Tracking | 189 Projects, 15 Departments, 100 Members | hasPrimaryDepartment, hasSecondaryDepartment, hasAssignee |
+| Parts Management | Components (varies) | usedInProject, usedInADR, suppliedBy, partOfBOM |
+| ADR Management | 100 ADRs | assignedToProject, hasRelevantProject, hasVerificationMethod |
+
+---
+
+## Query Examples
+
+### 1. Find All Projects with Their Departments
+```cypher
+MATCH (p:Project)
+OPTIONAL MATCH (p)-[:hasPrimaryDepartment]->(primary:Department)
+OPTIONAL MATCH (p)-[:hasSecondaryDepartment]->(secondary:Department)
+OPTIONAL MATCH (p)-[:hasAssignee]->(m:Member)
+RETURN p.projectID, p.projectName, 
+       primary.hasName AS PrimaryDept,
+       secondary.hasName AS SecondaryDept,
+       m.hasName AS Assignee;
+```
+
+### 2. Find ADRs and Their Verification Methods
+```cypher
+MATCH (adr:AustralianDesignRule)
+OPTIONAL MATCH (adr)-[:hasVerificationMethod]->(vm:VerificationMethod)
+OPTIONAL MATCH (adr)-[:assignedToProject]->(p:Project)
+OPTIONAL MATCH (adr)-[:hasRelevantDepartment]->(d:Department)
+RETURN adr.hasID, adr.requirementName, 
+       adr.hasClause,
+       vm.hasName AS VerificationMethod,
+       p.projectID AS AssignedProject,
+       collect(DISTINCT d.hasName) AS RelevantDepartments;
+```
+
+### 3. Find Components by Project and ADR
+```cypher
+MATCH (c:Component)-[:usedInProject]->(p:Project)
+OPTIONAL MATCH (c)-[:usedInADR]->(adr:AustralianDesignRule)
+OPTIONAL MATCH (c)-[:suppliedBy]->(supplier:IndustryPartner)
+RETURN p.projectID, 
+       c.partNumber, 
+       c.partDescription,
+       c.bomLevel,
+       collect(DISTINCT adr.hasID) AS RelatedADRs,
+       supplier.hasName AS Supplier
+ORDER BY p.projectID, c.bomLevel, c.partNumber;
+```
+
+### 4. Project Readiness Dashboard
+```cypher
+MATCH (p:Project)
+OPTIONAL MATCH (p)<-[:usedInProject]-(c:Component)
+OPTIONAL MATCH (p)<-[:assignedToProject]-(adr:AustralianDesignRule)
+RETURN p.projectID,
+       p.projectName,
+       count(DISTINCT c) AS ComponentCount,
+       count(DISTINCT adr) AS ADRCount,
+       count(DISTINCT CASE WHEN adr.isVerified THEN adr END) AS VerifiedADRs,
+       ROUND(100.0 * count(DISTINCT CASE WHEN adr.isVerified THEN adr END) / 
+             count(DISTINCT adr), 1) AS VerificationProgress
+ORDER BY p.projectID;
+```
+
+---
+
+## Implementation Notes
+
+1. **Project Tracking System**
+   - All 189 projects exist as individual nodes
+   - Each project links to 1 primary and 0-1 secondary departments
+   - Each project has 1+ assignees (members)
+
+2. **Parts Management System**
+   - Components linked to projects via `usedInProject`
+   - BOM hierarchy via `partOfBOM` (transitive)
+   - ADR relationships tracked via both property (`relatedADRs`) and relationship (`usedInADR`)
+
+3. **ADR Management System**
+   - 100 ADRs as individual nodes
+   - Each ADR has 1+ verification methods (Inspection, Demonstration, Test, Analysis)
+   - Projects and departments linked via both assignment and relevance relationships
+   - Testing procedures stored per requirement
+
+---
+
+*This structure provides complete traceability across Projects, Components, and Regulatory Compliance.*
+# SR8 Thesis Ontology Documentation
+
+## Overview
+This ontology formally represents the knowledge domain of the Sunswift Racing SR8 systems engineering framework, integrating regulatory compliance, knowledge graph technologies, and AI-assisted reasoning.
+
+**URI**: `http://www.sunswift.com/ontology/sr8-thesis`  
+**Version**: 1.0  
+**Created**: February 26, 2026  
+**Authors**: Manan Rathi, Ilina Sharma
+
+---
+
+## Top-Level Taxonomy
+
+The ontology is organized into three main class hierarchies:
+
+```
+1. Organization      - Entities involved in the SR8 project
+2. Artifact          - Engineering artifacts, documents, and knowledge items
+3. Process           - Methodological processes and workflows
+```
+
+---
+
+## Class Hierarchies
+
+### 1. Organization Hierarchy
+
+```
+Organization
+├── SunswiftRacing
+│   └── [80 members, 16 departments, 189 projects]
+├── Department
+│   ├── TechnicalDepartment
+│   └── OperationalDepartment
+├── IndustryPartner
+│   └── Neo4j
+└── AcademicPartner
+```
+
+**Key Relationships**:
+- `hasDepartment`: Links Sunswift to its departments
+- `collaboratesWith`: Inter-organizational collaboration
+
+---
+
+### 2. Artifact Hierarchy
+
+```
+Artifact
+├── Vehicle
+│   └── SR8 (Sunswift 8)
+│       └── [100,000+ components, road-legal tri-brid electric]
+├── Document
+│   ├── RegulatoryDocument
+│   │   └── AustralianDesignRule (ADR)
+│   │       └── [113 rules governing vehicle compliance]
+│   └── EngineeringBrief
+│       ├── TechnicalSpecification
+│       ├── TestReport
+│       ├── DesignNote
+│       ├── SimulationOutput
+│       └── EngineeringDrawing
+├── Requirement (600,000+)
+│   ├── InternalRequirement
+│   │   ├── InternalEssentialRequirement (non-negotiable constraints)
+│   │   └── InternalRecommendedRequirement (contextual flexibility)
+│   ├── ExternalRequirement
+│   │   ├── ExternalEssentialRequirement (non-negotiable constraints)
+│   │   └── ExternalRecommendedRequirement (contextual flexibility)
+│   └── VerificationProcedure
+│       ├── [Detailed procedures for verifying ADR compliance]
+│       └── VerificationMethod
+│           ├── Inspection (visual/manual inspection)
+│           ├── Demonstration (demonstration-based verification)
+│           ├── Test (physical/functional testing)
+│           ├── Analysis (simulations/calculations)
+│           ├── ADRAnnex (ADR annex procedures)
+│           └── ADRTestingProcedure (official ADR testing)
+├── Component (100,000+)
+│   └── Evidence (formed when multiple components work together to pass testing procedures)
+│       ├── InspectionEvidence (visual/manual inspection results)
+│       ├── DemonstrationEvidence (demonstration results)
+│       ├── TestEvidence (physical/functional testing results)
+│       ├── AnalysisEvidence (simulation/calculation results)
+│       ├── ADRAnnexEvidence (ADR annex procedure results)
+│       └── ADRTestingProcedureEvidence (official ADR testing results)
+├── Subsystem
+├── Interface (5,000+ interactions)
+├── Project (189 concurrent)
+└── TestPlan
+```
+
+**Key Relationships**:
+- `hasRequirement`: Artifacts have associated requirements
+- `hasSubsystem`: Vehicle decomposition
+- `hasComponent`: Subsystem composition
+- `interfacesWith`: Cross-subsystem interactions (symmetric)
+- `dependsOn`: Requirement dependencies (transitive)
+- `appliesTo`: Requirement-artifact mapping
+- `derivedFrom`: Requirements sourced from ADRs
+- `documentedIn`: Documentation references
+- `assignedToProject`: ADRs linked to responsible projects
+- `assignedToDepartment`: ADRs linked to relevant departments
+- `hasVerificationProcedure`: ADRs linked to verification procedures
+- `hasVerificationMethod`: Procedures linked to verification methods
+- `supportedByEvidence`: Procedures linked to evidence
+- `verifiedBy`: ADRs linked to verification evidence
+
+---
+
+## Key Object Properties (Relationships)
+
+### Organizational
+- `hasDepartment`: Organization → Department
+- `collaboratesWith`: Organization ↔ Organization
+
+### Artifact Relations
+- `hasRequirement`: Artifact → Requirement
+- `hasComponent`: Subsystem → Component (transitive)
+- `hasSubsystem`: Vehicle → Subsystem
+- `interfacesWith`: Subsystem ↔ Subsystem (symmetric)
+- `dependsOn`: Requirement → Requirement (transitive)
+- `appliesTo`: Requirement → Artifact
+- `derivedFrom`: Requirement → ADR
+- `documentedIn`: Artifact → Document
+
+### ADR Verification Relations
+- `assignedToProject`: AustralianDesignRule → Project
+- `assignedToDepartment`: AustralianDesignRule → Department
+- `hasVerificationProcedure`: AustralianDesignRule → VerificationProcedure
+- `hasVerificationMethod`: VerificationProcedure → VerificationMethod
+- `supportedByEvidence`: VerificationProcedure → Evidence
+- `verifiedBy`: AustralianDesignRule → Evidence
+- `compliesWith`: Artifact → AustralianDesignRule
+
+### Component Management Relations
+- `usedInProject`: Component → Project
+- `usedInADR`: Component → AustralianDesignRule
+- `generatesEvidence`: Component → Evidence
+- `suppliedBy`: Component → IndustryPartner
+- `partOfBOM`: Component → Component (BOM hierarchy)
+- `belongsToDepartment`: Component → Department
+- `hasSection`: Department → Department (organizational hierarchy)
+
+### Process Relations
+- `hasInput` / `isInputTo`: Process ↔ Artifact (inverse)
+- `hasOutput`: Process → Artifact
+- `uses`: Process → Technology
+- `employs`: Process → Agent
+- `precedesProcess`: Process → Process
+
+### Technology Relations
+- `representsKnowledge`: KnowledgeGraph → Artifact
+- `storedIn`: KnowledgeGraph → GraphDatabase
+- `queriedBy`: GraphDatabase → QueryLanguage
+- `basedOnOntology`: KnowledgeGraph → Ontology
+
+### Agent Relations
+- `orchestratedBy`: Agent → ModelContextProtocol
+- `collaboratesWithAgent`: Agent ↔ Agent (symmetric)
+- `inferredBy`: Requirement → Agent
+
+### Compliance & Risk
+- `compliesWith`: Artifact → AustralianDesignRule
+- `hasRisk`: Artifact → Requirement
+- `propagatesRiskTo`: Subsystem → Subsystem
+
+---
+
+## Data Properties (Attributes)
+
+### Identifiers & Metadata
+- `hasID`: Unique identifier (string)
+- `hasName`: Entity name (string)
+- `hasDescription`: Detailed description (string)
+- `hasTimestamp`: Temporal metadata (dateTime)
+
+### Provenance & Confidence
+- `hasSource`: Data source (string)
+- `hasProvenance`: Origin and history (string)
+- `hasConfidenceScore`: Extraction confidence (float, 0-1)
+
+### Requirement Attributes
+- `isEssential`: Essential vs. recommended (boolean)
+- `isConditional`: Conditional applicability (boolean)
+- `hasRiskLevel`: Risk categorization (string)
+- `hasExemption`: ADR exemption details (string)
+
+### ADR Tracking Attributes
+- `hasClause`: Clause reference within ADR (string)
+- `requirementName`: Short name/title of requirement (string)
+- `requirementText`: Full requirement text (string)
+- `projectID`: Unique project identifier (string)
+- `isVerified`: Verification status (boolean)
+- `usesAlternativeTesting`: Alternative testing method flag (boolean)
+- `verificationMethodDescription`: Detailed verification description (string)
+- `rightProjectAssigned`: Correct project assignment flag (boolean)
+- `alternativeProjectSuggestion`: Suggested alternative project (string)
+
+### Component Management Attributes
+
+**Identification & Classification**
+- `partNumber`: Unique part number identifier (string)
+- `partDescription`: Description of the component/part (string)
+- `bomLevel`: Bill of Materials hierarchy level (integer)
+- `approvalStatus`: Component approval status (string)
+- `componentStatus`: Current status of the component (string)
+- `onCarSoftwareOffCar`: Classification as on-car software or off-car component (string)
+
+**Quantity & Physical Properties**
+- `quantityPer`: Quantity required per assembly (integer)
+- `estimatedWeight`: Estimated weight in kilograms (float)
+- `actualWeight`: Actual measured weight in kilograms (float)
+
+**ADR & Engineering**
+- `relatedADRs`: List of ADRs that this component relates to (string)
+- `engineeringDrawingRequired`: Engineering drawing required flag (boolean)
+
+**Procurement & Supply Chain**
+- `procurementStatus`: Status of component procurement (string)
+- `supplier`: Supplier or partner name (string)
+- `orderStatus`: Current order status (string)
+- `stockQuantity`: Quantity in stock (integer)
+- `stockLocation`: Physical location of stock (string)
+
+**Cost Tracking**
+- `assemblyEstimatedCost`: Estimated assembly cost (float)
+- `assemblyActualCost`: Actual assembly cost (float)
+
+**Department Organization**
+- `sectionName`: Name of the section within a department (string)
+
+### Quantitative Metrics
+- `numberOfMembers`: Team size (integer)
+- `numberOfDepartments`: Organizational units (integer)
+- `numberOfProjects`: Concurrent projects (integer)
+- `numberOfComponents`: Component count (integer)
+- `numberOfRequirements`: Requirement count (integer)
+- `isRoadLegal`: Legal status (boolean)
+
+---
+
+## Axioms & Constraints
+
+### Disjoint Classes
+- `EssentialRequirement` ⊥ `RecommendedRequirement`
+- `InternalRequirement` ⊥ `ExternalRequirement`
+
+### Property Characteristics
+- **Symmetric**: `interfacesWith`, `collaboratesWithAgent`, `collaboratesWith`
+- **Transitive**: `dependsOn`, `hasComponent`
+- **Inverse**: `hasInput` ↔ `isInputTo`
+
+---
+
+## Quantitative Context
+
+Based on the SR8 project scale:
+
+| Metric | Value | Ontology Class |
+|--------|-------|----------------|
+| Team Members | 80 | Organization |
+| Departments | 16 | Department |
+| Projects | 189 | Project |
+| Interfaces | 5,000+ | Interface |
+| Components | 100,000+ | Component |
+| ADR Rules | 113 | AustralianDesignRule |
+| Requirements | 600,000+ | Requirement |
+| Documents | 4 TB | Document |
+| Simulations | 1.5 TB | SimulationOutput |
+| Drawings | 1 TB | EngineeringDrawing |
+| Code | 500 GB | Artifact |
+
+---
+
+## Usage Examples
+
+### Example 1: Querying Requirement Dependencies
+```cypher
+MATCH (r1:Requirement)-[:dependsOn*]->(r2:Requirement)
+WHERE r1.hasID = "ADR-42-3.1"
+RETURN r1, r2
+```
+
+### Example 2: Finding Risk Propagation Paths
+```cypher
+MATCH path = (s1:Subsystem)-[:propagatesRiskTo*]->(s2:Subsystem)
+WHERE s1.hasName = "Battery System"
+RETURN path
+```
+
+### Example 3: Identifying Non-Compliant Components
+```cypher
+MATCH (c:Component)-[:appliesTo]-(r:Requirement)
+WHERE NOT (c)-[:compliesWith]->(:AustralianDesignRule)
+RETURN c.hasName, r.hasDescription
+```
+
+### Example 4: Tracing Agent Inferences
+```cypher
+MATCH (req:Requirement)-[:inferredBy]->(agent:Agent)
+WHERE req.hasConfidenceScore < 0.8
+RETURN req, agent, req.hasProvenance
+```
+
+---
+
+## Integration with Thesis Structure
+
+### Manan's Focus (Knowledge Extraction)
+- **Technologies**: `OWL`, `RDF`, `Protégé`, `Neo4j`, `Cypher`
+
+### Ilina's Focus (Knowledge Extension)
+- **Agents**: `LLMAgent`, `LinkPredictionAgent`, `RLAgent`
+- **Concepts**: `ModelContextProtocol`, `NeuroSymbolicAI`, `MultiAgentSystem`
+
+### Shared Components
+- **Core Domain**: `AustralianDesignRule`, `SR8`, `Requirement`, `Subsystem`
+- **Collaboration**: `SunswiftRacing`, `Neo4jPartner`, `AcademicPartner`
+
+---
+
+## Ontology Files
+
+1. **project-ontology.owl** - Machine-readable OWL/RDF format
+   - Can be opened in Protégé for visualization
+   - Can be imported into Neo4j for graph instantiation
+   - Supports SPARQL and reasoning queries
+
+2. **ontology-documentation.md** - Human-readable documentation (this file)
+
+---
+
+## Next Steps
+
+### For Development
+1. Import ontology into Protégé for visual editing
+2. Validate logical consistency using HermiT or Pellet reasoner
+3. Generate Neo4j schema from OWL classes and properties
+4. Populate graph with SR8 project data
+5. Implement MCP orchestration layer
+
+### For Thesis
+1. Reference ontology in methodology section
+2. Include class diagrams in appendix
+3. Cite as formal knowledge representation framework
+4. Use for traceability and provenance demonstration
+
+---
+
+## References to Thesis Sections
+
+- **Abstract**: Lines 1-11 (Ontology-driven framework overview)
+- **Introduction**: Knowledge representation and semantic models
+- **Context**: SR8 project metrics (80 members, 600K requirements)
+- **Methodology - Section 5.1**: Knowledge Extraction processes
+- **Methodology - Section 5.2**: Knowledge Extension and multi-agent system
+- **Methodology - Section 5.3**: Systems of Systems integration
+- **Collaboration**: Industry (Neo4j) and academic partnerships
+
+---
+
+*This ontology serves as the semantic backbone for the entire SR8 systems engineering framework, enabling explainable, traceable, and adaptive regulatory compliance through the integration of structured knowledge representation and AI-assisted reasoning.*
+# SR8 Thesis Ontology Visual Diagrams
+
+## 1. Complete Top-Level Class Hierarchy
+
+```mermaid
+graph TD
+    Root[Ontology Root]
+    
+    Root --> Org[Organization]
+    Root --> Art[Artifact]
+    Root --> Proc[Process]
+    Root --> Tech[Technology]
+    Root --> Conc[Concept]
+    Root --> Agnt[Agent]
+    
+    style Root fill:#e1f5ff
+    style Org fill:#ffe1e1
+    style Art fill:#e1ffe1
+    style Proc fill:#fff0e1
+    style Tech fill:#f0e1ff
+    style Conc fill:#ffe1f0
+    style Agnt fill:#fff9e1
+```
+
+## 2. Organization Hierarchy
+
+```mermaid
+graph TD
+    Org[Organization]
+    Org --> SR[SunswiftRacing<br/>80 members, 16 depts]
+    Org --> Dept[Department]
+    Org --> Ind[IndustryPartner]
+    Org --> Acad[AcademicPartner]
+    
+    Dept --> Tech[TechnicalDepartment]
+    Dept --> Ops[OperationalDepartment]
+    
+    Ind --> Neo[Neo4j]
+    
+    style SR fill:#ffcccc
+    style Neo fill:#ccffcc
+```
+
+## 3. Artifact Hierarchy (Detailed)
+
+```mermaid
+graph TD
+    Art[Artifact]
+    
+    Art --> Veh[Vehicle]
+    Art --> Doc[Document]
+    Art --> Req[Requirement<br/>600,000+]
+    Art --> Comp[Component<br/>100,000+]
+    Art --> Sub[Subsystem]
+    Art --> Int[Interface<br/>5,000+]
+    Art --> Proj[Project<br/>189]
+    Art --> Test[TestPlan]
+    
+    Veh --> SR8[SR8<br/>Tri-brid Electric<br/>Road Legal]
+    
+    Doc --> Reg[RegulatoryDocument]
+    Doc --> Eng[EngineeringBrief]
+    
+    Reg --> ADR[AustralianDesignRule<br/>113 rules]
+    
+    Eng --> Spec[TechnicalSpecification]
+    Eng --> Report[TestReport]
+    Eng --> Note[DesignNote]
+    Eng --> Sim[SimulationOutput<br/>1.5TB]
+    Eng --> Draw[EngineeringDrawing<br/>1TB]
+    
+    Req --> IntR[InternalRequirement]
+    Req --> ExtR[ExternalRequirement]
+    Req --> VP[VerificationProcedure]
+    
+    IntR --> IntEss[InternalEssentialRequirement]
+    IntR --> IntRec[InternalRecommendedRequirement]
+    
+    ExtR --> ExtEss[ExternalEssentialRequirement]
+    ExtR --> ExtRec[ExternalRecommendedRequirement]
+    
+    VP --> VM[VerificationMethod]
+    VM --> Insp[Inspection]
+    VM --> Demo[Demonstration]
+    VM --> Test[Test]
+    VM --> Anal[Analysis]
+    VM --> ADRAnn[ADRAnnex]
+    VM --> ADRTest[ADRTestingProcedure]
+    
+    Comp --> Evid[Evidence]
+    Evid --> InspEvid[InspectionEvidence]
+    Evid --> DemoEvid[DemonstrationEvidence]
+    Evid --> TestEvid[TestEvidence]
+    Evid --> AnalEvid[AnalysisEvidence]
+    Evid --> ADRAnnEvid[ADRAnnexEvidence]
+    Evid --> ADRTestEvid[ADRTestingProcedureEvidence]
+    
+    style SR8 fill:#ffcc99
+    style ADR fill:#ff9999
+    style Req fill:#99ccff
+    style Ess fill:#ff6666
+    style Rec fill:#66ff66
+```
+
+## 4. Technology Stack
+
+```mermaid
+graph TD
+    Tech[Technology]
+    
+    Tech --> KG[KnowledgeGraph]
+    Tech --> GDB[GraphDatabase]
+    Tech --> Ont[OntologyTool]
+    Tech --> NLP[NLPTool]
+    Tech --> LM[LanguageModel]
+    Tech --> QL[QueryLanguage]
+    Tech --> SW[SemanticWeb]
+    Tech --> DP[DocumentParser]
+    Tech --> OCR[Tesseract OCR]
+    
+    KG --> SR8KG[SR8 Regulatory<br/>Knowledge Graph]
+    GDB --> Neo[Neo4j]
+    Ont --> Prot[Protégé]
+    
+    NLP --> Sp[SpaCy]
+    NLP --> NL[NLTK]
+    
+    LM --> LLM[LargeLanguageModel]
+    LM --> Trans[TransformerModel]
+    
+    Trans --> B[BERT]
+    Trans --> R[RoBERTa]
+    
+    QL --> Cyp[Cypher]
+    
+    SW --> OWL[OWL]
+    SW --> RDF[RDF]
+    
+    DP --> PDF[PDFMiner]
+    
+    style Neo fill:#99ff99
+    style SR8KG fill:#9999ff
+    style LLM fill:#ff99ff
+```
+
+## 5. Concept Map
+
+```mermaid
+graph TD
+    Conc[Concept]
+    
+    Conc --> Ont[Ontology]
+    Conc --> Sem[SemanticModel]
+    Conc --> SE[SystemsEngineering]
+    Conc --> RC[RegulatoryCompliance]
+    Conc --> Trace[Traceability]
+    Conc --> Expl[Explainability]
+    Conc --> Prov[Provenance]
+    Conc --> Neuro[NeuroSymbolicAI]
+    Conc --> RAG[RetrievalAugmented<br/>Generation]
+    Conc --> GE[GraphEmbedding]
+    Conc --> MAS[MultiAgentSystem]
+    Conc --> MCP[ModelContext<br/>Protocol]
+    
+    SE --> MBE[ModelBasedEngineering]
+    SE --> SoS[SystemsOfSystems]
+    
+    style MCP fill:#ffff99
+    style Neuro fill:#ff99cc
+    style RAG fill:#99ffcc
+```
+
+## 6. Multi-Agent System
+
+```mermaid
+graph TD
+    Agent[Agent]
+    
+    Agent --> LLMA[LLMAgent]
+    Agent --> LPA[LinkPredictionAgent]
+    Agent --> RLA[RLAgent]
+    Agent --> ValA[ValidationAgent]
+    
+    LLMA --> |orchestratedBy| MCP[Model Context<br/>Protocol]
+    LPA --> |orchestratedBy| MCP
+    RLA --> |orchestratedBy| MCP
+    ValA --> |orchestratedBy| MCP
+    
+    LLMA -.collaboratesWithAgent.- LPA
+    LPA -.collaboratesWithAgent.- RLA
+    RLA -.collaboratesWithAgent.- ValA
+    
+    LLMA[LLMAgent<br/>Linguistic nuance<br/>Implicit dependencies]
+    LPA[LinkPredictionAgent<br/>Latent relational<br/>patterns]
+    RLA[RLAgent<br/>Requirement<br/>prioritization]
+    ValA[ValidationAgent<br/>Consistency<br/>checking]
+    
+    style MCP fill:#ffcc00
+    style LLMA fill:#cc99ff
+    style LPA fill:#99ccff
+    style RLA fill:#99ffcc
+    style ValA fill:#ffcc99
+```
+
+## 7. Key Relationships (Object Properties)
+
+```mermaid
+graph LR
+    A1[Organization] -->|hasDepartment| B1[Department]
+    A1 -->|collaboratesWith| A1
+    
+    A2[Vehicle] -->|hasSubsystem| B2[Subsystem]
+    B2 -->|hasComponent| C2[Component]
+    B2 -->|interfacesWith| B2
+    
+    A3[Requirement] -->|dependsOn| A3
+    A3 -->|appliesTo| B3[Artifact]
+    A3 -->|derivedFrom| C3[ADR]
+    
+    A4[Process] -->|hasInput| B4[Artifact]
+    A4 -->|hasOutput| B4
+    A4 -->|uses| C4[Technology]
+    A4 -->|employs| D4[Agent]
+    
+    A5[KnowledgeGraph] -->|storedIn| B5[GraphDatabase]
+    A5 -->|basedOnOntology| C5[Ontology]
+    
+    style A1 fill:#ffe1e1
+    style A2 fill:#e1ffe1
+    style A3 fill:#e1e1ff
+    style A4 fill:#fff0e1
+    style A5 fill:#f0e1ff
+```
+
+## 8. Three-System Architecture
+
+```mermaid
+graph TB
+    subgraph PTS[Project Tracking System]
+        P[Project<br/>189 projects]
+        D[Department<br/>15 departments]
+        M[Member<br/>100 members]
+        
+        P -.projectID.-> P
+        P -.projectName.-> P
+        P -.projectDescription.-> P
+        
+        P -->|hasPrimaryDepartment| D
+        P -->|hasSecondaryDepartment| D
+        P -->|hasAssignee| M
+        M -->|belongsToDepartment| D
+    end
+    
+    subgraph PMS[Parts Management System]
+        C[Component<br/>100,000+ parts]
+        
+        C -.partNumber.-> C
+        C -.partDescription.-> C
+        C -.componentProjectName.-> C
+        C -.clause.-> C
+        C -.bomLevel.-> C
+        C -.supplier.-> C
+        C -.stockLocation.-> C
+        
+        C -->|usedInProject| P
+        C -->|belongsToDepartment| D
+    end
+    
+    subgraph AMS[ADR Management System]
+        A[AustralianDesignRule<br/>100 ADRs]
+        V[VerificationProcedure]
+        
+        A -.hasID.-> A
+        A -.hasClause.-> A
+        A -.requirementDescription.-> A
+        A -.testingProcedurePerRequirement.-> A
+        
+        A -->|hasRelevantProject| P
+        A -->|hasPrimaryDepartment| D
+        A -->|hasSecondaryDepartment| D
+        A -->|hasVerificationMethod| V
+        A -->|appliesTo| C
+    end
+    
+    style PTS fill:#e1f0ff
+    style PMS fill:#ffe1f0
+    style AMS fill:#f0ffe1
+    style P fill:#99ccff
+    style D fill:#ff99cc
+    style M fill:#ccff99
+    style C fill:#ffcc99
+    style A fill:#99ffcc
+```
+
+## 9. Complete Workflow Architecture
+
+```mermaid
+graph TB
+    subgraph Sources[Data Sources]
+        ADR[Australian Design Rules<br/>113 documents]
+        Specs[Technical Specs<br/>4TB documents]
+        Sims[Simulations<br/>1.5TB]
+        Draws[Drawings<br/>1TB]
+        Code[Code<br/>500GB]
+    end
+    
+    subgraph Extraction[Extraction Pipeline]
+        Parse[Document Parsing<br/>PDFMiner, Tesseract]
+        NLP[NLP Processing<br/>SpaCy, NLTK]
+        Entity[Entity Recognition<br/>BERT, RoBERTa]
+        Relation[Relation Extraction]
+        Onto[Ontology Mapping<br/>OWL/RDF]
+    end
+    
+    subgraph Storage[Knowledge Storage]
+        KG[Knowledge Graph<br/>Neo4j]
+        Schema[Ontology Schema<br/>Protégé]
+    end
+    
+    subgraph Extension[Extension Pipeline]
+        LLM[LLM Agent<br/>Linguistic Inference]
+        LP[Link Prediction Agent<br/>Neural Embeddings]
+        RL[RL Agent<br/>Prioritization]
+        Val[Validation Agent<br/>Consistency Check]
+    end
+    
+    subgraph Orchestration[MCP Orchestration Layer]
+        MCP[Model Context Protocol<br/>Agent Coordination]
+        Context[Context Management]
+        Memory[State Retention]
+    end
+    
+    subgraph Output[Engineering Support]
+        Comply[Compliance<br/>Verification]
+        RiskP[Risk<br/>Propagation]
+        Rec[Design<br/>Recommendations]
+        Trace[Traceability<br/>Analysis]
+    end
+    
+    ADR --> Parse
+    Specs --> Parse
+    Sims --> Parse
+    Draws --> Parse
+    Code --> Parse
+    
+    Parse --> NLP
+    NLP --> Entity
+    Entity --> Relation
+    Relation --> Onto
+    
+    Onto --> KG
+    Onto --> Schema
+    
+    KG --> LLM
+    KG --> LP
+    KG --> RL
+    
+    LLM --> MCP
+    LP --> MCP
+    RL --> MCP
+    
+    MCP --> Val
+    Val --> KG
+    
+    KG --> Comply
+    KG --> RiskP
+    KG --> Rec
+    KG --> Trace
+    
+    style Sources fill:#ffe1e1
+    style Extraction fill:#e1ffe1
+    style Storage fill:#e1e1ff
+    style Extension fill:#fff0e1
+    style Orchestration fill:#ffff99
+    style Output fill:#e1f5ff
+```
+
+## 10. Requirement Classification System
+
+```mermaid
+graph TD
+    Req[Requirement<br/>600,000+]
+    
+    Req --> Type{Classification}
+    
+    Type --> |Criticality| Ess[Essential<br/>Non-negotiable<br/>constraints]
+    Type --> |Criticality| Rec[Recommended<br/>Contextual<br/>flexibility]
+    
+    Type --> |Source| Int[Internal<br/>Team-defined]
+    Type --> |Source| Ext[External<br/>ADR-derived]
+    
+    Req --> Attr{Attributes}
+    Attr --> Conf[Confidence Score<br/>0.0 - 1.0]
+    Attr --> Risk[Risk Level<br/>Low/Med/High]
+    Attr --> Cond[Conditional<br/>True/False]
+    Attr --> Prov[Provenance<br/>Source tracking]
+    
+    Req --> Rel{Relationships}
+    Rel --> Dep[dependsOn<br/>Transitive]
+    Rel --> App[appliesTo<br/>Components]
+    Rel --> Der[derivedFrom<br/>ADR rules]
+    Rel --> Inf[inferredBy<br/>Agent source]
+    
+    style Ess fill:#ff6666
+    style Rec fill:#66ff66
+    style Int fill:#6666ff
+    style Ext fill:#ff9966
+```
+
+## 11. SR8 Systems Architecture
+
+```mermaid
+graph TD
+    SR8[Sunswift 8<br/>Tri-brid Electric Vehicle]
+    
+    SR8 --> SS1[Powertrain<br/>Subsystem]
+    SR8 --> SS2[Battery<br/>Subsystem]
+    SR8 --> SS3[Solar Array<br/>Subsystem]
+    SR8 --> SS4[Chassis<br/>Subsystem]
+    SR8 --> SS5[Safety Systems<br/>Subsystem]
+    SR8 --> SS6[Electronics<br/>Subsystem]
+    
+    SS1 -.interfacesWith.- SS2
+    SS2 -.interfacesWith.- SS3
+    SS2 -.interfacesWith.- SS6
+    SS4 -.interfacesWith.- SS5
+    SS5 -.interfacesWith.- SS6
+    SS1 -.interfacesWith.- SS6
+    
+    SS1 --> C1[Motor<br/>Controller]
+    SS1 --> C2[Electric<br/>Motor]
+    
+    SS2 --> C3[Battery<br/>Pack]
+    SS2 --> C4[BMS]
+    
+    SS5 --> C5[ECU]
+    SS5 --> C6[Sensors]
+    
+    ADR[Australian<br/>Design Rules] -.derivedFrom.-> R1[Safety<br/>Requirements]
+    ADR -.derivedFrom.-> R2[Performance<br/>Requirements]
+    ADR -.derivedFrom.-> R3[Emission<br/>Requirements]
+    
+    R1 -.appliesTo.-> SS5
+    R2 -.appliesTo.-> SS1
+    R3 -.appliesTo.-> SS2
+    
+    style SR8 fill:#ffcc99
+    style ADR fill:#ff9999
+```
+
+## 12. Data Properties Overview
+
+```mermaid
+graph LR
+    subgraph Identifiers
+        ID[hasID]
+        Name[hasName]
+        Desc[hasDescription]
+        Time[hasTimestamp]
+    end
+    
+    subgraph Provenance
+        Source[hasSource]
+        Prov[hasProvenance]
+        Conf[hasConfidenceScore]
+    end
+    
+    subgraph Requirements
+        Ess[isEssential]
+        Cond[isConditional]
+        Risk[hasRiskLevel]
+        Exempt[hasExemption]
+    end
+    
+    subgraph Metrics
+        Members[numberOfMembers]
+        Depts[numberOfDepartments]
+        Projs[numberOfProjects]
+        Comps[numberOfComponents]
+        Reqs[numberOfRequirements]
+        Legal[isRoadLegal]
+    end
+    
+    style Identifiers fill:#e1f5ff
+    style Provenance fill:#ffe1f0
+    style Requirements fill:#fff0e1
+    style Metrics fill:#e1ffe1
+```
+
+## 13. Ontology Usage in Neo4j
+
+```cypher
+// Example: Create SR8 vehicle node
+CREATE (sr8:SR8 {
+    hasID: "SR8-001",
+    hasName: "Sunswift 8",
+    hasDescription: "World's first road-legal student-built tri-brid electric vehicle",
+    isRoadLegal: true,
+    numberOfComponents: 100000,
+    numberOfRequirements: 600000
+})
+
+// Example: Create ADR and requirement relationship
+CREATE (adr:AustralianDesignRule {hasID: "ADR-42", hasName: "General Safety"})
+CREATE (req:EssentialRequirement {
+    hasID: "REQ-42-001",
+    hasDescription: "Crash worthiness standards",
+    isEssential: true,
+    hasConfidenceScore: 0.95,
+    hasRiskLevel: "High"
+})
+CREATE (req)-[:derivedFrom]->(adr)
+CREATE (req)-[:appliesTo]->(sr8)
+
+// Example: Multi-agent inference
+CREATE (llm:LLMAgent {hasName: "LLM Inference Agent"})
+CREATE (mcp:ModelContextProtocol {hasName: "MCP Orchestrator"})
+CREATE (llm)-[:orchestratedBy]->(mcp)
+CREATE (req)-[:inferredBy]->(llm)
+```
+
+## 14. Semantic Integration
+
+```mermaid
+graph TB
+    subgraph Symbolic[Symbolic Reasoning]
+        OWL[OWL Ontology<br/>Formal Logic]
+        Rules[Inference Rules<br/>SWRL]
+        Reason[Reasoner<br/>HermiT/Pellet]
+    end
+    
+    subgraph Neural[Neural Reasoning]
+        LLM[Large Language<br/>Models]
+        Embed[Graph<br/>Embeddings]
+        RL[Reinforcement<br/>Learning]
+    end
+    
+    subgraph Integration[Neuro-Symbolic Integration]
+        MCP[Model Context<br/>Protocol]
+        RAG[Retrieval-Augmented<br/>Generation]
+        Val[Validation<br/>Layer]
+    end
+    
+    OWL --> MCP
+    Rules --> MCP
+    
+    LLM --> MCP
+    Embed --> MCP
+    RL --> MCP
+    
+    MCP --> RAG
+    MCP --> Val
+    
+    Val --> KG[Enriched<br/>Knowledge Graph]
+    
+    style OWL fill:#9999ff
+    style LLM fill:#ff99ff
+    style MCP fill:#ffff99
+    style KG fill:#99ff99
+```
+
+---
+
+## Visualization Tools
+
+To visualize this ontology:
+
+1. **Protégé**: Open `project-ontology.owl` for interactive exploration
+2. **Neo4j Browser**: Import and visualize graph relationships
+3. **Mermaid**: Render these diagrams in Markdown viewers
+4. **GraphViz**: Export from Protégé as DOT format
+5. **WebVOWL**: Online ontology visualization at http://vowl.visualdataweb.org/webvowl.html
+
+---
+
+*These diagrams provide a comprehensive visual representation of the SR8 thesis ontology, showing the hierarchical structure, relationships, workflows, and integration points across the entire knowledge framework.*
+# SR8 Ontology - Complete System Guide
+## ADR Verification & Component Management
+
+**Version:** 2.0  
+**Date:** March 2, 2026  
+**Status:** Production Ready
+
+---
+
+## Table of Contents
+
+1. [Overview](#overview)
+2. [System Architecture](#system-architecture)
+3. [ADR Verification System](#adr-verification-system)
+4. [Component Management System](#component-management-system)
+5. [Data Model](#data-model)
+6. [Column Mapping Reference](#column-mapping-reference)
+7. [Neo4j Implementation](#neo4j-implementation)
+8. [Query Examples](#query-examples)
+9. [Import Guide](#import-guide)
+
+---
+
+## Overview
+
+The SR8 ontology provides a comprehensive semantic model for the Sunswift Racing SR8 tri-brid electric vehicle project, integrating:
+
+- **113 Australian Design Rules (ADRs)** with verification tracking
+- **100,000+ Components** with full lifecycle management
+- **600,000+ Requirements** with traceability
+- **189 Projects** with integration workflows
+- **16 Departments** with organizational hierarchy
+
+### Key Capabilities
+
+✅ **End-to-End Traceability**: Component → Project → ADR → Evidence  
+✅ **Lifecycle Tracking**: Car build through road testing  
+✅ **Cost & Weight Management**: Estimated vs actual with variance analysis  
+✅ **Supply Chain Integration**: Supplier and procurement tracking  
+✅ **Compliance Verification**: Evidence-based ADR verification  
+✅ **Inventory Control**: Real-time stock and location tracking
+
+### Ontology Statistics
+
+| Metric | Count |
+|--------|-------|
+| **Classes** | 46 |
+| **Object Properties** | 36 |
+| **Data Properties** | 51 |
+| **Named Individuals** | 5 |
+| **Total Elements** | 200+ |
+
+---
+
+## System Architecture
+
+### Core Integration Flow
+
+```
+┌─────────────┐
+│  Component  │──────────────┐
+│  (Part)     │              │
+└──────┬──────┘              │
+       │                     │
+       │ usedInProject       │ generatesEvidence
+       ↓                     ↓
+┌────────────┐         ┌──────────┐
+│  Project   │         │ Evidence │
+└─────┬──────┘         └────┬─────┘
+      │                     │
+      │                     │ verifiedBy
+      │ assignedToProject   ↓
+      └──────────────→ ┌─────────────────────┐
+                       │ AustralianDesignRule│
+                       │      (ADR)          │
+                       └─────────────────────┘
+```
+
+### Three Main Hierarchies
+
+1. **Organization** → Teams, departments, partners
+2. **Artifact** → Vehicles, documents, requirements, **components**
+3. **Process** → Extraction, extension, validation
+
+---
+
+## ADR Verification System
+
+### What Is Tracked
+
+Every ADR (Australian Design Rule) must have:
+
+1. **Project Assignment**: One or more projects responsible for compliance
+2. **Verification Procedure**: Detailed testing/validation procedure where multiple components work together to generate evidence
+3. **Verification Method**: How compliance is verified
+4. **Evidence**: Proof of compliance formed when components collectively pass testing procedures
+
+### Verification Methods
+
+| Method | Description | Use Case |
+|--------|-------------|----------|
+| **Inspection** | Visual or manual inspection | Physical checks, visual compliance |
+| **Demonstration** | Functional demonstration | Feature demonstrations |
+| **Test** | Physical or functional testing | Performance testing, load testing |
+| **Analysis** | Simulations and calculations | CFD, FEA, mathematical proofs |
+| **ADR Annex** | ADR annex procedures | Regulatory-specified methods |
+| **ADR Testing Procedure** | Official ADR testing | Certification testing |
+
+### Evidence Types
+
+| Evidence Type | Description | Example |
+|---------------|-------------|---------|
+| **InspectionEvidence** | Visual or manual inspection results | Physical checks, visual compliance verification |
+| **DemonstrationEvidence** | Functional demonstration results | Feature demonstrations, operational proof |
+| **TestEvidence** | Physical or functional testing results | Performance tests, load tests, crash tests |
+| **AnalysisEvidence** | Simulations and calculations | CFD analysis, FEA, structural calculations |
+| **ADRAnnexEvidence** | ADR annex procedure results | Regulatory-specified test outcomes |
+| **ADRTestingProcedureEvidence** | Official ADR testing results | Certification testing, compliance tests |
+
+### ADR Data Properties
+
+| Property | Type | Description |
+|----------|------|-------------|
+| `hasClause` | string | Clause reference (e.g., "42.2.3") |
+| `requirementName` | string | Short requirement name |
+| `requirementText` | string | Full requirement text |
+| `isVerified` | boolean | Verification status |
+| `usesAlternativeTesting` | boolean | Alternative testing flag |
+| `rightProjectAssigned` | boolean | Correct project flag |
+| `alternativeProjectSuggestion` | string | Suggested alternative project |
+
+### ADR Relationships
+
+```
+AustralianDesignRule
+    ├── assignedToProject ──────> Project
+    ├── assignedToDepartment ───> Department
+    ├── hasVerificationProcedure → VerificationProcedure
+    │       ├── hasVerificationMethod ──> VerificationMethod
+    │       └── supportedByEvidence ────> Evidence
+    └── verifiedBy ─────────────────────> Evidence
+```
+
+---
+
+## Component Management System
+
+### Complete Parts Tracking
+
+Every component tracks:
+
+- **Identification**: Part number, description, BOM level
+- **Project & Department**: Organizational assignment
+- **Lifecycle Milestones**: Progress through testing phases
+- **Physical Properties**: Weight, quantity
+- **ADR Integration**: Links to related ADRs and evidence generation
+- **Supply Chain**: Supplier, procurement, order status
+- **Cost Management**: Estimated vs actual costs
+- **Inventory**: Stock quantity and location
+
+### Component Data Properties
+
+#### Identification & Classification
+- `partNumber` (string) - Unique identifier
+- `partDescription` (string) - Component description
+- `bomLevel` (integer) - BOM hierarchy level
+- `approvalStatus` (string) - Approval state
+- `componentStatus` (string) - Current status
+- `onCarSoftwareOffCar` (string) - Classification type
+
+#### Physical Properties
+- `quantityPer` (integer) - Quantity per assembly
+- `estimatedWeight` (float) - Estimated weight (kg)
+- `actualWeight` (float) - Actual weight (kg)
+
+#### ADR Integration
+- `relatedADRs` (string) - Comma-separated ADR list
+- `engineeringDrawingRequired` (boolean)
+
+#### Supply Chain
+- `procurementStatus` (string) - Procurement state
+- `supplier` (string) - Supplier name
+- `orderStatus` (string) - Order state
+- `stockQuantity` (integer) - Quantity in stock
+- `stockLocation` (string) - Physical location
+
+#### Cost Tracking
+- `assemblyEstimatedCost` (float)
+- `assemblyActualCost` (float)
+
+### Component Relationships
+
+| Relationship | To | Description |
+|--------------|-----|-------------|
+| `usedInProject` | Project | Project assignment |
+| `belongsToDepartment` | Department | Department responsibility |
+| `usedInADR` | AustralianDesignRule | ADR verification link |
+| `generatesEvidence` | Evidence | Evidence creation |
+| `suppliedBy` | IndustryPartner | Supplier link |
+| `partOfBOM` | Component | BOM hierarchy |
+
+---
+
+## Data Model
+
+### Complete Component-to-ADR Integration
+
+```
+Component
+    ├── Identification
+    │   ├── partNumber: "BMS-2024-001"
+    │   ├── partDescription: "Battery Management System"
+    │   └── bomLevel: 2
+    │
+    ├── Organization
+    │   ├── usedInProject ──────────> Project
+    │   ├── belongsToDepartment ───> Department
+    │   └── partOfBOM ─────────────> Component (parent)
+    │
+    ├── Supply Chain
+    │   ├── suppliedBy ────────────> IndustryPartner
+    │   ├── procurementStatus: "Received"
+    │   ├── orderStatus: "Complete"
+    │   ├── stockQuantity: 3
+    │   └── stockLocation: "Workshop A-12"
+    │
+    ├── ADR Verification
+    │   ├── usedInADR ─────────────> AustralianDesignRule
+    │   ├── generatesEvidence ─────> Evidence
+    │   │       └── verifiedBy ───> AustralianDesignRule
+    │   └── relatedADRs: "ADR-42, ADR-68"
+    │
+    ├── Physical Properties
+    │   ├── quantityPer: 1
+    │   ├── estimatedWeight: 2.5 kg
+    │   └── actualWeight: 2.3 kg
+    │
+    └── Cost Tracking
+        ├── assemblyEstimatedCost: $850
+        └── assemblyActualCost: $820
+```
+
+---
+
+## Column Mapping Reference
+
+### Parts Management Spreadsheet → Ontology
+
+| # | Spreadsheet Column | Ontology Property/Relationship | Type |
+|---|-------------------|-------------------------------|------|
+| 1 | DEPARTMENT | `belongsToDepartment` → Department | Relationship |
+| 2 | SECTION | `Department.sectionName` | String |
+| 3 | PROJECT # | `Project.projectID` | String |
+| 4 | PROJECT | `usedInProject` → Project | Relationship |
+| 5 | APPROVED | `approvalStatus` | String |
+| 6 | STATUS | `componentStatus` | String |
+| 7 | ONCAR SOFTWARE OFFCAR | `onCarSoftwareOffCar` | String |
+| 8 | BOM LEVEL | `bomLevel` | Integer |
+| 9 | PART NUMBER | `partNumber` | String |
+| 10 | PART DESCRIPTION | `partDescription` | String |
+| 11 | QTY PER | `quantityPer` | Integer |
+| 12 | ADR'S | `relatedADRs` + `usedInADR` | String + Relationship |
+| 13 | ENG DWG REQ | `engineeringDrawingRequired` | Boolean |
+| 14 | EST WEIGHT kg | `estimatedWeight` | Float |
+| 15 | ACTUAL WEIGHT kg | `actualWeight` | Float |
+| 16 | PROCUREMENT | `procurementStatus` | String |
+| 17 | SUPPLIER / PARTNER | `supplier` + `suppliedBy` | String + Relationship |
+| 18 | ASSEMBLY EST COST | `assemblyEstimatedCost` | Float |
+| 19 | ASSEMBLY ACTUAL COST | `assemblyActualCost` | Float |
+| 20 | ORDER STATUS | `orderStatus` | String |
+| 21 | STOCK QTY | `stockQuantity` | Integer |
+| 22 | STOCK LOCATION | `stockLocation` | String |
+
+---
+
+## Neo4j Implementation
+
+### Creating a Complete Component
+
+```cypher
+// Create component with all properties
+CREATE (c:Component {
+    hasID: "COMP-ELEC-BMS-001",
+    partNumber: "BMS-2024-001",
+    partDescription: "Battery Management System - Primary Controller",
+    bomLevel: 2,
+    approvalStatus: "Approved",
+    componentStatus: "In Production",
+    onCarSoftwareOffCar: "On-Car Software",
+    quantityPer: 1,
+    estimatedWeight: 2.5,
+    actualWeight: 2.3,
+    relatedADRs: "ADR-42, ADR-68",
+    engineeringDrawingRequired: true,
+    procurementStatus: "Received",
+    supplier: "Texas Instruments",
+    assemblyEstimatedCost: 850.00,
+    assemblyActualCost: 820.00,
+    orderStatus: "Complete",
+    stockQuantity: 3,
+    stockLocation: "Workshop A-12"
+})
+
+// Create/match related entities
+MERGE (dept:Department {hasID: "DEPT-ELEC"})
+ON CREATE SET dept.hasName = "Electrical Engineering"
+
+MERGE (proj:Project {projectID: "PROJ-ELEC-01"})
+ON CREATE SET proj.hasName = "Electrical Systems"
+
+MERGE (supplier:IndustryPartner {hasName: "Texas Instruments"})
+
+// Create relationships
+CREATE (c)-[:belongsToDepartment]->(dept)
+CREATE (c)-[:usedInProject]->(proj)
+CREATE (c)-[:suppliedBy]->(supplier)
+```
+
+### Creating ADR with Verification
+
+```cypher
+// Create ADR
+CREATE (adr:AustralianDesignRule {
+    hasID: "ADR-042",
+    hasName: "ADR-42",
+    hasClause: "42.2.3",
+    requirementName: "Headlamp Performance",
+    requirementText: "Headlamps shall provide adequate illumination...",
+    isVerified: true,
+    usesAlternativeTesting: true,
+    rightProjectAssigned: true
+})
+
+// Create verification procedure
+CREATE (proc:VerificationProcedure {
+    hasID: "VP-042-001",
+    hasName: "Headlamp Photometric Test",
+    verificationMethodDescription: "Photometric testing using calibrated lux meter..."
+})
+
+// Create verification method and evidence
+CREATE (method:Test {hasName: "Physical Testing"})
+CREATE (evidence:TestEvidence {
+    hasID: "EV-042-001",
+    hasName: "Photometric Test Results"
+})
+
+// Link everything together
+CREATE (adr)-[:hasVerificationProcedure]->(proc)
+CREATE (proc)-[:hasVerificationMethod]->(method)
+CREATE (proc)-[:supportedByEvidence]->(evidence)
+CREATE (adr)-[:verifiedBy]->(evidence)
+
+// Link component to ADR and evidence
+MATCH (c:Component {partNumber: "BMS-2024-001"})
+CREATE (c)-[:usedInADR]->(adr)
+CREATE (c)-[:generatesEvidence]->(evidence)
+```
+
+---
+
+## Query Examples
+
+### Component Queries
+
+#### 1. All Components by Project
+```cypher
+MATCH (c:Component)-[:usedInProject]->(p:Project)
+RETURN p.hasName AS Project,
+       COUNT(c) AS Component_Count,
+       SUM(c.actualWeight) AS Total_Weight_kg,
+       SUM(c.assemblyActualCost) AS Total_Cost
+ORDER BY Component_Count DESC;
+```
+
+#### 2. Weight Variance Analysis
+```cypher
+MATCH (c:Component)-[:usedInProject]->(p:Project)
+RETURN p.hasName AS Project,
+       SUM(c.estimatedWeight) AS Estimated_Weight_kg,
+       SUM(c.actualWeight) AS Actual_Weight_kg,
+       SUM(c.actualWeight) - SUM(c.estimatedWeight) AS Variance_kg,
+       ROUND(100.0 * (SUM(c.actualWeight) - SUM(c.estimatedWeight)) / 
+             SUM(c.estimatedWeight), 2) AS Variance_Percent
+ORDER BY Actual_Weight_kg DESC;
+```
+
+#### 3. Cost Analysis by Project
+```cypher
+MATCH (c:Component)-[:usedInProject]->(p:Project)
+RETURN p.hasName AS Project,
+       SUM(c.assemblyEstimatedCost) AS Estimated_Cost,
+       SUM(c.assemblyActualCost) AS Actual_Cost,
+       SUM(c.assemblyActualCost) - SUM(c.assemblyEstimatedCost) AS Variance,
+       ROUND(100.0 * (SUM(c.assemblyActualCost) - SUM(c.assemblyEstimatedCost)) /
+             SUM(c.assemblyEstimatedCost), 2) AS Variance_Percent
+ORDER BY Actual_Cost DESC;
+```
+
+#### 5. Stock Inventory Report
+```cypher
+MATCH (c:Component)
+WHERE c.stockQuantity > 0
+RETURN c.stockLocation AS Location,
+       COUNT(c) AS Parts_Count,
+       SUM(c.stockQuantity) AS Total_Quantity,
+       SUM(c.assemblyActualCost * c.stockQuantity) AS Inventory_Value
+ORDER BY Inventory_Value DESC;
+```
+
+### ADR Verification Queries
+
+#### 6. Unverified ADRs
+```cypher
+MATCH (adr:AustralianDesignRule)
+WHERE adr.isVerified = false
+RETURN adr.hasID AS ADR_ID,
+       adr.requirementName AS Requirement,
+       adr.hasClause AS Clause
+ORDER BY adr.hasID;
+```
+
+#### 7. Verification Completion by Project
+```cypher
+MATCH (p:Project)<-[:assignedToProject]-(adr:AustralianDesignRule)
+WITH p,
+     SUM(CASE WHEN adr.isVerified = true THEN 1 ELSE 0 END) AS verified,
+     COUNT(adr) AS total
+RETURN p.hasName AS Project,
+       total AS Total_ADRs,
+       verified AS Verified_ADRs,
+       ROUND(100.0 * verified / total, 2) AS Completion_Percent
+ORDER BY Completion_Percent DESC;
+```
+
+#### 8. ADRs by Verification Method
+```cypher
+MATCH (adr:AustralianDesignRule)-[:hasVerificationProcedure]->
+      (proc:VerificationProcedure)-[:hasVerificationMethod]->(method)
+RETURN labels(method)[0] AS Verification_Method,
+       COUNT(adr) AS ADR_Count,
+       COLLECT(adr.hasID)[0..5] AS Sample_ADRs
+ORDER BY ADR_Count DESC;
+```
+
+### Integration Queries
+
+#### 9. Components Generating ADR Evidence
+```cypher
+MATCH (c:Component)-[:generatesEvidence]->(ev:Evidence)
+      <-[:verifiedBy]-(adr:AustralianDesignRule)
+RETURN c.partNumber AS Part_Number,
+       c.partDescription AS Component,
+       labels(ev)[0] AS Evidence_Type,
+       adr.hasID AS ADR_ID,
+       adr.requirementName AS Requirement
+ORDER BY adr.hasID;
+```
+
+#### 10. Complete Traceability Path
+```cypher
+MATCH path = (c:Component)-[:usedInProject]->(p:Project),
+             (c)-[:generatesEvidence]->(ev:Evidence),
+             (ev)<-[:verifiedBy]-(adr:AustralianDesignRule),
+             (adr)-[:assignedToProject]->(p)
+RETURN c.partNumber AS Component,
+       p.hasName AS Project,
+       labels(ev)[0] AS Evidence_Type,
+       adr.hasID AS ADR,
+       adr.isVerified AS Verified
+ORDER BY adr.hasID;
+```
+
+#### 11. Department Workload Analysis
+```cypher
+MATCH (c:Component)-[:belongsToDepartment]->(d:Department)
+RETURN d.hasName AS Department,
+       COUNT(c) AS Component_Count,
+       SUM(c.assemblyActualCost) AS Total_Budget,
+       SUM(c.actualWeight) AS Total_Weight_kg
+ORDER BY Component_Count DESC;
+```
+
+#### 12. Comprehensive Component Report
+```cypher
+MATCH (c:Component)
+OPTIONAL MATCH (c)-[:usedInProject]->(p:Project)
+OPTIONAL MATCH (c)-[:belongsToDepartment]->(d:Department)
+OPTIONAL MATCH (c)-[:suppliedBy]->(s:IndustryPartner)
+RETURN d.hasName AS Department,
+       p.projectID AS Project_ID,
+       c.partNumber AS Part_Number,
+       c.partDescription AS Description,
+       c.relatedADRs AS ADRs,
+       c.actualWeight AS Weight_kg,
+       s.hasName AS Supplier,
+       c.assemblyActualCost AS Cost,
+       c.stockQuantity AS Stock,
+       c.stockLocation AS Location
+ORDER BY d.hasName, p.projectID, c.partNumber;
+```
+
+---
+
+## Import Guide
+
+### Step 1: Prepare Your Data
+
+Clean your spreadsheet data:
+- Ensure unique part numbers
+- Standardize status values
+- Convert checkmarks to TRUE/FALSE
+- Verify weight units (kg)
+- Standardize currency (AUD)
+
+### Step 2: Create CSV File
+
+Export to `components.csv`:
+```csv
+partNumber,partDescription,department,project,actualWeight,actualCost,supplier,stockQty,stockLocation,relatedADRs
+BMS-2024-001,Battery Management System,Electrical Engineering,PROJ-ELEC-01,2.3,820.00,Texas Instruments,3,Workshop A-12,"ADR-42, ADR-68"
+```
+
+### Step 3: Bulk Import with Cypher
+
+```cypher
+// Load components
+LOAD CSV WITH HEADERS FROM 'file:///components.csv' AS row
+CREATE (c:Component {
+    partNumber: row.partNumber,
+    partDescription: row.partDescription,
+    actualWeight: toFloat(row.actualWeight),
+    assemblyActualCost: toFloat(row.actualCost),
+    stockQuantity: toInteger(row.stockQty),
+    stockLocation: row.stockLocation,
+    relatedADRs: row.relatedADRs
+})
+WITH c, row
+MERGE (d:Department {hasName: row.department})
+MERGE (p:Project {projectID: row.project})
+MERGE (s:IndustryPartner {hasName: row.supplier})
+CREATE (c)-[:belongsToDepartment]->(d)
+CREATE (c)-[:usedInProject]->(p)
+CREATE (c)-[:suppliedBy]->(s);
+```
+
+### Step 4: Link to ADRs
+
+```cypher
+// Parse ADR relationships
+MATCH (c:Component)
+WHERE c.relatedADRs IS NOT NULL
+UNWIND split(c.relatedADRs, ',') AS adrID
+WITH c, trim(adrID) AS cleanADRID
+MATCH (adr:AustralianDesignRule)
+WHERE adr.hasID = cleanADRID
+CREATE (c)-[:usedInADR]->(adr);
+```
+
+### Step 5: Verify Import
+
+```cypher
+// Count nodes and relationships
+MATCH (c:Component) RETURN count(c) AS Components;
+MATCH ()-[r:usedInProject]->() RETURN count(r) AS ProjectLinks;
+MATCH ()-[r:usedInADR]->() RETURN count(r) AS ADRLinks;
+```
+
+---
+
+## Best Practices
+
+### Data Entry
+- Use consistent naming conventions
+- Always populate part numbers
+- Update milestone flags as work progresses
+- Record actual weights and costs when available
+- Link components to ADRs during design phase
+
+### Query Optimization
+- Create constraints on unique identifiers
+- Index frequently queried properties
+- Use MERGE for idempotent operations
+- Batch large imports
+
+### Maintenance
+- Regular stock inventory audits
+- Update verification status as tests complete
+- Track cost variances for budget management
+- Monitor weight for performance optimization
+
+---
+
+## Support Files
+
+- **project-ontology.owl** - Full OWL/RDF ontology specification
+- **ontology-documentation.md** - Detailed class and property documentation
+- **neo4j-examples.cypher** - 50+ ready-to-use queries
+- **validate.py** - Ontology validation script
+
+---
+
+## Quick Reference
+
+### Key Node Types
+- `Component` - Parts and assemblies
+- `AustralianDesignRule` - ADR requirements
+- `Project` - Engineering projects
+- `Department` - Organizational units
+- `Evidence` - Verification evidence
+- `IndustryPartner` - Suppliers
+
+### Critical Relationships
+- `usedInProject` - Component to Project
+- `usedInADR` - Component to ADR
+- `generatesEvidence` - Component to Evidence
+- `verifiedBy` - ADR to Evidence
+- `suppliedBy` - Component to Supplier
+
+### Essential Queries
+1. Component inventory by project
+2. Milestone readiness tracking
+3. Weight and cost variance
+4. ADR verification status
+5. Supply chain tracking
+6. Stock inventory
+7. Complete traceability
+
+---
+
+**Ontology Version:** 2.0  
+**Total Elements:** 184+ (48 classes, 36 properties, 51 attributes)  
+**Validation:** ✅ Complete  
+**Status:** Production Ready
+
+*For technical support, refer to ontology-documentation.md or Neo4j query examples.*
+# Neo4j Import Guide - SR8 Ontology
+
+## Overview
+This directory contains CSV files that map the SR8 ontology to Neo4j node labels, relationships, and properties for easy import into a Neo4j graph database.
+
+## CSV Files & Import Tools Summary
+
+**Created:** February 26, 2026  
+**Purpose:** Import SR8 Ontology into Neo4j Graph Database
+
+### Files Overview (5 total)
+
+1. **neo4j-node-labels.csv** (5.1K)
+   - 86 node labels mapped from OWL classes
+   - Includes parent-child hierarchy
+   - Categories: Organization, Artifact, Process, Technology, Concept, Agent
+   
+2. **neo4j-relationships.csv** (1.6K)
+   - 28 relationship types from OWL object properties
+   - Includes symmetric and transitive properties
+   - Maps domain and range constraints
+   
+3. **neo4j-node-properties.csv** (928B)
+   - 17 data properties for nodes
+   - Data types: string, integer, float, boolean, dateTime
+   - Includes constraints and applicable labels
+   
+4. **NEO4J-IMPORT-GUIDE.md** (9.0K)
+   - Complete import documentation
+   - Multiple import methods
+   - Sample queries and examples
+   - Validation procedures
+   
+5. **import_to_neo4j.py** (10.5K)
+   - Python script for automated import
+   - Creates constraints and indexes
+   - Imports all CSV data
+   - Runs verification queries
+
+### Node Labels Breakdown (86 total)
+
+**By Category:**
+- **Artifact:** 27 labels (31%) - Vehicles, documents, requirements
+- **Technology:** 21 labels (24%) - Neo4j, LLMs, NLP tools
+- **Concept:** 14 labels (16%) - Systems engineering, compliance
+- **Process:** 13 labels (15%) - Extraction, extension, validation
+- **Organization:** 7 labels (8%) - Sunswift, departments, partners
+- **Agent:** 4 labels (5%) - LLM, link prediction, RL, validation
+
+**Top-Level Categories (6):**
+1. **Organization** - Entities involved in SR8 project
+2. **Artifact** - Engineering artifacts and knowledge items
+3. **Process** - Methodological processes and workflows
+4. **Technology** - Technical tools and frameworks
+5. **Concept** - Theoretical and methodological concepts
+6. **Agent** - Computational agents in multi-agent system
+
+### Relationships Overview (28 total)
+
+**Structural Relationships:**
+- `hasSubsystem` (Vehicle → Subsystem)
+- `hasComponent` (Subsystem → Component) [transitive]
+- `interfacesWith` (Subsystem ↔ Subsystem) [symmetric]
+
+**Requirement Relationships:**
+- `hasRequirement` (Artifact → Requirement)
+- `dependsOn` (Requirement → Requirement) [transitive]
+- `appliesTo` (Requirement → Artifact)
+- `derivedFrom` (Requirement → AustralianDesignRule)
+
+**Process Relationships:**
+- `hasInput` (Process → Artifact)
+- `hasOutput` (Process → Artifact)
+- `uses` (Process → Technology)
+- `employs` (Process → Agent)
+
+**Agent Relationships:**
+- `orchestratedBy` (Agent → ModelContextProtocol)
+- `collaboratesWithAgent` (Agent ↔ Agent) [symmetric]
+- `inferredBy` (Requirement → Agent)
+
+**Compliance Relationships:**
+- `compliesWith` (Artifact → AustralianDesignRule)
+- `hasRisk` (Artifact → Requirement)
+- `propagatesRiskTo` (Subsystem → Subsystem)
+
+### Properties Overview (17 total)
+
+**String Properties (7):**
+- `hasID` - Unique identifier
+- `hasName` - Entity name
+- `hasDescription` - Detailed description
+- `hasSource` - Data source
+- `hasProvenance` - Origin and history
+- `hasRiskLevel` - Risk categorization (Low/Medium/High/Critical)
+- `hasExemption` - ADR exemption details
+
+**Integer Properties (5):**
+- `numberOfMembers` - Team size
+- `numberOfDepartments` - Organizational units
+- `numberOfProjects` - Concurrent projects
+- `numberOfComponents` - Component count
+- `numberOfRequirements` - Requirement count
+
+**Boolean Properties (3):**
+- `isEssential` - Essential vs recommended requirement
+- `isRoadLegal` - Vehicle legal status
+- `isConditional` - Conditional applicability
+
+**Float Properties (1):**
+- `hasConfidenceScore` - Extraction/inference confidence (0.0-1.0)
+
+**DateTime Properties (1):**
+- `hasTimestamp` - Temporal metadata
+
+### Import Options
+
+**OPTION 1: Python Script (Recommended)**
+```bash
+python3 import_to_neo4j.py --uri bolt://localhost:7687 \
+                            --user neo4j \
+                            --password your_password \
+                            --clear
+```
+
+**OPTION 2: Manual CSV Import** - Copy CSV files to Neo4j import directory and run commands from this guide
+
+**OPTION 3: Direct Cypher Queries** - See neo4j-examples.cypher for sample queries
+
+### Verification Queries
+
+After import, verify with:
+
+```cypher
+# Count labels by category
+MATCH (n:SchemaLabel)
+RETURN n.category, count(*) as count
+ORDER BY count DESC;
+
+# Check hierarchy
+MATCH (child:SchemaLabel)-[:SUBCLASS_OF]->(parent:SchemaLabel)
+RETURN child.name, parent.name;
+
+# List all relationships
+MATCH (r:SchemaRelationship)
+RETURN r.name, r.sourceLabel, r.targetLabel;
+```
+
+### Integration Capabilities
+
+These CSV files enable:
+- ✓ Direct import of ontology into Neo4j
+- ✓ Visualization of knowledge graph structure
+- ✓ Querying of requirements and dependencies
+- ✓ Traceability analysis
+- ✓ Risk propagation modeling
+- ✓ Compliance verification
+- ✓ Multi-agent workflow representation
+
+---
+
+## CSV Files Created
+
+1. **neo4j-node-labels.csv** - Maps all 86 ontology classes to Neo4j node labels
+2. **neo4j-relationships.csv** - Maps all 29 object properties to Neo4j relationships
+3. **neo4j-node-properties.csv** - Maps all 17 data properties to Neo4j node properties
+
+---
+
+## File 1: neo4j-node-labels.csv
+
+### Structure
+```
+Label,ParentLabel,Description,Type,Category
+```
+
+### Fields
+- **Label**: The Neo4j node label name (corresponds to owl:Class)
+- **ParentLabel**: The parent class (from rdfs:subClassOf)
+- **Description**: Human-readable description (from rdfs:comment)
+- **Type**: Either "TopLevel" (6 main categories) or "Derived" (subclasses)
+- **Category**: The root category hierarchy (Organization, Artifact, Process, Technology, Concept, Agent)
+
+### Statistics
+- **Total Labels**: 86
+- **Top-Level Labels**: 6
+- **Derived Labels**: 80
+
+### Top-Level Categories
+1. **Organization** (11 labels) - Entities involved in SR8 project
+2. **Artifact** (27 labels) - Documents, requirements, components, vehicles
+3. **Process** (13 labels) - Extraction, extension, validation workflows
+4. **Technology** (21 labels) - Tools, databases, NLP, LLMs
+5. **Concept** (14 labels) - Theoretical foundations, compliance, traceability
+6. **Agent** (4 labels) - Multi-agent AI system components
+
+---
+
+## File 2: neo4j-relationships.csv
+
+### Structure
+```
+RelationshipType,SourceLabel,TargetLabel,Description,Properties
+```
+
+### Fields
+- **RelationshipType**: The relationship name in Neo4j (corresponds to owl:ObjectProperty)
+- **SourceLabel**: Source node label (from rdfs:domain)
+- **TargetLabel**: Target node label (from rdfs:range)
+- **Description**: Relationship description
+- **Properties**: Special properties (symmetric, transitive, inverseOf, subPropertyOf)
+
+### Statistics
+- **Total Relationships**: 28
+- **Symmetric**: 3 (interfacesWith, collaboratesWith, collaboratesWithAgent)
+- **Transitive**: 2 (dependsOn, hasComponent)
+
+### Key Relationship Types
+1. **Organizational**: hasDepartment, collaboratesWith
+2. **Structural**: hasSubsystem, hasComponent, interfacesWith
+3. **Requirements**: hasRequirement, dependsOn, appliesTo, derivedFrom
+4. **Process**: hasInput, hasOutput, uses, employs
+5. **Agent**: orchestratedBy, collaboratesWithAgent, inferredBy
+6. **Compliance**: compliesWith, hasRisk, propagatesRiskTo
+
+---
+
+## File 3: neo4j-node-properties.csv
+
+### Structure
+```
+PropertyName,ApplicableLabels,DataType,Description,Constraints
+```
+
+### Fields
+- **PropertyName**: Property name in Neo4j (corresponds to owl:DatatypeProperty)
+- **ApplicableLabels**: Which node labels can have this property
+- **DataType**: Data type (string, integer, float, boolean, dateTime)
+- **Description**: Property description
+- **Constraints**: Value constraints (ranges, allowed values)
+
+### Statistics
+- **Total Properties**: 17
+- **String**: 7
+- **Integer**: 5
+- **Boolean**: 3
+- **Float**: 1
+- **DateTime**: 1
+
+---
+
+## Import Instructions
+
+### Method 1: Using Neo4j Browser (Manual)
+
+```cypher
+// 1. Load node labels
+LOAD CSV WITH HEADERS FROM 'file:///neo4j-node-labels.csv' AS row
+CREATE (n:NodeLabel {
+    name: row.Label,
+    parent: row.ParentLabel,
+    description: row.Description,
+    type: row.Type,
+    category: row.Category
+});
+
+// 2. Create indexes
+CREATE INDEX node_label_name IF NOT EXISTS FOR (n:NodeLabel) ON (n.name);
+```
+
+### Method 2: Using Cypher Script
+
+Save this as `import-schema.cypher`:
+
+```cypher
+// Import node labels
+LOAD CSV WITH HEADERS FROM 'file:///neo4j-node-labels.csv' AS row
+MERGE (n:SchemaLabel {name: row.Label})
+SET n.parent = row.ParentLabel,
+    n.description = row.Description,
+    n.type = row.Type,
+    n.category = row.Category;
+
+// Import relationships
+LOAD CSV WITH HEADERS FROM 'file:///neo4j-relationships.csv' AS row
+MERGE (r:SchemaRelationship {name: row.RelationshipType})
+SET r.sourceLabel = row.SourceLabel,
+    r.targetLabel = row.TargetLabel,
+    r.description = row.Description,
+    r.properties = row.Properties;
+
+// Import properties
+LOAD CSV WITH HEADERS FROM 'file:///neo4j-node-properties.csv' AS row
+MERGE (p:SchemaProperty {name: row.PropertyName})
+SET p.applicableLabels = row.ApplicableLabels,
+    p.dataType = row.DataType,
+    p.description = row.Description,
+    p.constraints = row.Constraints;
+```
+
+### Method 3: Creating Actual Nodes with Labels
+
+```cypher
+// Example: Create Organization nodes
+LOAD CSV WITH HEADERS FROM 'file:///neo4j-node-labels.csv' AS row
+WHERE row.Category = 'Organization'
+CALL apoc.create.node([row.Label], {
+    name: row.Label,
+    description: row.Description
+}) YIELD node
+RETURN node;
+```
+
+### Method 4: Using neo4j-admin import (Bulk Import)
+
+For large-scale import, prepare header files:
+
+**nodes-header.csv**:
+```
+labelId:ID,label:LABEL,parent,description,type,category
+```
+
+**nodes-data.csv**:
+```
+org-001,Organization,,Entities involved in the SR8 project,TopLevel,Organization
+art-001,Artifact,,Engineering artifacts documents and knowledge items,TopLevel,Artifact
+...
+```
+
+Then run:
+```bash
+neo4j-admin import \
+  --nodes=nodes-header.csv,nodes-data.csv \
+  --database=sr8-ontology
+```
+
+---
+
+## Creating Sample Data
+
+After importing the schema, populate with instances:
+
+```cypher
+// Create Sunswift Racing organization
+CREATE (org:SunswiftRacing {
+    hasID: "ORG-001",
+    hasName: "Sunswift Racing",
+    numberOfMembers: 80,
+    numberOfDepartments: 16,
+    numberOfProjects: 189
+});
+
+// Create SR8 vehicle
+CREATE (sr8:SR8 {
+    hasID: "VEH-SR8",
+    hasName: "Sunswift 8",
+    hasDescription: "World's first road-legal, student-built, tri-brid electric vehicle",
+    isRoadLegal: true,
+    numberOfComponents: 100000
+});
+
+// Create relationship
+MATCH (o:SunswiftRacing {hasID: "ORG-001"})
+MATCH (v:SR8 {hasID: "VEH-SR8"})
+CREATE (o)-[:develops]->(v);
+```
+
+---
+
+## Validation Queries
+
+### Check imported schema
+
+```cypher
+// Count node labels by category
+MATCH (n:SchemaLabel)
+RETURN n.category, count(*) as count
+ORDER BY count DESC;
+
+// List all relationships
+MATCH (r:SchemaRelationship)
+RETURN r.name, r.sourceLabel, r.targetLabel;
+
+// Find hierarchical depth
+MATCH path = (n:SchemaLabel)-[:hasParent*]->(root:SchemaLabel)
+WHERE NOT (root)-[:hasParent]->()
+RETURN n.name, length(path) as depth
+ORDER BY depth DESC;
+```
+
+### Verify constraints
+
+```cypher
+// Show all indexes
+SHOW INDEXES;
+
+// Show all constraints
+SHOW CONSTRAINTS;
+```
+
+---
+
+## Usage Examples
+
+### Query 1: Find all subclasses of a category
+```cypher
+MATCH (n:SchemaLabel)
+WHERE n.category = 'Agent'
+RETURN n.name, n.description;
+```
+
+### Query 2: Get relationship hierarchy
+```cypher
+MATCH (r:SchemaRelationship)
+WHERE r.sourceLabel = 'Requirement'
+RETURN r.name, r.targetLabel;
+```
+
+### Query 3: Find properties for a label
+```cypher
+MATCH (p:SchemaProperty)
+WHERE p.applicableLabels CONTAINS 'Requirement' OR p.applicableLabels = 'All'
+RETURN p.name, p.dataType, p.description;
+```
+
+---
+
+## Integration with Python
+
+```python
+from neo4j import GraphDatabase
+import pandas as pd
+
+class OntologyImporter:
+    def __init__(self, uri, user, password):
+        self.driver = GraphDatabase.driver(uri, auth=(user, password))
+    
+    def import_labels(self, csv_file):
+        df = pd.read_csv(csv_file)
+        with self.driver.session() as session:
+            for _, row in df.iterrows():
+                session.run("""
+                    MERGE (n:SchemaLabel {name: $label})
+                    SET n.parent = $parent,
+                        n.description = $description,
+                        n.type = $type,
+                        n.category = $category
+                """, label=row['Label'], 
+                     parent=row['ParentLabel'],
+                     description=row['Description'],
+                     type=row['Type'],
+                     category=row['Category'])
+    
+    def close(self):
+        self.driver.close()
+
+# Usage
+importer = OntologyImporter("bolt://localhost:7687", "neo4j", "password")
+importer.import_labels("neo4j-node-labels.csv")
+importer.close()
+```
+
+---
+
+## File Locations
+
+Default Neo4j import directory:
+- **macOS**: `~/Library/Application Support/Neo4j Desktop/Application/relate-data/dbmss/dbms-xxx/import/`
+- **Linux**: `/var/lib/neo4j/import/`
+- **Windows**: `C:\Users\<username>\.Neo4jDesktop\relate-data\dbmss\dbms-xxx\import\`
+
+Copy CSV files to this directory before running LOAD CSV commands.
+
+---
+
+## Next Steps
+
+1. ✅ Import schema CSVs into Neo4j
+2. ✅ Create constraints and indexes
+3. ✅ Populate with SR8 project data
+4. ✅ Link with existing ontology (project-ontology.owl)
+5. ✅ Run validation queries
+6. ✅ Export visualizations for thesis
+
+---
+
+## References
+
+- **Neo4j Import Documentation**: https://neo4j.com/docs/operations-manual/current/tools/neo4j-admin/neo4j-admin-import/
+- **Cypher Manual**: https://neo4j.com/docs/cypher-manual/current/
+- **APOC Procedures**: https://neo4j.com/labs/apoc/
+
+---
+
+*These CSV files provide a complete mapping of the SR8 ontology to Neo4j's property graph model, enabling efficient import and querying of the knowledge graph.*

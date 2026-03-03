@@ -1,0 +1,49 @@
+Label,ParentLabel,Description,Type,Category
+Organization,,Entities Involved In The SR8 Project,TopLevel,Organization
+Artifact,,Engineering Artifacts Documents And Knowledge Items,TopLevel,Artifact
+Process,,Methodological Processes And Workflows,TopLevel,Process
+SunswiftRacing,Organization,Student Engineering Organization Focused On Solar-Electric Vehicles,Derived,Organization
+Department,Organization,Technical Or Operational Department Within Sunswift,Derived,Organization
+TechnicalDepartment,Department,,Derived,Organization
+OperationalDepartment,Department,,Derived,Organization
+IndustryPartner,Organization,,Derived,Organization
+AcademicPartner,Organization,,Derived,Organization
+Member,Organization,Team Member Or Project Assignee (100 Members),Derived,Organization
+Vehicle,Artifact,,Derived,Artifact
+SR8,Vehicle,World's First Road-Legal Student-Built Tri-Brid Electric Vehicle,Derived,Artifact
+Document,Artifact,,Derived,Artifact
+RegulatoryDocument,Document,,Derived,Artifact
+AustralianDesignRule,RegulatoryDocument,National Regulatory Framework For Vehicle Compliance,Derived,Artifact
+EngineeringBrief,Document,,Derived,Artifact
+TechnicalSpecification,EngineeringBrief,,Derived,Artifact
+TestReport,EngineeringBrief,,Derived,Artifact
+DesignNote,EngineeringBrief,,Derived,Artifact
+SimulationOutput,EngineeringBrief,,Derived,Artifact
+EngineeringDrawing,EngineeringBrief,,Derived,Artifact
+Requirement,Artifact,,Derived,Artifact
+InternalRequirement,Requirement,,Derived,Artifact
+ExternalRequirement,Requirement,,Derived,Artifact
+InternalEssentialRequirement,InternalRequirement,Non-Negotiable Internal Requirement Imposing Strict Constraints,Derived,Artifact
+InternalRecommendedRequirement,InternalRequirement,Contextual Internal Requirement With Interpretative Flexibility,Derived,Artifact
+ExternalEssentialRequirement,ExternalRequirement,Non-Negotiable External Requirement Imposing Strict Constraints,Derived,Artifact
+ExternalRecommendedRequirement,ExternalRequirement,Contextual External Requirement With Interpretative Flexibility,Derived,Artifact
+Component,Artifact,,Derived,Artifact
+Subsystem,Artifact,,Derived,Artifact
+Interface,Artifact,Connection Or Interaction Point Between Subsystems,Derived,Artifact
+Project,Artifact,,Derived,Artifact
+TestPlan,Artifact,,Derived,Artifact
+VerificationProcedure,Requirement,Detailed Procedure For Verifying ADR Compliance,Derived,Artifact
+VerificationMethod,VerificationProcedure,Method Used To Verify Compliance With Requirements,Derived,Artifact
+Inspection,VerificationMethod,Visual Or Manual Inspection Verification Method,Derived,Artifact
+Demonstration,VerificationMethod,Demonstration-Based Verification Method,Derived,Artifact
+Test,VerificationMethod,Physical Or Functional Test Verification Method,Derived,Artifact
+Analysis,VerificationMethod,Analytical Verification Including Simulations And Calculations,Derived,Artifact
+ADRAnnex,VerificationMethod,Verification Through ADR Annex Procedures,Derived,Artifact
+ADRTestingProcedure,VerificationMethod,Official ADR Testing Procedure Verification Method,Derived,Artifact
+Evidence,Component,Evidence Supporting Verification Of Compliance Formed When Multiple Components Work Together,Derived,Artifact
+InspectionEvidence,Evidence,Evidence Obtained Through Visual Or Manual Inspection,Derived,Artifact
+DemonstrationEvidence,Evidence,Evidence Obtained Through Functional Demonstration,Derived,Artifact
+TestEvidence,Evidence,Evidence Obtained Through Physical Or Functional Testing,Derived,Artifact
+AnalysisEvidence,Evidence,Evidence Obtained Through Simulations And Calculations,Derived,Artifact
+ADRAnnexEvidence,Evidence,Evidence Obtained Through ADR Annex Procedures,Derived,Artifact
+ADRTestingProcedureEvidence,Evidence,Evidence Obtained Through Official ADR Testing Procedures,Derived,Artifact
