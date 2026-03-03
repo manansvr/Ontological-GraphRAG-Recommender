@@ -35,9 +35,10 @@ Your ontology consists of three files:
 | `Subsystem` | Major vehicle systems | ~10-20 |
 | `Interface` | Cross-system connections | 5,000+ |
 | `Project` | Concurrent engineering projects | 189 |
+| `VerificationProcedure` | ADR verification procedures | Process |
+| `VerificationMethod` | Verification methods | 6 types |
+| `Evidence` | Verification evidence | 3 types |
 | `Department` | Organizational units | 16 |
-| `KnowledgeExtraction` | Raw data → structured data | Process |
-| `KnowledgeExtension` | Enrichment via AI | Process |
 | `KnowledgeGraph` | Semantic knowledge store | Neo4j-based |
 | `Neo4j` | Graph database technology | Tool |
 | `LLMAgent` | Language model reasoning | Multi-agent |
@@ -63,6 +64,11 @@ Your ontology consists of three files:
 | `appliesTo` | Requirement → Artifact | Req applies to Battery |
 | `interfacesWith` | Subsystem ↔ Subsystem | Battery interfaces with Motor |
 | `compliesWith` | Artifact → ADR | SR8 complies with ADR-42 |
+| `assignedToProject` | ADR → Project | ADR-42 assigned to Electrical |
+| `hasVerificationProcedure` | ADR → Procedure | ADR-42 has test procedure |
+| `hasVerificationMethod` | Procedure → Method | Procedure uses Test method |
+| `supportedByEvidence` | Procedure → Evidence | Procedure has test evidence |
+| `verifiedBy` | ADR → Evidence | ADR verified by simulation |
 | `hasRisk` | Artifact → Requirement | Battery has thermal risk |
 | `propagatesRiskTo` | Subsystem → Subsystem | Battery risk → Electronics |
 | `extractsKnowledgeFrom` | Process → Document | Extract from ADR PDF |

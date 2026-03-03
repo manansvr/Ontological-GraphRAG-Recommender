@@ -73,7 +73,20 @@ Artifact
 ├── Subsystem
 ├── Interface (5,000+ interactions)
 ├── Project (189 concurrent)
-└── TestPlan
+├── TestPlan
+├── VerificationProcedure
+│   └── [Detailed procedures for verifying ADR compliance]
+├── VerificationMethod
+│   ├── Inspection (visual/manual inspection)
+│   ├── Demonstration (demonstration-based verification)
+│   ├── Test (physical/functional testing)
+│   ├── Analysis (simulations/calculations)
+│   ├── ADRAnnex (ADR annex procedures)
+│   └── ADRTestingProcedure (official ADR testing)
+└── Evidence
+    ├── SimulationEvidence (computational simulation)
+    ├── MathematicalEvidence (calculations/analysis)
+    └── TestEvidence (actual testing)
 ```
 
 **Key Relationships**:
@@ -85,46 +98,16 @@ Artifact
 - `appliesTo`: Requirement-artifact mapping
 - `derivedFrom`: Requirements sourced from ADRs
 - `documentedIn`: Documentation references
+- `assignedToProject`: ADRs linked to responsible projects
+- `assignedToDepartment`: ADRs linked to relevant departments
+- `hasVerificationProcedure`: ADRs linked to verification procedures
+- `hasVerificationMethod`: Procedures linked to verification methods
+- `supportedByEvidence`: Procedures linked to evidence
+- `verifiedBy`: ADRs linked to verification evidence
 
 ---
 
-### 3. Process Hierarchy
-
-```
-Process
-├── KnowledgeExtraction
-│   ├── DataSourceIdentification
-│   ├── OntologyFormalization
-│   ├── EntityRecognition
-│   └── RelationExtraction
-├── KnowledgeExtension
-│   ├── LLMInference (LLM-supported inference)
-│   ├── LinkPrediction (neural link prediction)
-│   └── ReinforcementLearning (RL-based prioritization)
-├── KnowledgeFusion
-├── ComplianceVerification
-├── RiskPropagation
-├── SemanticAlignment
-└── Validation
-```
-
-**Key Workflow**:
-```
-DataSources → Extraction → Fusion → Extension → Validation → Recommendation
-```
-
-**Key Relationships**:
-- `hasInput`: Process inputs
-- `hasOutput`: Process outputs
-- `uses`: Technology employed
-- `employs`: Agents used
-- `precedesProcess`: Sequential dependencies
-- `extractsKnowledgeFrom`: Document processing
-- `extendsKnowledgeGraph`: Graph enrichment
-
----
-
-### 4. Technology Hierarchy
+### 3. Technology Hierarchy
 
 ```
 Technology
@@ -160,7 +143,7 @@ Technology
 
 ---
 
-### 5. Concept Hierarchy
+### 4. Concept Hierarchy
 
 ```
 Concept
@@ -183,7 +166,7 @@ Concept
 
 ---
 
-### 6. Agent Hierarchy
+### 5. Agent Hierarchy
 
 ```
 Agent
@@ -222,14 +205,30 @@ Agent
 - `derivedFrom`: Requirement → ADR
 - `documentedIn`: Artifact → Document
 
+### ADR Verification Relations
+- `assignedToProject`: AustralianDesignRule → Project
+- `assignedToDepartment`: AustralianDesignRule → Department
+- `hasVerificationProcedure`: AustralianDesignRule → VerificationProcedure
+- `hasVerificationMethod`: VerificationProcedure → VerificationMethod
+- `supportedByEvidence`: VerificationProcedure → Evidence
+- `verifiedBy`: AustralianDesignRule → Evidence
+- `compliesWith`: Artifact → AustralianDesignRule
+
+### Component Management Relations
+- `usedInProject`: Component → Project
+- `usedInADR`: Component → AustralianDesignRule
+- `generatesEvidence`: Component → Evidence
+- `suppliedBy`: Component → IndustryPartner
+- `partOfBOM`: Component → Component (BOM hierarchy)
+- `belongsToDepartment`: Component → Department
+- `hasSection`: Department → Department (organizational hierarchy)
+
 ### Process Relations
 - `hasInput` / `isInputTo`: Process ↔ Artifact (inverse)
 - `hasOutput`: Process → Artifact
 - `uses`: Process → Technology
 - `employs`: Process → Agent
 - `precedesProcess`: Process → Process
-- `extractsKnowledgeFrom`: KnowledgeExtraction → Document
-- `extendsKnowledgeGraph`: KnowledgeExtension → KnowledgeGraph
 
 ### Technology Relations
 - `representsKnowledge`: KnowledgeGraph → Artifact
@@ -268,6 +267,50 @@ Agent
 - `hasRiskLevel`: Risk categorization (string)
 - `hasExemption`: ADR exemption details (string)
 
+### ADR Tracking Attributes
+- `hasClause`: Clause reference within ADR (string)
+- `requirementName`: Short name/title of requirement (string)
+- `requirementText`: Full requirement text (string)
+- `projectID`: Unique project identifier (string)
+- `isVerified`: Verification status (boolean)
+- `usesAlternativeTesting`: Alternative testing method flag (boolean)
+- `verificationMethodDescription`: Detailed verification description (string)
+- `rightProjectAssigned`: Correct project assignment flag (boolean)
+- `alternativeProjectSuggestion`: Suggested alternative project (string)
+
+### Component Management Attributes
+
+**Identification & Classification**
+- `partNumber`: Unique part number identifier (string)
+- `partDescription`: Description of the component/part (string)
+- `bomLevel`: Bill of Materials hierarchy level (integer)
+- `approvalStatus`: Component approval status (string)
+- `componentStatus`: Current status of the component (string)
+- `onCarSoftwareOffCar`: Classification as on-car software or off-car component (string)
+
+**Quantity & Physical Properties**
+- `quantityPer`: Quantity required per assembly (integer)
+- `estimatedWeight`: Estimated weight in kilograms (float)
+- `actualWeight`: Actual measured weight in kilograms (float)
+
+**ADR & Engineering**
+- `relatedADRs`: List of ADRs that this component relates to (string)
+- `engineeringDrawingRequired`: Engineering drawing required flag (boolean)
+
+**Procurement & Supply Chain**
+- `procurementStatus`: Status of component procurement (string)
+- `supplier`: Supplier or partner name (string)
+- `orderStatus`: Current order status (string)
+- `stockQuantity`: Quantity in stock (integer)
+- `stockLocation`: Physical location of stock (string)
+
+**Cost Tracking**
+- `assemblyEstimatedCost`: Estimated assembly cost (float)
+- `assemblyActualCost`: Actual assembly cost (float)
+
+**Department Organization**
+- `sectionName`: Name of the section within a department (string)
+
 ### Quantitative Metrics
 - `numberOfMembers`: Team size (integer)
 - `numberOfDepartments`: Organizational units (integer)
@@ -283,45 +326,11 @@ Agent
 ### Disjoint Classes
 - `EssentialRequirement` ⊥ `RecommendedRequirement`
 - `InternalRequirement` ⊥ `ExternalRequirement`
-- `KnowledgeExtraction` ⊥ `KnowledgeExtension`
 
 ### Property Characteristics
 - **Symmetric**: `interfacesWith`, `collaboratesWithAgent`, `collaboratesWith`
 - **Transitive**: `dependsOn`, `hasComponent`
 - **Inverse**: `hasInput` ↔ `isInputTo`
-
----
-
-## Complete Workflow Integration
-
-```mermaid
-graph TD
-    A[Heterogeneous Sources] -->|extractsKnowledgeFrom| B[Knowledge Extraction]
-    B -->|uses| C[NLP Tools: SpaCy, NLTK]
-    B -->|uses| D[Document Parsers]
-    B -->|hasOutput| E[Structured Knowledge Graph]
-    E -->|storedIn| F[Neo4j Database]
-    E -->|basedOnOntology| G[OWL/RDF Ontology]
-    
-    E -->|extendsKnowledgeGraph| H[Knowledge Extension]
-    H -->|employs| I[LLM Agent]
-    H -->|employs| J[Link Prediction Agent]
-    H -->|employs| K[RL Agent]
-    
-    I -->|orchestratedBy| L[MCP]
-    J -->|orchestratedBy| L
-    K -->|orchestratedBy| L
-    
-    H -->|hasOutput| M[Enriched Knowledge Graph]
-    M -->|supports| N[Compliance Verification]
-    M -->|supports| O[Risk Propagation]
-    M -->|supports| P[Design Recommendations]
-    
-    Q[Australian Design Rules] -->|derivedFrom| R[Requirements]
-    R -->|appliesTo| S[SR8 Subsystems]
-    S -->|interfacesWith| S
-    S -->|hasComponent| T[Components]
-```
 
 ---
 
@@ -380,18 +389,14 @@ RETURN req, agent, req.hasProvenance
 ## Integration with Thesis Structure
 
 ### Manan's Focus (Knowledge Extraction)
-- **Ontology Classes**: `OntologyFormalization`, `EntityRecognition`, `RelationExtraction`
 - **Technologies**: `OWL`, `RDF`, `Protégé`, `Neo4j`, `Cypher`
-- **Processes**: `KnowledgeExtraction`, `SemanticAlignment`, `Validation`
 
 ### Ilina's Focus (Knowledge Extension)
-- **Ontology Classes**: `LLMInference`, `LinkPrediction`, `ReinforcementLearning`
 - **Agents**: `LLMAgent`, `LinkPredictionAgent`, `RLAgent`
 - **Concepts**: `ModelContextProtocol`, `NeuroSymbolicAI`, `MultiAgentSystem`
 
 ### Shared Components
 - **Core Domain**: `AustralianDesignRule`, `SR8`, `Requirement`, `Subsystem`
-- **Processes**: `ComplianceVerification`, `RiskPropagation`
 - **Collaboration**: `SunswiftRacing`, `Neo4jPartner`, `AcademicPartner`
 
 ---

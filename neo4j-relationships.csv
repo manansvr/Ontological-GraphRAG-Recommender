@@ -1,5 +1,8 @@
 RelationshipType,SourceLabel,TargetLabel,Description,Properties
 hasDepartment,SunswiftRacing,Department,has department,
+hasPrimaryDepartment,Project,Department,has primary department,
+hasSecondaryDepartment,Project,Department,has secondary department,
+hasAssignee,Project,Member,has assignee (project assignee),
 collaboratesWith,Organization,Organization,collaborates with,symmetric
 hasRequirement,Artifact,Requirement,has requirement,
 hasComponent,Subsystem,Component,has component,transitive
@@ -14,8 +17,6 @@ hasOutput,Process,Artifact,has output,
 uses,Process,Technology,uses,
 employs,Process,Agent,employs,
 precedesProcess,Process,Process,precedes process,
-extractsKnowledgeFrom,KnowledgeExtraction,Document,extracts knowledge from,subPropertyOf:hasInput
-extendsKnowledgeGraph,KnowledgeExtension,KnowledgeGraph,extends knowledge graph,subPropertyOf:hasInput
 representsKnowledge,KnowledgeGraph,Artifact,represents knowledge,
 storedIn,KnowledgeGraph,GraphDatabase,stored in,
 queriedBy,GraphDatabase,QueryLanguage,queried by,
@@ -27,3 +28,15 @@ compliesWith,Artifact,AustralianDesignRule,complies with,
 hasRisk,Artifact,Requirement,has risk,
 propagatesRiskTo,Subsystem,Subsystem,propagates risk to,
 isInputTo,Artifact,Process,is input to,inverseOf:hasInput
+hasVerificationProcedure,AustralianDesignRule,VerificationProcedure,has verification procedure,
+hasVerificationMethod,VerificationProcedure,VerificationMethod,has verification method,
+assignedToProject,AustralianDesignRule,Project,assigned to project,
+assignedToDepartment,AustralianDesignRule,Department,assigned to department,
+hasRelevantProject,AustralianDesignRule,Project,has relevant project,
+hasRelevantDepartment,AustralianDesignRule,Department,has relevant department,
+verifiedBy,AustralianDesignRule,Evidence,verified by,
+providesEvidenceFor,Evidence,AustralianDesignRule,provides evidence for,inverseOf:verifiedBy
+usedInProject,Component,Project,used in project,
+usedInADR,Component,AustralianDesignRule,used in ADR,
+generatesEvidence,Component,Evidence,generates evidence,
+partOfComponent,Component,Component,part of component,transitive

@@ -89,6 +89,12 @@
         <rdfs:label>Academic Partner</rdfs:label>
     </owl:Class>
     
+    <owl:Class rdf:about="#Member">
+        <rdfs:subClassOf rdf:resource="#Organization"/>
+        <rdfs:label>Member</rdfs:label>
+        <rdfs:comment>Team member or project assignee (100 members)</rdfs:comment>
+    </owl:Class>
+    
     
     <!-- =============================================== -->
     <!-- ARTIFACT HIERARCHY                              -->
@@ -204,82 +210,76 @@
         <rdfs:label>Test Plan</rdfs:label>
     </owl:Class>
     
-    
-    <!-- =============================================== -->
-    <!-- PROCESS HIERARCHY                               -->
-    <!-- =============================================== -->
-    
-    <owl:Class rdf:about="#KnowledgeExtraction">
-        <rdfs:subClassOf rdf:resource="#Process"/>
-        <rdfs:label>Knowledge Extraction</rdfs:label>
-        <rdfs:comment>Process of transforming raw artifacts into structured knowledge</rdfs:comment>
+    <owl:Class rdf:about="#VerificationProcedure">
+        <rdfs:subClassOf rdf:resource="#Artifact"/>
+        <rdfs:label>Verification Procedure</rdfs:label>
+        <rdfs:comment>Detailed procedure for verifying ADR compliance</rdfs:comment>
     </owl:Class>
     
-    <owl:Class rdf:about="#DataSourceIdentification">
-        <rdfs:subClassOf rdf:resource="#KnowledgeExtraction"/>
-        <rdfs:label>Data Source Identification</rdfs:label>
+    <owl:Class rdf:about="#VerificationMethod">
+        <rdfs:subClassOf rdf:resource="#Artifact"/>
+        <rdfs:label>Verification Method</rdfs:label>
+        <rdfs:comment>Method used to verify compliance with requirements</rdfs:comment>
     </owl:Class>
     
-    <owl:Class rdf:about="#OntologyFormalization">
-        <rdfs:subClassOf rdf:resource="#KnowledgeExtraction"/>
-        <rdfs:label>Ontology Formalization</rdfs:label>
+    <owl:Class rdf:about="#Inspection">
+        <rdfs:subClassOf rdf:resource="#VerificationMethod"/>
+        <rdfs:label>Inspection</rdfs:label>
+        <rdfs:comment>Visual or manual inspection verification method</rdfs:comment>
     </owl:Class>
     
-    <owl:Class rdf:about="#EntityRecognition">
-        <rdfs:subClassOf rdf:resource="#KnowledgeExtraction"/>
-        <rdfs:label>Entity Recognition</rdfs:label>
+    <owl:Class rdf:about="#Demonstration">
+        <rdfs:subClassOf rdf:resource="#VerificationMethod"/>
+        <rdfs:label>Demonstration</rdfs:label>
+        <rdfs:comment>Demonstration-based verification method</rdfs:comment>
     </owl:Class>
     
-    <owl:Class rdf:about="#RelationExtraction">
-        <rdfs:subClassOf rdf:resource="#KnowledgeExtraction"/>
-        <rdfs:label>Relation Extraction</rdfs:label>
+    <owl:Class rdf:about="#Test">
+        <rdfs:subClassOf rdf:resource="#VerificationMethod"/>
+        <rdfs:label>Test</rdfs:label>
+        <rdfs:comment>Physical or functional test verification method</rdfs:comment>
     </owl:Class>
     
-    <owl:Class rdf:about="#KnowledgeExtension">
-        <rdfs:subClassOf rdf:resource="#Process"/>
-        <rdfs:label>Knowledge Extension</rdfs:label>
-        <rdfs:comment>Process of enriching extracted knowledge through inference and reasoning</rdfs:comment>
+    <owl:Class rdf:about="#Analysis">
+        <rdfs:subClassOf rdf:resource="#VerificationMethod"/>
+        <rdfs:label>Analysis</rdfs:label>
+        <rdfs:comment>Analytical verification including simulations and calculations</rdfs:comment>
     </owl:Class>
     
-    <owl:Class rdf:about="#LLMInference">
-        <rdfs:subClassOf rdf:resource="#KnowledgeExtension"/>
-        <rdfs:label>LLM-Supported Inference</rdfs:label>
+    <owl:Class rdf:about="#ADRAnnex">
+        <rdfs:subClassOf rdf:resource="#VerificationMethod"/>
+        <rdfs:label>ADR Annex</rdfs:label>
+        <rdfs:comment>Verification through ADR annex procedures</rdfs:comment>
     </owl:Class>
     
-    <owl:Class rdf:about="#LinkPrediction">
-        <rdfs:subClassOf rdf:resource="#KnowledgeExtension"/>
-        <rdfs:label>Neural Link Prediction</rdfs:label>
+    <owl:Class rdf:about="#ADRTestingProcedure">
+        <rdfs:subClassOf rdf:resource="#VerificationMethod"/>
+        <rdfs:label>ADR Testing Procedure</rdfs:label>
+        <rdfs:comment>Official ADR testing procedure verification method</rdfs:comment>
     </owl:Class>
     
-    <owl:Class rdf:about="#ReinforcementLearning">
-        <rdfs:subClassOf rdf:resource="#KnowledgeExtension"/>
-        <rdfs:label>Reinforcement Learning</rdfs:label>
+    <owl:Class rdf:about="#Evidence">
+        <rdfs:subClassOf rdf:resource="#Artifact"/>
+        <rdfs:label>Evidence</rdfs:label>
+        <rdfs:comment>Evidence supporting verification of compliance</rdfs:comment>
     </owl:Class>
     
-    <owl:Class rdf:about="#KnowledgeFusion">
-        <rdfs:subClassOf rdf:resource="#Process"/>
-        <rdfs:label>Knowledge Fusion</rdfs:label>
-        <rdfs:comment>Merging and reconciling knowledge from multiple sources</rdfs:comment>
+    <owl:Class rdf:about="#SimulationEvidence">
+        <rdfs:subClassOf rdf:resource="#Evidence"/>
+        <rdfs:label>Simulation Evidence</rdfs:label>
+        <rdfs:comment>Evidence obtained through computational simulation</rdfs:comment>
     </owl:Class>
     
-    <owl:Class rdf:about="#ComplianceVerification">
-        <rdfs:subClassOf rdf:resource="#Process"/>
-        <rdfs:label>Compliance Verification</rdfs:label>
+    <owl:Class rdf:about="#MathematicalEvidence">
+        <rdfs:subClassOf rdf:resource="#Evidence"/>
+        <rdfs:label>Mathematical Evidence</rdfs:label>
+        <rdfs:comment>Evidence obtained through mathematical calculations and analysis</rdfs:comment>
     </owl:Class>
     
-    <owl:Class rdf:about="#RiskPropagation">
-        <rdfs:subClassOf rdf:resource="#Process"/>
-        <rdfs:label>Risk Propagation</rdfs:label>
-    </owl:Class>
-    
-    <owl:Class rdf:about="#SemanticAlignment">
-        <rdfs:subClassOf rdf:resource="#Process"/>
-        <rdfs:label>Semantic Alignment</rdfs:label>
-    </owl:Class>
-    
-    <owl:Class rdf:about="#Validation">
-        <rdfs:subClassOf rdf:resource="#Process"/>
-        <rdfs:label>Validation</rdfs:label>
+    <owl:Class rdf:about="#TestEvidence">
+        <rdfs:subClassOf rdf:resource="#Evidence"/>
+        <rdfs:label>Test Evidence</rdfs:label>
+        <rdfs:comment>Evidence obtained through actual physical or functional testing</rdfs:comment>
     </owl:Class>
     
     
@@ -515,6 +515,27 @@
         <rdfs:label>has department</rdfs:label>
     </owl:ObjectProperty>
     
+    <owl:ObjectProperty rdf:about="#hasPrimaryDepartment">
+        <rdfs:domain rdf:resource="#Project"/>
+        <rdfs:range rdf:resource="#Department"/>
+        <rdfs:label>has primary department</rdfs:label>
+        <rdfs:comment>Links a project to its primary responsible department</rdfs:comment>
+    </owl:ObjectProperty>
+    
+    <owl:ObjectProperty rdf:about="#hasSecondaryDepartment">
+        <rdfs:domain rdf:resource="#Project"/>
+        <rdfs:range rdf:resource="#Department"/>
+        <rdfs:label>has secondary department</rdfs:label>
+        <rdfs:comment>Links a project to its secondary supporting department</rdfs:comment>
+    </owl:ObjectProperty>
+    
+    <owl:ObjectProperty rdf:about="#hasAssignee">
+        <rdfs:domain rdf:resource="#Project"/>
+        <rdfs:range rdf:resource="#Member"/>
+        <rdfs:label>has assignee</rdfs:label>
+        <rdfs:comment>Links a project to a member (project assignee)</rdfs:comment>
+    </owl:ObjectProperty>
+    
     <owl:ObjectProperty rdf:about="#collaboratesWith">
         <rdfs:domain rdf:resource="#Organization"/>
         <rdfs:range rdf:resource="#Organization"/>
@@ -602,20 +623,6 @@
         <rdfs:label>precedes process</rdfs:label>
     </owl:ObjectProperty>
     
-    <owl:ObjectProperty rdf:about="#extractsKnowledgeFrom">
-        <rdfs:subPropertyOf rdf:resource="#hasInput"/>
-        <rdfs:domain rdf:resource="#KnowledgeExtraction"/>
-        <rdfs:range rdf:resource="#Document"/>
-        <rdfs:label>extracts knowledge from</rdfs:label>
-    </owl:ObjectProperty>
-    
-    <owl:ObjectProperty rdf:about="#extendsKnowledgeGraph">
-        <rdfs:subPropertyOf rdf:resource="#hasInput"/>
-        <rdfs:domain rdf:resource="#KnowledgeExtension"/>
-        <rdfs:range rdf:resource="#KnowledgeGraph"/>
-        <rdfs:label>extends knowledge graph</rdfs:label>
-    </owl:ObjectProperty>
-    
     <!-- Technology Relationships -->
     <owl:ObjectProperty rdf:about="#representsKnowledge">
         <rdfs:domain rdf:resource="#KnowledgeGraph"/>
@@ -678,6 +685,113 @@
         <rdfs:domain rdf:resource="#Subsystem"/>
         <rdfs:range rdf:resource="#Subsystem"/>
         <rdfs:label>propagates risk to</rdfs:label>
+    </owl:ObjectProperty>
+    
+    <!-- ADR Verification Relationships -->
+    <owl:ObjectProperty rdf:about="#assignedToProject">
+        <rdfs:domain rdf:resource="#AustralianDesignRule"/>
+        <rdfs:range rdf:resource="#Project"/>
+        <rdfs:label>assigned to project</rdfs:label>
+        <rdfs:comment>Links an ADR to one or more projects responsible for compliance</rdfs:comment>
+    </owl:ObjectProperty>
+    
+    <owl:ObjectProperty rdf:about="#hasVerificationProcedure">
+        <rdfs:domain rdf:resource="#AustralianDesignRule"/>
+        <rdfs:range rdf:resource="#VerificationProcedure"/>
+        <rdfs:label>has verification procedure</rdfs:label>
+        <rdfs:comment>Links an ADR to its verification procedure</rdfs:comment>
+    </owl:ObjectProperty>
+    
+    <owl:ObjectProperty rdf:about="#hasVerificationMethod">
+        <rdfs:domain rdf:resource="#VerificationProcedure"/>
+        <rdfs:range rdf:resource="#VerificationMethod"/>
+        <rdfs:label>has verification method</rdfs:label>
+        <rdfs:comment>Specifies the method used in a verification procedure</rdfs:comment>
+    </owl:ObjectProperty>
+    
+    <owl:ObjectProperty rdf:about="#supportedByEvidence">
+        <rdfs:domain rdf:resource="#VerificationProcedure"/>
+        <rdfs:range rdf:resource="#Evidence"/>
+        <rdfs:label>supported by evidence</rdfs:label>
+        <rdfs:comment>Links verification procedure to supporting evidence</rdfs:comment>
+    </owl:ObjectProperty>
+    
+    <owl:ObjectProperty rdf:about="#verifiedBy">
+        <rdfs:domain rdf:resource="#AustralianDesignRule"/>
+        <rdfs:range rdf:resource="#Evidence"/>
+        <rdfs:label>verified by</rdfs:label>
+        <rdfs:comment>Direct link from ADR to verification evidence</rdfs:comment>
+    </owl:ObjectProperty>
+    
+    <owl:ObjectProperty rdf:about="#assignedToDepartment">
+        <rdfs:domain rdf:resource="#AustralianDesignRule"/>
+        <rdfs:range rdf:resource="#Department"/>
+        <rdfs:label>assigned to department</rdfs:label>
+        <rdfs:comment>Links an ADR to the relevant department</rdfs:comment>
+    </owl:ObjectProperty>
+    
+    <owl:ObjectProperty rdf:about="#hasRelevantProject">
+        <rdfs:domain rdf:resource="#AustralianDesignRule"/>
+        <rdfs:range rdf:resource="#Project"/>
+        <rdfs:label>has relevant project</rdfs:label>
+        <rdfs:comment>Links an ADR to relevant projects</rdfs:comment>
+    </owl:ObjectProperty>
+    
+    <owl:ObjectProperty rdf:about="#hasRelevantDepartment">
+        <rdfs:domain rdf:resource="#AustralianDesignRule"/>
+        <rdfs:range rdf:resource="#Department"/>
+        <rdfs:label>has relevant department</rdfs:label>
+        <rdfs:comment>Links an ADR to relevant departments</rdfs:comment>
+    </owl:ObjectProperty>
+    
+    <!-- Component Management Relationships -->
+    <owl:ObjectProperty rdf:about="#usedInProject">
+        <rdfs:domain rdf:resource="#Component"/>
+        <rdfs:range rdf:resource="#Project"/>
+        <rdfs:label>used in project</rdfs:label>
+        <rdfs:comment>Links a component to the project(s) it belongs to</rdfs:comment>
+    </owl:ObjectProperty>
+    
+    <owl:ObjectProperty rdf:about="#usedInADR">
+        <rdfs:domain rdf:resource="#Component"/>
+        <rdfs:range rdf:resource="#AustralianDesignRule"/>
+        <rdfs:label>used in ADR</rdfs:label>
+        <rdfs:comment>Links a component to ADRs it helps verify</rdfs:comment>
+    </owl:ObjectProperty>
+    
+    <owl:ObjectProperty rdf:about="#generatesEvidence">
+        <rdfs:domain rdf:resource="#Component"/>
+        <rdfs:range rdf:resource="#Evidence"/>
+        <rdfs:label>generates evidence</rdfs:label>
+        <rdfs:comment>Links a component to the evidence it generates for ADR verification</rdfs:comment>
+    </owl:ObjectProperty>
+    
+    <owl:ObjectProperty rdf:about="#suppliedBy">
+        <rdfs:domain rdf:resource="#Component"/>
+        <rdfs:range rdf:resource="#IndustryPartner"/>
+        <rdfs:label>supplied by</rdfs:label>
+        <rdfs:comment>Links a component to its supplier or partner</rdfs:comment>
+    </owl:ObjectProperty>
+    
+    <owl:ObjectProperty rdf:about="#partOfBOM">
+        <rdfs:domain rdf:resource="#Component"/>
+        <rdfs:range rdf:resource="#Component"/>
+        <rdfs:label>part of BOM</rdfs:label>
+        <rdfs:comment>Bill of Materials hierarchy - component is part of another component assembly</rdfs:comment>
+    </owl:ObjectProperty>
+    
+    <owl:ObjectProperty rdf:about="#belongsToDepartment">
+        <rdfs:domain rdf:resource="#Component"/>
+        <rdfs:range rdf:resource="#Department"/>
+        <rdfs:label>belongs to department</rdfs:label>
+        <rdfs:comment>Links a component to its responsible department</rdfs:comment>
+    </owl:ObjectProperty>
+    
+    <owl:ObjectProperty rdf:about="#hasSection">
+        <rdfs:domain rdf:resource="#Department"/>
+        <rdfs:range rdf:resource="#Department"/>
+        <rdfs:label>has section</rdfs:label>
+        <rdfs:comment>Organizational hierarchy - department has sections</rdfs:comment>
     </owl:ObjectProperty>
     
     
@@ -781,6 +895,245 @@
         <rdfs:domain rdf:resource="#AustralianDesignRule"/>
         <rdfs:range rdf:resource="http://www.w3.org/2001/XMLSchema#string"/>
         <rdfs:label>has exemption</rdfs:label>
+    </owl:DatatypeProperty>
+    
+    <owl:DatatypeProperty rdf:about="#hasClause">
+        <rdfs:domain rdf:resource="#AustralianDesignRule"/>
+        <rdfs:range rdf:resource="http://www.w3.org/2001/XMLSchema#string"/>
+        <rdfs:label>has clause</rdfs:label>
+        <rdfs:comment>The specific clause reference within the ADR</rdfs:comment>
+    </owl:DatatypeProperty>
+    
+    <owl:DatatypeProperty rdf:about="#requirementName">
+        <rdfs:domain rdf:resource="#AustralianDesignRule"/>
+        <rdfs:range rdf:resource="http://www.w3.org/2001/XMLSchema#string"/>
+        <rdfs:label>requirement name</rdfs:label>
+        <rdfs:comment>Short name or title of the requirement</rdfs:comment>
+    </owl:DatatypeProperty>
+    
+    <owl:DatatypeProperty rdf:about="#requirementText">
+        <rdfs:domain rdf:resource="#AustralianDesignRule"/>
+        <rdfs:range rdf:resource="http://www.w3.org/2001/XMLSchema#string"/>
+        <rdfs:label>requirement text</rdfs:label>
+        <rdfs:comment>Full text of the requirement</rdfs:comment>
+    </owl:DatatypeProperty>
+    
+    <owl:DatatypeProperty rdf:about="#projectID">
+        <rdfs:domain rdf:resource="#Project"/>
+        <rdfs:range rdf:resource="http://www.w3.org/2001/XMLSchema#string"/>
+        <rdfs:label>project ID</rdfs:label>
+        <rdfs:comment>Unique identifier for the project</rdfs:comment>
+    </owl:DatatypeProperty>
+    
+    <owl:DatatypeProperty rdf:about="#projectName">
+        <rdfs:domain rdf:resource="#Project"/>
+        <rdfs:range rdf:resource="http://www.w3.org/2001/XMLSchema#string"/>
+        <rdfs:label>project name</rdfs:label>
+        <rdfs:comment>Name of the project</rdfs:comment>
+    </owl:DatatypeProperty>
+    
+    <owl:DatatypeProperty rdf:about="#projectDescription">
+        <rdfs:domain rdf:resource="#Project"/>
+        <rdfs:range rdf:resource="http://www.w3.org/2001/XMLSchema#string"/>
+        <rdfs:label>project description</rdfs:label>
+        <rdfs:comment>Description of the project</rdfs:comment>
+    </owl:DatatypeProperty>
+    
+    <owl:DatatypeProperty rdf:about="#requirementDescription">
+        <rdfs:domain rdf:resource="#AustralianDesignRule"/>
+        <rdfs:range rdf:resource="http://www.w3.org/2001/XMLSchema#string"/>
+        <rdfs:label>requirement description</rdfs:label>
+        <rdfs:comment>Detailed description of the requirement</rdfs:comment>
+    </owl:DatatypeProperty>
+    
+    <owl:DatatypeProperty rdf:about="#testingProcedurePerRequirement">
+        <rdfs:domain rdf:resource="#AustralianDesignRule"/>
+        <rdfs:range rdf:resource="http://www.w3.org/2001/XMLSchema#string"/>
+        <rdfs:label>testing procedure per requirement</rdfs:label>
+        <rdfs:comment>Specific testing procedure for this requirement</rdfs:comment>
+    </owl:DatatypeProperty>
+    
+    <owl:DatatypeProperty rdf:about="#isVerified">
+        <rdfs:domain rdf:resource="#AustralianDesignRule"/>
+        <rdfs:range rdf:resource="http://www.w3.org/2001/XMLSchema#boolean"/>
+        <rdfs:label>is verified</rdfs:label>
+        <rdfs:comment>Indicates whether the ADR has been verified</rdfs:comment>
+    </owl:DatatypeProperty>
+    
+    <owl:DatatypeProperty rdf:about="#usesAlternativeTesting">
+        <rdfs:domain rdf:resource="#AustralianDesignRule"/>
+        <rdfs:range rdf:resource="http://www.w3.org/2001/XMLSchema#boolean"/>
+        <rdfs:label>uses alternative testing</rdfs:label>
+        <rdfs:comment>Indicates if alternative means of testing is used compared to standard ADR procedures</rdfs:comment>
+    </owl:DatatypeProperty>
+    
+    <owl:DatatypeProperty rdf:about="#verificationMethodDescription">
+        <rdfs:domain rdf:resource="#VerificationProcedure"/>
+        <rdfs:range rdf:resource="http://www.w3.org/2001/XMLSchema#string"/>
+        <rdfs:label>verification method description</rdfs:label>
+        <rdfs:comment>Detailed description of the verification method and procedure</rdfs:comment>
+    </owl:DatatypeProperty>
+    
+    <owl:DatatypeProperty rdf:about="#rightProjectAssigned">
+        <rdfs:domain rdf:resource="#AustralianDesignRule"/>
+        <rdfs:range rdf:resource="http://www.w3.org/2001/XMLSchema#boolean"/>
+        <rdfs:label>right project assigned</rdfs:label>
+        <rdfs:comment>Indicates if the correct project has been assigned to this ADR</rdfs:comment>
+    </owl:DatatypeProperty>
+    
+    <owl:DatatypeProperty rdf:about="#alternativeProjectSuggestion">
+        <rdfs:domain rdf:resource="#AustralianDesignRule"/>
+        <rdfs:range rdf:resource="http://www.w3.org/2001/XMLSchema#string"/>
+        <rdfs:label>alternative project suggestion</rdfs:label>
+        <rdfs:comment>Suggested alternative project if the current assignment is incorrect</rdfs:comment>
+    </owl:DatatypeProperty>
+    
+    <!-- Component Management Properties -->
+    <owl:DatatypeProperty rdf:about="#partNumber">
+        <rdfs:domain rdf:resource="#Component"/>
+        <rdfs:range rdf:resource="http://www.w3.org/2001/XMLSchema#string"/>
+        <rdfs:label>part number</rdfs:label>
+        <rdfs:comment>Unique part number identifier</rdfs:comment>
+    </owl:DatatypeProperty>
+    
+    <owl:DatatypeProperty rdf:about="#partDescription">
+        <rdfs:domain rdf:resource="#Component"/>
+        <rdfs:range rdf:resource="http://www.w3.org/2001/XMLSchema#string"/>
+        <rdfs:label>part description</rdfs:label>
+        <rdfs:comment>Description of the component/part</rdfs:comment>
+    </owl:DatatypeProperty>
+    
+    <owl:DatatypeProperty rdf:about="#bomLevel">
+        <rdfs:domain rdf:resource="#Component"/>
+        <rdfs:range rdf:resource="http://www.w3.org/2001/XMLSchema#integer"/>
+        <rdfs:label>BOM level</rdfs:label>
+        <rdfs:comment>Bill of Materials hierarchy level</rdfs:comment>
+    </owl:DatatypeProperty>
+    
+    <owl:DatatypeProperty rdf:about="#approvalStatus">
+        <rdfs:domain rdf:resource="#Component"/>
+        <rdfs:range rdf:resource="http://www.w3.org/2001/XMLSchema#string"/>
+        <rdfs:label>approval status</rdfs:label>
+        <rdfs:comment>Component approval status</rdfs:comment>
+    </owl:DatatypeProperty>
+    
+    <owl:DatatypeProperty rdf:about="#componentStatus">
+        <rdfs:domain rdf:resource="#Component"/>
+        <rdfs:range rdf:resource="http://www.w3.org/2001/XMLSchema#string"/>
+        <rdfs:label>component status</rdfs:label>
+        <rdfs:comment>Current status of the component</rdfs:comment>
+    </owl:DatatypeProperty>
+    
+    <owl:DatatypeProperty rdf:about="#onCarSoftwareOffCar">
+        <rdfs:domain rdf:resource="#Component"/>
+        <rdfs:range rdf:resource="http://www.w3.org/2001/XMLSchema#string"/>
+        <rdfs:label>on-car software off-car</rdfs:label>
+        <rdfs:comment>Classification as on-car software or off-car component</rdfs:comment>
+    </owl:DatatypeProperty>
+    
+    <owl:DatatypeProperty rdf:about="#quantityPer">
+        <rdfs:domain rdf:resource="#Component"/>
+        <rdfs:range rdf:resource="http://www.w3.org/2001/XMLSchema#integer"/>
+        <rdfs:label>quantity per</rdfs:label>
+        <rdfs:comment>Quantity required per assembly</rdfs:comment>
+    </owl:DatatypeProperty>
+    
+    <owl:DatatypeProperty rdf:about="#relatedADRs">
+        <rdfs:domain rdf:resource="#Component"/>
+        <rdfs:range rdf:resource="http://www.w3.org/2001/XMLSchema#string"/>
+        <rdfs:label>related ADRs</rdfs:label>
+        <rdfs:comment>List of ADRs that this component relates to</rdfs:comment>
+    </owl:DatatypeProperty>
+    
+    <owl:DatatypeProperty rdf:about="#engineeringDrawingRequired">
+        <rdfs:domain rdf:resource="#Component"/>
+        <rdfs:range rdf:resource="http://www.w3.org/2001/XMLSchema#boolean"/>
+        <rdfs:label>engineering drawing required</rdfs:label>
+        <rdfs:comment>Indicates if engineering drawing is required for this component</rdfs:comment>
+    </owl:DatatypeProperty>
+    
+    <owl:DatatypeProperty rdf:about="#estimatedWeight">
+        <rdfs:domain rdf:resource="#Component"/>
+        <rdfs:range rdf:resource="http://www.w3.org/2001/XMLSchema#float"/>
+        <rdfs:label>estimated weight</rdfs:label>
+        <rdfs:comment>Estimated weight in kilograms</rdfs:comment>
+    </owl:DatatypeProperty>
+    
+    <owl:DatatypeProperty rdf:about="#actualWeight">
+        <rdfs:domain rdf:resource="#Component"/>
+        <rdfs:range rdf:resource="http://www.w3.org/2001/XMLSchema#float"/>
+        <rdfs:label>actual weight</rdfs:label>
+        <rdfs:comment>Actual measured weight in kilograms</rdfs:comment>
+    </owl:DatatypeProperty>
+    
+    <owl:DatatypeProperty rdf:about="#procurementStatus">
+        <rdfs:domain rdf:resource="#Component"/>
+        <rdfs:range rdf:resource="http://www.w3.org/2001/XMLSchema#string"/>
+        <rdfs:label>procurement status</rdfs:label>
+        <rdfs:comment>Status of component procurement</rdfs:comment>
+    </owl:DatatypeProperty>
+    
+    <owl:DatatypeProperty rdf:about="#supplier">
+        <rdfs:domain rdf:resource="#Component"/>
+        <rdfs:range rdf:resource="http://www.w3.org/2001/XMLSchema#string"/>
+        <rdfs:label>supplier</rdfs:label>
+        <rdfs:comment>Supplier or partner name</rdfs:comment>
+    </owl:DatatypeProperty>
+    
+    <owl:DatatypeProperty rdf:about="#assemblyEstimatedCost">
+        <rdfs:domain rdf:resource="#Component"/>
+        <rdfs:range rdf:resource="http://www.w3.org/2001/XMLSchema#float"/>
+        <rdfs:label>assembly estimated cost</rdfs:label>
+        <rdfs:comment>Estimated assembly cost</rdfs:comment>
+    </owl:DatatypeProperty>
+    
+    <owl:DatatypeProperty rdf:about="#assemblyActualCost">
+        <rdfs:domain rdf:resource="#Component"/>
+        <rdfs:range rdf:resource="http://www.w3.org/2001/XMLSchema#float"/>
+        <rdfs:label>assembly actual cost</rdfs:label>
+        <rdfs:comment>Actual assembly cost</rdfs:comment>
+    </owl:DatatypeProperty>
+    
+    <owl:DatatypeProperty rdf:about="#orderStatus">
+        <rdfs:domain rdf:resource="#Component"/>
+        <rdfs:range rdf:resource="http://www.w3.org/2001/XMLSchema#string"/>
+        <rdfs:label>order status</rdfs:label>
+        <rdfs:comment>Current order status of the component</rdfs:comment>
+    </owl:DatatypeProperty>
+    
+    <owl:DatatypeProperty rdf:about="#stockQuantity">
+        <rdfs:domain rdf:resource="#Component"/>
+        <rdfs:range rdf:resource="http://www.w3.org/2001/XMLSchema#integer"/>
+        <rdfs:label>stock quantity</rdfs:label>
+        <rdfs:comment>Quantity in stock</rdfs:comment>
+    </owl:DatatypeProperty>
+    
+    <owl:DatatypeProperty rdf:about="#stockLocation">
+        <rdfs:domain rdf:resource="#Component"/>
+        <rdfs:range rdf:resource="http://www.w3.org/2001/XMLSchema#string"/>
+        <rdfs:label>stock location</rdfs:label>
+        <rdfs:comment>Physical location of stock</rdfs:comment>
+    </owl:DatatypeProperty>
+    
+    <owl:DatatypeProperty rdf:about="#componentProjectName">
+        <rdfs:domain rdf:resource="#Component"/>
+        <rdfs:range rdf:resource="http://www.w3.org/2001/XMLSchema#string"/>
+        <rdfs:label>project name</rdfs:label>
+        <rdfs:comment>Name of the project using this component</rdfs:comment>
+    </owl:DatatypeProperty>
+    
+    <owl:DatatypeProperty rdf:about="#clause">
+        <rdfs:domain rdf:resource="#Component"/>
+        <rdfs:range rdf:resource="http://www.w3.org/2001/XMLSchema#string"/>
+        <rdfs:label>clause</rdfs:label>
+        <rdfs:comment>ADR clause reference for this component</rdfs:comment>
+    </owl:DatatypeProperty>
+    
+    <owl:DatatypeProperty rdf:about="#sectionName">
+        <rdfs:domain rdf:resource="#Department"/>
+        <rdfs:range rdf:resource="http://www.w3.org/2001/XMLSchema#string"/>
+        <rdfs:label>section name</rdfs:label>
+        <rdfs:comment>Name of the section within a department</rdfs:comment>
     </owl:DatatypeProperty>
     
     

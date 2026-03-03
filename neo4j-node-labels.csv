@@ -11,6 +11,7 @@ TechnicalDepartment,Department,,Derived,Organization
 OperationalDepartment,Department,,Derived,Organization
 IndustryPartner,Organization,,Derived,Organization
 AcademicPartner,Organization,,Derived,Organization
+Member,Organization,Team member or project assignee (100 members),Derived,Organization
 Vehicle,Artifact,,Derived,Artifact
 SR8,Vehicle,World's first road-legal student-built tri-brid electric vehicle,Derived,Artifact
 Document,Artifact,,Derived,Artifact
@@ -32,20 +33,18 @@ Subsystem,Artifact,,Derived,Artifact
 Interface,Artifact,Connection or interaction point between subsystems,Derived,Artifact
 Project,Artifact,,Derived,Artifact
 TestPlan,Artifact,,Derived,Artifact
-KnowledgeExtraction,Process,Process of transforming raw artifacts into structured knowledge,Derived,Process
-DataSourceIdentification,KnowledgeExtraction,,Derived,Process
-OntologyFormalization,KnowledgeExtraction,,Derived,Process
-EntityRecognition,KnowledgeExtraction,,Derived,Process
-RelationExtraction,KnowledgeExtraction,,Derived,Process
-KnowledgeExtension,Process,Process of enriching extracted knowledge through inference and reasoning,Derived,Process
-LLMInference,KnowledgeExtension,,Derived,Process
-LinkPrediction,KnowledgeExtension,,Derived,Process
-ReinforcementLearning,KnowledgeExtension,,Derived,Process
-KnowledgeFusion,Process,Merging and reconciling knowledge from multiple sources,Derived,Process
-ComplianceVerification,Process,,Derived,Process
-RiskPropagation,Process,,Derived,Process
-SemanticAlignment,Process,,Derived,Process
-Validation,Process,,Derived,Process
+VerificationProcedure,Artifact,Detailed procedure for verifying ADR compliance,Derived,Artifact
+VerificationMethod,Artifact,Method used to verify compliance with requirements,Derived,Artifact
+Inspection,VerificationMethod,Visual or manual inspection verification method,Derived,Artifact
+Demonstration,VerificationMethod,Demonstration-based verification method,Derived,Artifact
+Test,VerificationMethod,Physical or functional test verification method,Derived,Artifact
+Analysis,VerificationMethod,Analytical verification including simulations and calculations,Derived,Artifact
+ADRAnnex,VerificationMethod,Verification through ADR annex procedures,Derived,Artifact
+ADRTestingProcedure,VerificationMethod,Official ADR testing procedure verification method,Derived,Artifact
+Evidence,Artifact,Evidence supporting verification of compliance,Derived,Artifact
+SimulationEvidence,Evidence,Evidence obtained through computational simulation,Derived,Artifact
+MathematicalEvidence,Evidence,Evidence obtained through mathematical calculations and analysis,Derived,Artifact
+TestEvidence,Evidence,Evidence obtained through actual physical or functional testing,Derived,Artifact
 KnowledgeGraph,Technology,Graph-based semantic knowledge representation,Derived,Technology
 GraphDatabase,Technology,,Derived,Technology
 Neo4j,GraphDatabase,Native graph database for modeling connected data,Derived,Technology

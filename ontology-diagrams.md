@@ -81,37 +81,7 @@ graph TD
     style Rec fill:#66ff66
 ```
 
-## 4. Process Hierarchy
-
-```mermaid
-graph TD
-    Proc[Process]
-    
-    Proc --> Extr[KnowledgeExtraction]
-    Proc --> Extn[KnowledgeExtension]
-    Proc --> Fuse[KnowledgeFusion]
-    Proc --> Comp[ComplianceVerification]
-    Proc --> Risk[RiskPropagation]
-    Proc --> Sem[SemanticAlignment]
-    Proc --> Val[Validation]
-    
-    Extr --> Data[DataSourceIdentification]
-    Extr --> Onto[OntologyFormalization]
-    Extr --> Ent[EntityRecognition]
-    Extr --> Rel[RelationExtraction]
-    
-    Extn --> LLM[LLMInference]
-    Extn --> Link[LinkPrediction]
-    Extn --> RL[ReinforcementLearning]
-    
-    style Extr fill:#ccffcc
-    style Extn fill:#ccccff
-    style LLM fill:#ffccff
-    style Link fill:#ffccff
-    style RL fill:#ffccff
-```
-
-## 5. Technology Stack
+## 4. Technology Stack
 
 ```mermaid
 graph TD
@@ -152,7 +122,7 @@ graph TD
     style LLM fill:#ff99ff
 ```
 
-## 6. Concept Map
+## 5. Concept Map
 
 ```mermaid
 graph TD
@@ -179,7 +149,7 @@ graph TD
     style RAG fill:#99ffcc
 ```
 
-## 7. Multi-Agent System
+## 6. Multi-Agent System
 
 ```mermaid
 graph TD
@@ -211,7 +181,7 @@ graph TD
     style ValA fill:#ffcc99
 ```
 
-## 8. Key Relationships (Object Properties)
+## 7. Key Relationships (Object Properties)
 
 ```mermaid
 graph LR
@@ -241,6 +211,66 @@ graph LR
     style A5 fill:#f0e1ff
 ```
 
+## 8. Three-System Architecture
+
+```mermaid
+graph TB
+    subgraph PTS[Project Tracking System]
+        P[Project<br/>189 projects]
+        D[Department<br/>15 departments]
+        M[Member<br/>100 members]
+        
+        P -.projectID.-> P
+        P -.projectName.-> P
+        P -.projectDescription.-> P
+        
+        P -->|hasPrimaryDepartment| D
+        P -->|hasSecondaryDepartment| D
+        P -->|hasAssignee| M
+        M -->|belongsToDepartment| D
+    end
+    
+    subgraph PMS[Parts Management System]
+        C[Component<br/>100,000+ parts]
+        
+        C -.partNumber.-> C
+        C -.partDescription.-> C
+        C -.componentProjectName.-> C
+        C -.clause.-> C
+        C -.bomLevel.-> C
+        C -.supplier.-> C
+        C -.stockLocation.-> C
+        
+        C -->|usedInProject| P
+        C -->|belongsToDepartment| D
+    end
+    
+    subgraph AMS[ADR Management System]
+        A[AustralianDesignRule<br/>100 ADRs]
+        V[VerificationProcedure]
+        
+        A -.hasID.-> A
+        A -.hasClause.-> A
+        A -.requirementDescription.-> A
+        A -.testingProcedurePerRequirement.-> A
+        
+        A -->|hasRelevantProject| P
+        A -->|hasPrimaryDepartment| D
+        A -->|hasSecondaryDepartment| D
+        A -->|hasVerificationMethod| V
+        A -->|appliesTo| C
+    end
+    
+    style PTS fill:#e1f0ff
+    style PMS fill:#ffe1f0
+    style AMS fill:#f0ffe1
+    style P fill:#99ccff
+    style D fill:#ff99cc
+    style M fill:#ccff99
+    style C fill:#ffcc99
+    style A fill:#99ffcc
+```
+
 ## 9. Complete Workflow Architecture
 
 ```mermaid
@@ -253,7 +283,7 @@ graph TB
         Code[Code<br/>500GB]
     end
     
-    subgraph Extraction[Knowledge Extraction Pipeline]
+    subgraph Extraction[Extraction Pipeline]
         Parse[Document Parsing<br/>PDFMiner, Tesseract]
         NLP[NLP Processing<br/>SpaCy, NLTK]
         Entity[Entity Recognition<br/>BERT, RoBERTa]
@@ -266,7 +296,7 @@ graph TB
         Schema[Ontology Schema<br/>Protégé]
     end
     
-    subgraph Extension[Knowledge Extension Pipeline]
+    subgraph Extension[Extension Pipeline]
         LLM[LLM Agent<br/>Linguistic Inference]
         LP[Link Prediction Agent<br/>Neural Embeddings]
         RL[RL Agent<br/>Prioritization]

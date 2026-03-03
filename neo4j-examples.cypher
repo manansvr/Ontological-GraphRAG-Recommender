@@ -325,6 +325,471 @@ YIELD value
 RETURN label, value.count AS nodeCount
 ORDER BY nodeCount DESC;
 
+// ------------------------------------------------------------
+// ADR VERIFICATION TRACKING QUERIES
+// ------------------------------------------------------------
+
+// Create sample ADR verification data
+// ADR-42: Lighting and Light Signalling Devices
+CREATE (adr42:AustralianDesignRule {
+    hasID: "ADR-042",
+    hasName: "ADR-42",
+    hasClause: "42.2.3",
+    requirementName: "Headlamp Performance",
+    requirementText: "Headlamps shall provide adequate illumination under all operating conditions",
+    isVerified: false,
+    usesAlternativeTesting: true,
+    rightProjectAssigned: true
+})
+
+// Create verification procedure
+CREATE (proc1:VerificationProcedure {
+    hasID: "VP-042-001",
+    hasName: "Headlamp Photometric Test",
+    verificationMethodDescription: "Photometric testing using calibrated lux meter at specified distances and angles per ADR-42 requirements"
+})
+
+// Create verification method
+CREATE (method:Test {
+    hasID: "VM-TEST-001",
+    hasName: "Physical Testing"
+})
+
+// Create evidence
+CREATE (evidence:TestEvidence {
+    hasID: "EV-042-001",
+    hasName: "Photometric Test Results",
+    hasDescription: "Test results showing compliance with illumination requirements",
+    hasTimestamp: datetime()
+})
+
+// Create project
+CREATE (project:Project {
+    hasID: "PROJ-ELEC-01",
+    projectID: "PROJ-ELEC-01",
+    hasName: "Electrical Systems"
+})
+
+// Create department
+CREATE (dept:Department {
+    hasID: "DEPT-ELEC",
+    hasName: "Electrical Department"
+})
+
+// Create relationships
+CREATE (adr42)-[:assignedToProject]->(project)
+CREATE (adr42)-[:assignedToDepartment]->(dept)
+CREATE (adr42)-[:hasVerificationProcedure]->(proc1)
+CREATE (proc1)-[:hasVerificationMethod]->(method)
+CREATE (proc1)-[:supportedByEvidence]->(evidence)
+CREATE (adr42)-[:verifiedBy]->(evidence);
+
+// Query: Find all ADRs and their verification status
+MATCH (adr:AustralianDesignRule)
+OPTIONAL MATCH (adr)-[:hasVerificationProcedure]->(proc:VerificationProcedure)
+OPTIONAL MATCH (proc)-[:supportedByEvidence]->(ev:Evidence)
+RETURN adr.hasID AS ADR_ID,
+       adr.requirementName AS Requirement,
+       adr.isVerified AS Verified,
+       proc.hasName AS Procedure,
+       ev.hasName AS Evidence
+ORDER BY adr.hasID;
+
+// Query: Find all unverified ADRs
+MATCH (adr:AustralianDesignRule)
+WHERE adr.isVerified = false
+RETURN adr.hasID AS ADR_ID,
+       adr.requirementName AS Requirement,
+       adr.hasClause AS Clause,
+       adr.requirementText AS Description
+ORDER BY adr.hasID;
+
+// Query: Find ADRs by verification method
+MATCH (adr:AustralianDesignRule)-[:hasVerificationProcedure]->(proc:VerificationProcedure)
+      -[:hasVerificationMethod]->(method:VerificationMethod)
+RETURN labels(method)[0] AS VerificationMethod,
+       COUNT(adr) AS ADR_Count,
+       COLLECT(adr.hasID) AS ADRs
+ORDER BY ADR_Count DESC;
+
+// Query: Find ADRs by evidence type
+MATCH (adr:AustralianDesignRule)-[:verifiedBy]->(ev:Evidence)
+RETURN labels(ev)[0] AS EvidenceType,
+       COUNT(adr) AS ADR_Count,
+       COLLECT(adr.hasID) AS ADRs
+ORDER BY ADR_Count DESC;
+
+// Query: Find all ADRs assigned to a specific project
+MATCH (adr:AustralianDesignRule)-[:assignedToProject]->(p:Project)
+WHERE p.projectID = "PROJ-ELEC-01"
+RETURN adr.hasID AS ADR_ID,
+       adr.requirementName AS Requirement,
+       adr.isVerified AS Verified,
+       p.hasName AS Project
+ORDER BY adr.hasID;
+
+// Query: Find ADRs assigned to a specific department
+MATCH (adr:AustralianDesignRule)-[:assignedToDepartment]->(d:Department)
+WHERE d.hasName = "Electrical Department"
+RETURN adr.hasID AS ADR_ID,
+       adr.requirementName AS Requirement,
+       adr.isVerified AS Verified,
+       d.hasName AS Department
+ORDER BY adr.hasID;
+
+// Query: Find ADRs using alternative testing methods
+MATCH (adr:AustralianDesignRule)
+WHERE adr.usesAlternativeTesting = true
+RETURN adr.hasID AS ADR_ID,
+       adr.requirementName AS Requirement,
+       adr.hasClause AS Clause
+ORDER BY adr.hasID;
+
+// Query: Find ADRs with incorrect project assignments
+MATCH (adr:AustralianDesignRule)
+WHERE adr.rightProjectAssigned = false
+RETURN adr.hasID AS ADR_ID,
+       adr.requirementName AS Requirement,
+       adr.alternativeProjectSuggestion AS SuggestedProject
+ORDER BY adr.hasID;
+
+// Query: Verification completion report by project
+MATCH (p:Project)<-[:assignedToProject]-(adr:AustralianDesignRule)
+WITH p, adr,
+     CASE WHEN adr.isVerified = true THEN 1 ELSE 0 END AS verified_count,
+     1 AS total_count
+RETURN p.hasName AS Project,
+       SUM(total_count) AS Total_ADRs,
+       SUM(verified_count) AS Verified_ADRs,
+       ROUND(100.0 * SUM(verified_count) / SUM(total_count), 2) AS Completion_Percentage
+ORDER BY Completion_Percentage DESC;
+
+// Query: Full ADR verification workflow path
+MATCH path = (adr:AustralianDesignRule)-[:hasVerificationProcedure]->
+             (proc:VerificationProcedure)-[:hasVerificationMethod]->
+             (method:VerificationMethod)
+MATCH (proc)-[:supportedByEvidence]->(ev:Evidence)
+RETURN adr.hasID AS ADR,
+       proc.hasName AS Procedure,
+       labels(method)[0] AS Method,
+       labels(ev)[0] AS EvidenceType,
+       ev.hasName AS EvidenceName;
+
+// Query: Find ADRs missing verification procedures
+MATCH (adr:AustralianDesignRule)
+WHERE NOT (adr)-[:hasVerificationProcedure]->(:VerificationProcedure)
+RETURN adr.hasID AS ADR_ID,
+       adr.requirementName AS Requirement,
+       adr.hasClause AS Clause,
+       "Missing Verification Procedure" AS Status;
+
+// Query: Find ADRs missing evidence
+MATCH (adr:AustralianDesignRule)
+WHERE NOT (adr)-[:verifiedBy]->(:Evidence)
+RETURN adr.hasID AS ADR_ID,
+       adr.requirementName AS Requirement,
+       "Missing Evidence" AS Status;
+
+// Query: Find ADRs not assigned to any project
+MATCH (adr:AustralianDesignRule)
+WHERE NOT (adr)-[:assignedToProject]->(:Project)
+RETURN adr.hasID AS ADR_ID,
+       adr.requirementName AS Requirement,
+       "Not Assigned to Project" AS Status;
+
+// Query: Comprehensive ADR verification checklist
+MATCH (adr:AustralianDesignRule)
+OPTIONAL MATCH (adr)-[:assignedToProject]->(p:Project)
+OPTIONAL MATCH (adr)-[:assignedToDepartment]->(d:Department)
+OPTIONAL MATCH (adr)-[:hasVerificationProcedure]->(proc:VerificationProcedure)
+OPTIONAL MATCH (proc)-[:hasVerificationMethod]->(method:VerificationMethod)
+OPTIONAL MATCH (proc)-[:supportedByEvidence]->(ev:Evidence)
+RETURN adr.hasClause AS Clause,
+       adr.requirementName AS Requirement_Name,
+       adr.requirementText AS Text,
+       p.projectID AS Project_ID,
+       p.hasName AS Project,
+       d.hasName AS Department,
+       adr.rightProjectAssigned AS Right_Project,
+       adr.usesAlternativeTesting AS Alternative_Testing,
+       labels(method)[0] AS Verification_Method,
+       proc.verificationMethodDescription AS Method_Description,
+       labels(ev)[0] AS Evidence_Type,
+       adr.isVerified AS Verified
+ORDER BY adr.hasID;
+
+// ------------------------------------------------------------
+// COMPONENT MANAGEMENT TRACKING QUERIES
+// ------------------------------------------------------------
+
+// Create sample component data
+// Component: Battery Management System (BMS)
+CREATE (bms:Component {
+    hasID: "COMP-ELEC-BMS-001",
+    partNumber: "BMS-2024-001",
+    partDescription: "Battery Management System - Primary Controller",
+    bomLevel: 2,
+    approvalStatus: "Approved",
+    componentStatus: "In Production",
+    onCarSoftwareOffCar: "On-Car Software",
+    quantityPer: 1,
+    estimatedWeight: 2.5,
+    actualWeight: 2.3,
+    usedInCarBuild: true,
+    usedInShakeDown: true,
+    usedInTrackTest01: true,
+    usedInTrackTest02: true,
+    usedInCarLaunch: true,
+    usedInPressLaunch: true,
+    usedInRoadTest01: true,
+    relatedADRs: "ADR-42, ADR-68",
+    engineeringDrawingRequired: true,
+    procurementStatus: "Received",
+    supplier: "Texas Instruments",
+    assemblyEstimatedCost: 850.00,
+    assemblyActualCost: 820.00,
+    orderStatus: "Complete",
+    stockQuantity: 3,
+    stockLocation: "Workshop A-12"
+})
+
+// Create project
+CREATE (projElec:Project {
+    hasID: "PROJ-ELEC-01",
+    projectID: "PROJ-ELEC-01",
+    hasName: "Electrical Systems",
+    hasDescription: "Electrical subsystems and power management"
+})
+
+// Create department
+CREATE (deptElec:Department {
+    hasID: "DEPT-ELEC",
+    hasName: "Electrical Engineering"
+})
+
+// Create supplier
+CREATE (supplierTI:IndustryPartner {
+    hasID: "SUPPLIER-TI",
+    hasName: "Texas Instruments",
+    hasDescription: "Semiconductor and integrated circuits supplier"
+})
+
+// Create ADR
+CREATE (adr42:AustralianDesignRule {
+    hasID: "ADR-042",
+    hasName: "ADR-42",
+    requirementName: "Lighting Systems"
+})
+
+// Create evidence
+CREATE (testEv:TestEvidence {
+    hasID: "EV-BMS-001",
+    hasName: "BMS Functional Test Results",
+    hasDescription: "Complete functional testing of BMS under various load conditions"
+})
+
+// Create milestones
+CREATE (carBuild:CarBuild {
+    hasID: "MILESTONE-CARBUILD",
+    hasName: "Car Build Phase"
+})
+
+CREATE (trackTest:TrackTest {
+    hasID: "MILESTONE-TRACKTEST01",
+    hasName: "Track Test 01"
+})
+
+// Create relationships
+CREATE (bms)-[:usedInProject]->(projElec)
+CREATE (bms)-[:belongsToDepartment]->(deptElec)
+CREATE (bms)-[:usedInADR]->(adr42)
+CREATE (bms)-[:generatesEvidence]->(testEv)
+CREATE (bms)-[:suppliedBy]->(supplierTI)
+CREATE (bms)-[:participatesInMilestone]->(carBuild)
+CREATE (bms)-[:participatesInMilestone]->(trackTest);
+
+// Query: Find all components by project
+MATCH (c:Component)-[:usedInProject]->(p:Project)
+RETURN p.hasName AS Project,
+       COUNT(c) AS Component_Count,
+       SUM(c.actualWeight) AS Total_Weight_kg,
+       SUM(c.assemblyActualCost) AS Total_Cost
+ORDER BY Component_Count DESC;
+
+// Query: Find components by part number
+MATCH (c:Component)
+WHERE c.partNumber = "BMS-2024-001"
+RETURN c.partNumber AS Part_Number,
+       c.partDescription AS Description,
+       c.bomLevel AS BOM_Level,
+       c.componentStatus AS Status,
+       c.actualWeight AS Weight_kg,
+       c.assemblyActualCost AS Cost,
+       c.stockLocation AS Location;
+
+// Query: Find components used in specific ADR
+MATCH (c:Component)-[:usedInADR]->(adr:AustralianDesignRule)
+WHERE adr.hasID = "ADR-042"
+RETURN c.partNumber AS Part_Number,
+       c.partDescription AS Description,
+       c.supplier AS Supplier,
+       c.componentStatus AS Status
+ORDER BY c.partNumber;
+
+// Query: Track components through lifecycle milestones
+MATCH (c:Component)
+RETURN c.partNumber AS Part_Number,
+       c.partDescription AS Description,
+       c.usedInCarBuild AS Car_Build,
+       c.usedInShakeDown AS Shake_Down,
+       c.usedInTrackTest01 AS Track_Test_01,
+       c.usedInTrackTest02 AS Track_Test_02,
+       c.usedInCarLaunch AS Car_Launch,
+       c.usedInPressLaunch AS Press_Launch,
+       c.usedInRoadTest01 AS Road_Test_01
+ORDER BY c.partNumber;
+
+// Query: Find components by supplier
+MATCH (c:Component)-[:suppliedBy]->(s:IndustryPartner)
+RETURN s.hasName AS Supplier,
+       COUNT(c) AS Component_Count,
+       SUM(c.assemblyActualCost) AS Total_Cost,
+       COLLECT(c.partNumber) AS Part_Numbers
+ORDER BY Component_Count DESC;
+
+// Query: Component BOM hierarchy
+MATCH path = (parent:Component)<-[:partOfBOM*]-(child:Component)
+RETURN parent.partNumber AS Parent_Part,
+       parent.partDescription AS Parent_Description,
+       LENGTH(path) AS BOM_Depth,
+       COLLECT(child.partNumber) AS Child_Parts
+ORDER BY parent.partNumber;
+
+// Query: Weight analysis by project
+MATCH (c:Component)-[:usedInProject]->(p:Project)
+RETURN p.hasName AS Project,
+       COUNT(c) AS Component_Count,
+       SUM(c.estimatedWeight) AS Estimated_Weight_kg,
+       SUM(c.actualWeight) AS Actual_Weight_kg,
+       SUM(c.actualWeight) - SUM(c.estimatedWeight) AS Weight_Variance_kg,
+       ROUND(100.0 * (SUM(c.actualWeight) - SUM(c.estimatedWeight)) / SUM(c.estimatedWeight), 2) AS Variance_Percentage
+ORDER BY Actual_Weight_kg DESC;
+
+// Query: Cost analysis by project
+MATCH (c:Component)-[:usedInProject]->(p:Project)
+RETURN p.hasName AS Project,
+       COUNT(c) AS Component_Count,
+       SUM(c.assemblyEstimatedCost) AS Estimated_Cost,
+       SUM(c.assemblyActualCost) AS Actual_Cost,
+       SUM(c.assemblyActualCost) - SUM(c.assemblyEstimatedCost) AS Cost_Variance,
+       ROUND(100.0 * (SUM(c.assemblyActualCost) - SUM(c.assemblyEstimatedCost)) / SUM(c.assemblyEstimatedCost), 2) AS Variance_Percentage
+ORDER BY Actual_Cost DESC;
+
+// Query: Procurement status report
+MATCH (c:Component)
+RETURN c.procurementStatus AS Procurement_Status,
+       COUNT(c) AS Component_Count,
+       SUM(c.assemblyActualCost) AS Total_Cost,
+       AVG(c.actualWeight) AS Avg_Weight_kg
+ORDER BY Component_Count DESC;
+
+// Query: Stock inventory report
+MATCH (c:Component)
+WHERE c.stockQuantity > 0
+RETURN c.stockLocation AS Location,
+       COUNT(c) AS Parts_In_Stock,
+       SUM(c.stockQuantity) AS Total_Quantity,
+       SUM(c.assemblyActualCost * c.stockQuantity) AS Inventory_Value
+ORDER BY Inventory_Value DESC;
+
+// Query: Components requiring engineering drawings
+MATCH (c:Component)
+WHERE c.engineeringDrawingRequired = true
+RETURN c.partNumber AS Part_Number,
+       c.partDescription AS Description,
+       c.componentStatus AS Status,
+       c.approvalStatus AS Approval
+ORDER BY c.partNumber;
+
+// Query: Components generating evidence for ADR verification
+MATCH (c:Component)-[:generatesEvidence]->(ev:Evidence)<-[:verifiedBy]-(adr:AustralianDesignRule)
+RETURN c.partNumber AS Part_Number,
+       c.partDescription AS Component,
+       labels(ev)[0] AS Evidence_Type,
+       ev.hasName AS Evidence_Name,
+       adr.hasID AS ADR_ID,
+       adr.requirementName AS ADR_Requirement
+ORDER BY adr.hasID;
+
+// Query: Component readiness by milestone
+MATCH (c:Component)
+WITH COUNT(c) AS total,
+     SUM(CASE WHEN c.usedInCarBuild = true THEN 1 ELSE 0 END) AS car_build,
+     SUM(CASE WHEN c.usedInShakeDown = true THEN 1 ELSE 0 END) AS shake_down,
+     SUM(CASE WHEN c.usedInTrackTest01 = true THEN 1 ELSE 0 END) AS track_test_01,
+     SUM(CASE WHEN c.usedInTrackTest02 = true THEN 1 ELSE 0 END) AS track_test_02,
+     SUM(CASE WHEN c.usedInCarLaunch = true THEN 1 ELSE 0 END) AS car_launch,
+     SUM(CASE WHEN c.usedInPressLaunch = true THEN 1 ELSE 0 END) AS press_launch,
+     SUM(CASE WHEN c.usedInRoadTest01 = true THEN 1 ELSE 0 END) AS road_test
+RETURN "Car Build" AS Milestone, car_build AS Components_Ready, ROUND(100.0 * car_build / total, 2) AS Percentage
+UNION
+MATCH (c:Component)
+WITH COUNT(c) AS total,
+     SUM(CASE WHEN c.usedInShakeDown = true THEN 1 ELSE 0 END) AS shake_down
+RETURN "Shake-Down" AS Milestone, shake_down AS Components_Ready, ROUND(100.0 * shake_down / total, 2) AS Percentage
+UNION
+MATCH (c:Component)
+WITH COUNT(c) AS total,
+     SUM(CASE WHEN c.usedInTrackTest01 = true THEN 1 ELSE 0 END) AS track_test_01
+RETURN "Track Test 01" AS Milestone, track_test_01 AS Components_Ready, ROUND(100.0 * track_test_01 / total, 2) AS Percentage
+UNION
+MATCH (c:Component)
+WITH COUNT(c) AS total,
+     SUM(CASE WHEN c.usedInCarLaunch = true THEN 1 ELSE 0 END) AS car_launch
+RETURN "Car Launch" AS Milestone, car_launch AS Components_Ready, ROUND(100.0 * car_launch / total, 2) AS Percentage
+UNION
+MATCH (c:Component)
+WITH COUNT(c) AS total,
+     SUM(CASE WHEN c.usedInRoadTest01 = true THEN 1 ELSE 0 END) AS road_test
+RETURN "Road Test 01" AS Milestone, road_test AS Components_Ready, ROUND(100.0 * road_test / total, 2) AS Percentage
+ORDER BY Milestone;
+
+// Query: Department workload analysis
+MATCH (c:Component)-[:belongsToDepartment]->(d:Department)
+RETURN d.hasName AS Department,
+       COUNT(c) AS Component_Count,
+       SUM(c.assemblyActualCost) AS Total_Budget,
+       SUM(c.actualWeight) AS Total_Weight_kg,
+       COLLECT(DISTINCT c.supplier)[0..5] AS Top_Suppliers
+ORDER BY Component_Count DESC;
+
+// Query: Comprehensive component tracking report
+MATCH (c:Component)
+OPTIONAL MATCH (c)-[:usedInProject]->(p:Project)
+OPTIONAL MATCH (c)-[:belongsToDepartment]->(d:Department)
+OPTIONAL MATCH (c)-[:suppliedBy]->(s:IndustryPartner)
+OPTIONAL MATCH (c)-[:usedInADR]->(adr:AustralianDesignRule)
+RETURN d.hasName AS Department,
+       p.projectID AS Project_ID,
+       c.partNumber AS Part_Number,
+       c.partDescription AS Description,
+       c.quantityPer AS Qty,
+       c.usedInCarBuild AS Car_Build,
+       c.usedInShakeDown AS Shake_Down,
+       c.usedInTrackTest01 AS Track_Test_01,
+       c.relatedADRs AS ADRs,
+       c.engineeringDrawingRequired AS Eng_Dwg,
+       c.estimatedWeight AS Est_Weight,
+       c.actualWeight AS Actual_Weight,
+       c.procurementStatus AS Procurement,
+       s.hasName AS Supplier,
+       c.assemblyEstimatedCost AS Est_Cost,
+       c.assemblyActualCost AS Actual_Cost,
+       c.orderStatus AS Order_Status,
+       c.stockQuantity AS Stock_Qty,
+       c.stockLocation AS Stock_Location
+ORDER BY d.hasName, p.projectID, c.partNumber;
+
 // ============================================================
 // END OF CYPHER EXAMPLES
 // ============================================================
