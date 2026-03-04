@@ -1,8 +1,4 @@
 #!/usr/bin/env python3
-"""
-Import SR8 Ontology into Neo4j
-Reads CSV files and creates nodes, relationships, and constraints in Neo4j
-"""
 
 import csv
 from neo4j import GraphDatabase
@@ -10,23 +6,19 @@ import os
 
 class SR8OntologyImporter:
     def __init__(self, uri="bolt://localhost:7687", user="neo4j", password="password"):
-        """Initialize Neo4j connection"""
         self.driver = GraphDatabase.driver(uri, auth=(user, password))
-        print(f"✓ Connected to Neo4j at {uri}")
-    
+        print(f"✓ Connected To neo4j @ {uri}")
+
     def close(self):
-        """Close the Neo4j connection"""
         self.driver.close()
-        print("✓ Connection closed")
-    
+        print("✓ Connection Closed")
+
     def clear_database(self):
-        """Clear all nodes and relationships (use with caution!)"""
         with self.driver.session() as session:
             result = session.run("MATCH (n) DETACH DELETE n")
-            print("✓ Database cleared")
-    
+            print("✓ DB Cleared")
+
     def create_constraints(self):
-        """Create uniqueness constraints and indexes"""
         constraints = [
             "CREATE CONSTRAINT schema_label_name IF NOT EXISTS FOR (n:SchemaLabel) REQUIRE n.name IS UNIQUE",
             "CREATE CONSTRAINT schema_rel_name IF NOT EXISTS FOR (r:SchemaRelationship) REQUIRE r.name IS UNIQUE",
@@ -34,7 +26,7 @@ class SR8OntologyImporter:
             "CREATE INDEX schema_label_category IF NOT EXISTS FOR (n:SchemaLabel) ON (n.category)",
             "CREATE INDEX schema_label_type IF NOT EXISTS FOR (n:SchemaLabel) ON (n.type)",
         ]
-        
+
         with self.driver.session() as session:
             for constraint in constraints:
                 try:
@@ -42,15 +34,14 @@ class SR8OntologyImporter:
                     print(f"✓ Created: {constraint.split()[1]}")
                 except Exception as e:
                     print(f"  (Already exists or error: {constraint.split()[1]})")
-    
+
     def import_node_labels(self, csv_file="neo4j-node-labels.csv"):
-        """Import node labels from CSV"""
-        print(f"\n📊 Importing node labels from {csv_file}...")
-        
+        print(f"\n📊 Importing Node Labels From {csv_file}...")
+
         with open(csv_file, 'r') as f:
             reader = csv.DictReader(f)
             labels = list(reader)
-        
+
         with self.driver.session() as session:
             for row in labels:
                 session.run("""
@@ -59,21 +50,20 @@ class SR8OntologyImporter:
                         n.description = $description,
                         n.type = $type,
                         n.category = $category
-                """, 
+                """,
                     label=row['Label'],
                     parent=row['ParentLabel'] if row['ParentLabel'] else None,
                     description=row['Description'],
                     type=row['Type'],
                     category=row['Category']
                 )
-        
-        print(f"✓ Imported {len(labels)} node labels")
+
+        print(f"✓ Imported {len(labels)} Node Labels")
         return len(labels)
-    
+
     def create_label_hierarchy(self):
-        """Create parent-child relationships between labels"""
-        print(f"\n🔗 Creating label hierarchy...")
-        
+        print(f"\n🔗 Creating Node Label Hierarchy...")
+
         with self.driver.session() as session:
             result = session.run("""
                 MATCH (child:SchemaLabel)
@@ -83,18 +73,17 @@ class SR8OntologyImporter:
                 RETURN count(*) as count
             """)
             count = result.single()['count']
-        
+
         print(f"✓ Created {count} hierarchy relationships")
         return count
-    
+
     def import_relationships(self, csv_file="neo4j-relationships.csv"):
-        """Import relationship types from CSV"""
-        print(f"\n📊 Importing relationships from {csv_file}...")
-        
+        print(f"\n📊 Importing Relationships From {csv_file}...")
+
         with open(csv_file, 'r') as f:
             reader = csv.DictReader(f)
             relationships = list(reader)
-        
+
         with self.driver.session() as session:
             for row in relationships:
                 session.run("""
@@ -110,18 +99,17 @@ class SR8OntologyImporter:
                     description=row['Description'],
                     properties=row['Properties']
                 )
-        
-        print(f"✓ Imported {len(relationships)} relationship types")
+
+        print(f"✓ Imported {len(relationships)} Relationship Types")
         return len(relationships)
-    
+
     def import_properties(self, csv_file="neo4j-node-properties.csv"):
-        """Import node properties from CSV"""
-        print(f"\n📊 Importing properties from {csv_file}...")
-        
+        print(f"\n📊 Importing Properties From {csv_file}...")
+
         with open(csv_file, 'r') as f:
             reader = csv.DictReader(f)
             properties = list(reader)
-        
+
         with self.driver.session() as session:
             for row in properties:
                 session.run("""
@@ -137,22 +125,22 @@ class SR8OntologyImporter:
                     description=row['Description'],
                     constraints=row['Constraints']
                 )
-        
-        print(f"✓ Imported {len(properties)} property definitions")
+
+        print(f"✓ Imported {len(properties)} Property Definitions")
         return len(properties)
-    
+
     def get_statistics(self):
         """Get database statistics"""
         print(f"\n📈 Database Statistics:")
-        
+
         with self.driver.session() as session:
-            # Count schema labels by category
+            # Count Schema Labels By Category
             result = session.run("""
                 MATCH (n:SchemaLabel)
                 RETURN n.category as category, count(*) as count
                 ORDER BY count DESC
             """)
-            
+
             print("\n  Node Labels by Category:")
             total_labels = 0
             for record in result:
@@ -160,150 +148,110 @@ class SR8OntologyImporter:
                 total_labels += count
                 print(f"    • {record['category']}: {count}")
             print(f"    TOTAL: {total_labels}")
-            
-            # Count relationships
+
+            # Count Schema Relationships
             result = session.run("MATCH (r:SchemaRelationship) RETURN count(r) as count")
             rel_count = result.single()['count']
-            print(f"\n  Relationship Types: {rel_count}")
-            
-            # Count properties
+            print(f"\n  Schema Relationship Types: {rel_count}")
+
+            # Count Schema Properties
             result = session.run("MATCH (p:SchemaProperty) RETURN count(p) as count")
             prop_count = result.single()['count']
-            print(f"  Property Definitions: {prop_count}")
-            
-            # Count hierarchy relationships
+            print(f"  Schema Property Definitions: {prop_count}")
+
+            # Count Schema Hierarchy Relationships
             result = session.run("MATCH ()-[r:SUBCLASS_OF]->() RETURN count(r) as count")
             hier_count = result.single()['count']
-            print(f"  Hierarchy Relationships: {hier_count}")
-    
+            print(f"  Schema Hierarchy Relationships: {hier_count}")
+
     def verify_import(self):
-        """Run verification queries"""
         print(f"\n✅ Verification:")
-        
+
         with self.driver.session() as session:
-            # Check top-level categories
+            # Check Top-Level Categories
             result = session.run("""
                 MATCH (n:SchemaLabel)
                 WHERE n.type = 'TopLevel'
                 RETURN n.name as name
                 ORDER BY n.name
             """)
-            
+
             top_level = [record['name'] for record in result]
             print(f"\n  Top-Level Categories ({len(top_level)}):")
             for name in top_level:
                 print(f"    ✓ {name}")
-            
-            # Check for orphaned labels
+
+            # Check For Orphaned Labels
             result = session.run("""
                 MATCH (n:SchemaLabel)
-                WHERE n.parent IS NOT NULL 
+                WHERE n.parent IS NOT NULL
                   AND NOT EXISTS {
                     MATCH (n)-[:SUBCLASS_OF]->()
                   }
                 RETURN count(n) as count
             """)
-            
+
             orphaned = result.single()['count']
             if orphaned > 0:
-                print(f"\n  ⚠️  Warning: {orphaned} orphaned labels found")
+                print(f"\n  ⚠️  Warning: {orphaned} Orphaned Labels Found")
             else:
-                print(f"\n  ✓ No orphaned labels")
-    
-    def export_sample_queries(self):
-        """Export sample Cypher queries for testing"""
-        queries = {
-            "Find all Agent types": """
-                MATCH (n:SchemaLabel)
-                WHERE n.category = 'Agent'
-                RETURN n.name, n.description
-            """,
-            
-            "Get class hierarchy": """
-                MATCH path = (child:SchemaLabel)-[:SUBCLASS_OF*]->(root:SchemaLabel)
-                WHERE root.type = 'TopLevel'
-                RETURN child.name as class, root.name as root, length(path) as depth
-                ORDER BY depth DESC, class
-            """,
-            
-            "Find relationships for Requirements": """
-                MATCH (r:SchemaRelationship)
-                WHERE r.sourceLabel = 'Requirement' OR r.targetLabel = 'Requirement'
-                RETURN r.name, r.sourceLabel, r.targetLabel
-            """,
-            
-            "List properties by data type": """
-                MATCH (p:SchemaProperty)
-                RETURN p.dataType as type, collect(p.name) as properties
-                ORDER BY type
-            """
-        }
-        
-        print(f"\n💡 Sample Queries:")
-        for title, query in queries.items():
-            print(f"\n  {title}:")
-            print(f"  {query.strip()}")
-    
+                print(f"\n  ✓ No Orphaned Labels")
+
     def full_import(self, clear_first=False):
-        """Run complete import process"""
         print("=" * 60)
         print("SR8 ONTOLOGY IMPORT TO NEO4J")
         print("=" * 60)
-        
+
         if clear_first:
-            response = input("\n⚠️  Clear existing database? (yes/no): ")
+            response = input("\n⚠️  Clear Exiting DB? (yes/no): ")
             if response.lower() == 'yes':
                 self.clear_database()
-        
-        # Create constraints
+
+        # Create Constraints
         self.create_constraints()
-        
-        # Import data
+
+        # Import Data
         labels_count = self.import_node_labels()
         hierarchy_count = self.create_label_hierarchy()
         rel_count = self.import_relationships()
         prop_count = self.import_properties()
-        
-        # Statistics and verification
+
+        # Statistics & Verification
         self.get_statistics()
         self.verify_import()
-        self.export_sample_queries()
-        
+
         print("\n" + "=" * 60)
         print("✅ IMPORT COMPLETE!")
         print("=" * 60)
         print(f"\nSummary:")
-        print(f"  • {labels_count} node labels imported")
-        print(f"  • {hierarchy_count} hierarchy relationships created")
-        print(f"  • {rel_count} relationship types imported")
-        print(f"  • {prop_count} property definitions imported")
-        print(f"\n🚀 Ready to populate with SR8 project data!")
-
+        print(f"  • {labels_count} Node Labels Imported")
+        print(f"  • {hierarchy_count} Hierarchy Relationships Created")
+        print(f"  • {rel_count} Relationship Types Imported")
+        print(f"  • {prop_count} Property Definitions Imported")
 
 def main():
-    """Main entry point"""
     import argparse
-    
-    parser = argparse.ArgumentParser(description='Import SR8 Ontology into Neo4j')
-    parser.add_argument('--uri', default='bolt://localhost:7687', help='Neo4j URI')
-    parser.add_argument('--user', default='neo4j', help='Neo4j username')
-    parser.add_argument('--password', default='password', help='Neo4j password')
-    parser.add_argument('--clear', action='store_true', help='Clear database before import')
-    
+
+    parser = argparse.ArgumentParser(description='Import SR8 Ontology')
+    parser.add_argument('--uri', default='bolt://localhost:7687', help='neo4j URI')
+    parser.add_argument('--user', default='neo4j', help='neo4j username')
+    parser.add_argument('--password', default='password', help='neo4j password')
+    parser.add_argument('--clear', action='store_true', help='Clear DB Before Import')
+
     args = parser.parse_args()
-    
-    # Create importer
+
+    # Create Importer
     importer = SR8OntologyImporter(args.uri, args.user, args.password)
-    
+
     try:
-        # Run full import
+        # Run Full Import
         importer.full_import(clear_first=args.clear)
-    
+
     except Exception as e:
         print(f"\n❌ Error: {e}")
         import traceback
         traceback.print_exc()
-    
+
     finally:
         importer.close()
 

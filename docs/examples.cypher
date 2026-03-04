@@ -1,39 +1,38 @@
 // ============================================================
 // SR8 ONTOLOGY - NEO4J CYPHER EXAMPLES
 // ============================================================
-// Run these commands after importing the ontology schema into Neo4j
 
 // ------------------------------------------------------------
 // STEP 1: Create Constraints (Run First!)
 // ------------------------------------------------------------
 
-CREATE CONSTRAINT sr8_req_id IF NOT EXISTS 
+CREATE CONSTRAINT sr8_req_id IF NOT EXISTS
 FOR (r:Requirement) REQUIRE r.hasID IS UNIQUE;
 
-CREATE CONSTRAINT sr8_comp_id IF NOT EXISTS 
+CREATE CONSTRAINT sr8_comp_id IF NOT EXISTS
 FOR (c:Component) REQUIRE c.hasID IS UNIQUE;
 
-CREATE CONSTRAINT sr8_adr_id IF NOT EXISTS 
+CREATE CONSTRAINT sr8_adr_id IF NOT EXISTS
 FOR (a:AustralianDesignRule) REQUIRE a.hasID IS UNIQUE;
 
-CREATE CONSTRAINT sr8_subsys_id IF NOT EXISTS 
+CREATE CONSTRAINT sr8_subsys_id IF NOT EXISTS
 FOR (s:Subsystem) REQUIRE s.hasID IS UNIQUE;
 
 // ------------------------------------------------------------
-// STEP 2: Create Indexes for Performance
+// STEP 2: Create Indexes For Performance
 // ------------------------------------------------------------
 
-CREATE INDEX req_name IF NOT EXISTS 
+CREATE INDEX req_name IF NOT EXISTS
 FOR (r:Requirement) ON (r.hasName);
 
-CREATE INDEX comp_name IF NOT EXISTS 
+CREATE INDEX comp_name IF NOT EXISTS
 FOR (c:Component) ON (c.hasName);
 
-CREATE INDEX subsys_name IF NOT EXISTS 
+CREATE INDEX subsys_name IF NOT EXISTS
 FOR (s:Subsystem) ON (s.hasName);
 
 // ------------------------------------------------------------
-// STEP 3: Create Sample Data from Ontology
+// STEP 3: Create Sample Data From Ontology
 // ------------------------------------------------------------
 
 // Organization
@@ -49,7 +48,7 @@ CREATE (sunswift:SunswiftRacing {
 // Industry Partner
 CREATE (neo4j:IndustryPartner {
     hasID: "PARTNER-001",
-    hasName: "Neo4j",
+    hasName: "neo4j",
     hasDescription: "Leading graph database technology partner"
 });
 
@@ -68,13 +67,67 @@ CREATE (adr42:AustralianDesignRule {
     hasID: "ADR-042",
     hasName: "General Safety Requirements",
     hasDescription: "Requirements for general safety provisions"
-});
+})
+
+// Create related nodes for ADR-042
+CREATE (clause42Init:Clause {
+    hasID: "CLAUSE-042-INIT",
+    hasName: "42.1"
+})
+
+CREATE (reqName42Init:RequirementName {
+    hasID: "REQNAME-042-INIT",
+    hasName: "General Safety Provisions"
+})
+
+CREATE (reqDesc42Init:RequirementDescription {
+    hasID: "REQDESC-042-INIT",
+    hasName: "Requirements for general safety provisions and crash protection"
+})
+
+// Link ADR-042 to related nodes
+CREATE (adr42)-[:hasClause]->(clause42Init)
+CREATE (adr42)-[:hasRequirementName]->(reqName42Init)
+CREATE (adr42)-[:hasRequirementDescription]->(reqDesc42Init);
 
 CREATE (adr63:AustralianDesignRule {
     hasID: "ADR-063",
     hasName: "Light Vehicle Braking Systems",
     hasDescription: "Braking system performance and safety"
-});
+})
+
+// Create related nodes for ADR-063
+CREATE (clause63:Clause {
+    hasID: "CLAUSE-063",
+    hasName: "63.3.1"
+})
+
+CREATE (reqName63:RequirementName {
+    hasID: "REQNAME-063",
+    hasName: "Emergency Braking Performance"
+})
+
+CREATE (reqDesc63:RequirementDescription {
+    hasID: "REQDESC-063",
+    hasName: "Braking system performance and safety requirements"
+})
+
+CREATE (projID63:ProjectID {
+    hasID: "PROJID-063",
+    hasName: "PROJ-BRAKE-01"
+})
+
+CREATE (projName63:ProjectName {
+    hasID: "PROJNAME-063",
+    hasName: "Braking System Development"
+})
+
+// Link ADR-063 to related nodes
+CREATE (adr63)-[:hasClause]->(clause63)
+CREATE (adr63)-[:hasRequirementName]->(reqName63)
+CREATE (adr63)-[:hasRequirementDescription]->(reqDesc63)
+CREATE (adr63)-[:hasProjectID]->(projID63)
+CREATE (adr63)-[:hasProjectName]->(projName63);
 
 // Sample Subsystems
 CREATE (battery:Subsystem {
@@ -132,7 +185,7 @@ CREATE (req3:RecommendedRequirement {
     hasProvenance: "Inferred by LLM Agent"
 });
 
-// Knowledge Graph and Technologies
+// Knowledge Graph & Technologies
 CREATE (kg:KnowledgeGraph {
     hasID: "KG-SR8",
     hasName: "SR8 Regulatory Knowledge Graph",

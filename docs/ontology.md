@@ -2,11 +2,7 @@
 
 ## Overview
 
-This repository contains a comprehensive OWL/RDF ontology for the Sunswift Racing SR8 tri-brid electric vehicle project, structured around three integrated management systems:
-
-1. **Project Tracking System (PTS)** - 189 Projects, 15 Departments, 100 Members
-2. **Parts Management System** - Component/BOM hierarchy with full lifecycle tracking
-3. **ADR Management System** - 100 Australian Design Rules with verification tracking
+This repository contains a comprehensive OWL/RDF ontology for the Sunswift Racing SR8 tri-brid electric vehicle project, structured around three integrated management systems.
 
 **Ontology Statistics:**
 - 53 classes (node labels) including Member class
@@ -14,17 +10,17 @@ This repository contains a comprehensive OWL/RDF ontology for the Sunswift Racin
 - 51 data properties (attributes)
 - 185+ total semantic elements
 
-## 🚀 Quick Start
+## Quick Start
 
 ## Accessing Neo4j Browser
 
-### Start Neo4j
+### Start neo4j
 
 ```bash
 brew services start neo4j
 ```
 
-### Open Neo4j Browser
+### Open neo4j Browser
 
 Open your browser and navigate to:
 ```
@@ -73,15 +69,6 @@ open http://localhost:7474
 - **Project/Department Links**: assignedToProject, hasRelevantProject, hasRelevantDepartment
 - **Evidence Tracking**: verifiedBy → InspectionEvidence, DemonstrationEvidence, TestEvidence, AnalysisEvidence, ADRAnnexEvidence, ADRTestingProcedureEvidence
 
-## Documentation
-
-| Document | Description |
-|----------|-------------|
-| [ontology-documentation.md](ontology-documentation.md) | Detailed class/property reference |
-| [ontology-quick-reference.md](ontology-quick-reference.md) | Quick reference guide |
-| [neo4j-examples.cypher](neo4j-examples.cypher) | 50+ ready-to-use queries |
-| [project-ontology.owl](project-ontology.owl) | OWL/RDF specification |
-
 ## Quick Start Queries
 
 ### 1. View All Components by Project
@@ -103,7 +90,7 @@ RETURN adr.isVerified AS Verified,
 ORDER BY Verified DESC;
 ```
 
-### 3. Component Lifecycle Progress
+### 3. Component Life-Cycle Progress
 
 ```cypher
 MATCH (c:Component)
@@ -136,7 +123,7 @@ MATCH (r:SchemaRelationship)
 RETURN r.name, r.sourceLabel, r.targetLabel, r.description
 ```
 
-### 5. Count Classes by Category
+### 5. Count Classes By Category
 
 ```cypher
 MATCH (n:SchemaLabel)
@@ -157,197 +144,18 @@ RETURN r.name, r.sourceLabel, r.targetLabel
 ### Using cypher-shell
 
 ```bash
-# View top-level categories
+# View Top-Level Categories
 cypher-shell -u neo4j -p password123 \
   "MATCH (n:SchemaLabel) WHERE n.type = 'TopLevel' RETURN n.name, n.description;"
 
-# Count all nodes
+# Count All Nodes
 cypher-shell -u neo4j -p password123 \
   "MATCH (n:SchemaLabel) RETURN n.category, count(*) ORDER BY count(*) DESC;"
 
-# View all relationships
+# View All Relationships
 cypher-shell -u neo4j -p password123 \
   "MATCH (r:SchemaRelationship) RETURN r.name LIMIT 10;"
 ```
-
-## Managing Neo4j
-
-### Stop Neo4j
-
-```bash
-brew services stop neo4j
-```
-
-### Restart Neo4j
-
-```bash
-brew services restart neo4j
-```
-
-### Check Neo4j Status
-
-```bash
-brew services info neo4j
-```
-
-## Re-importing the Ontology
-
-If you need to re-import the ontology from scratch:
-
-```bash
-python3 import.py --uri bolt://localhost:7687 \
-                  --user neo4j \
-                  --password password123 \
-                  --clear
-```
-
-## Files in This Repository
-
-### Documentation
-- **[ontology-documentation.md](ontology-documentation.md)** - Complete class and property reference
-- **[ontology-quick-reference.md](ontology-quick-reference.md)** - Quick reference guide
-- **[ontology-diagrams.md](ontology-diagrams.md)** - 14 Mermaid diagrams
-- **[ONTOLOGY-SUMMARY.txt](ONTOLOGY-SUMMARY.txt)** - Statistics and validation summary
-
-### Core Ontology Files
-- **[project-ontology.owl](project-ontology.owl)** - OWL/RDF ontology specification (48 classes, 36 properties)
-- **[validate.py](validate.py)** - Python script to validate OWL structure
-
-### Neo4j Integration
-- **[neo4j-examples.cypher](neo4j-examples.cypher)** - 50+ ready-to-use Cypher queries
-- **[neo4j-node-labels.csv](neo4j-node-labels.csv)** - Node labels mapped from OWL classes
-- **[neo4j-relationships.csv](neo4j-relationships.csv)** - Relationship types from object properties
-- **[neo4j-node-properties.csv](neo4j-node-properties.csv)** - Data property definitions
-- **[import.py](import.py)** - Python script for automated Neo4j import
-- **[NEO4J-IMPORT-GUIDE.md](NEO4J-IMPORT-GUIDE.md)** - Detailed import documentation
-- **[NEO4J-CSV-SUMMARY.txt](NEO4J-CSV-SUMMARY.txt)** - CSV export summary
-
-## Ontology Categories
-
-### 1. Organization (7 classes)
-Entities involved in the SR8 project - Sunswift Racing, departments, partners
-
-### 2. Artifact (22 classes)
-Engineering artifacts - vehicles, subsystems, components, requirements, documents, evidence
-
-### 3. Process (15 classes)
-Methodological workflows - extraction, extension, validation
-
-## Integration with Thesis
-
-Reference this ontology in:
-- **Methodology Section 5.1** - Knowledge Extraction
-- **Methodology Section 5.2** - Knowledge Extension
-- **Appendix** - Include sample queries and visualizations
-
-## Support
-
-For issues or questions about the ontology:
-1. See [ontology-documentation.md](ontology-documentation.md) for detailed class reference
-2. Consult [neo4j-examples.cypher](neo4j-examples.cypher) for 50+ query examples
-
-## License
-
-This ontology is part of the COMP4951 thesis project for Sunswift Racing SR8.
-# SR8 Ontology Quick Reference Guide
-
-## File Overview
-
-Your ontology consists of three files:
-
-1. **project-ontology.owl** - Machine-readable OWL/RDF format (formal specification)
-2. **ontology-documentation.md** - Comprehensive documentation (human-readable)
-3. **ontology-diagrams.md** - Visual diagrams (Mermaid format)
-4. **ontology-quick-reference.md** - This quick guide
-
----
-
-## 3 Main Hierarchies
-
-```
-1. ORGANIZATION  → Who is involved (Sunswift, departments, partners, members)
-2. ARTIFACT      → What is created (vehicles, documents, requirements, components, ADRs)
-3. PROCESS       → How work is done (extraction, extension, validation)
-```
-
----
-
-## Most Important Classes (Top 12)
-
-| Class | Description | Count/Scale |
-|-------|-------------|-------------|
-| `SR8` | The vehicle being built | 1 vehicle |
-| `AustralianDesignRule` | Regulatory framework | 100 rules |
-| `Requirement` | Engineering requirements | 600,000+ |
-| `Component` | Vehicle parts | 100,000+ |
-| `Subsystem` | Major vehicle systems | ~10-20 |
-| `Interface` | Cross-system connections | 5,000+ |
-| `Project` | Concurrent engineering projects | 189 |
-| `VerificationProcedure` | ADR verification procedures | Subclass of Requirement |
-| `VerificationMethod` | Verification methods | 6 types (subclass of VerificationProcedure) |
-| `Evidence` | Verification evidence | 6 types (subclass of Component) |
-| `Department` | Organizational units | 15 |
-| `Member` | Team members and project assignees | 100 |
-| `Clause` | Specific clause references within ADRs | Connected to ADRs |
-| `RequirementName` | Names/titles of requirements | Connected to ADRs |
-| `RequirementDescription` | Detailed descriptions of requirements | Connected to ADRs |
-| `ProjectID` | Unique project identifiers | Connected to ADRs |
-| `ProjectName` | Project names | Connected to ADRs |
-
----
-
-## Most Important Relationships (Top 20)
-
-| Relationship | Direction | Example |
-|--------------|-----------|---------|
-| `hasSubsystem` | Vehicle → Subsystem | SR8 has Battery Subsystem |
-| `hasComponent` | Subsystem → Component | Battery has BMS |
-| `hasRequirement` | Artifact → Requirement | SR8 has safety requirements |
-| `dependsOn` | Requirement → Requirement | Req A depends on Req B |
-| `derivedFrom` | Requirement → ADR | Req derived from ADR-42 |
-| `appliesTo` | Requirement → Artifact | Req applies to Battery |
-| `interfacesWith` | Subsystem ↔ Subsystem | Battery interfaces with Motor |
-| `compliesWith` | Artifact → ADR | SR8 complies with ADR-42 |
-| `assignedToProject` | ADR → Project | ADR-42 assigned to Electrical |
-| `hasVerificationProcedure` | ADR → Procedure | ADR-42 has test procedure |
-| `hasVerificationMethod` | Procedure → Method | Procedure uses Test method |
-| `supportedByEvidence` | Procedure → Evidence | Procedure has test evidence |
-| `verifiedBy` | ADR → Evidence | ADR verified by simulation |
-| `hasRisk` | Artifact → Requirement | Battery has thermal risk |
-| `propagatesRiskTo` | Subsystem → Subsystem | Battery risk → Electronics |
-| `hasClause` | ADR → Clause | ADR-42 has Clause 7.1.2 |
-| `hasRequirementName` | ADR → RequirementName | ADR-42 has "Brake System" |
-| `hasRequirementDescription` | ADR → RequirementDescription | ADR-42 has detailed description |
-| `hasProjectID` | ADR → ProjectID | ADR-42 has ProjectID "P-189" |
-| `hasProjectName` | ADR → ProjectName | ADR-42 has "Braking System" |
-| `extractsKnowledgeFrom` | Process → Document | Extract from ADR PDF |
-| `extendsKnowledgeGraph` | Process → KG | Extension enriches KG |
-| `storedIn` | KG → Database | KG stored in Neo4j |
-
----
-
-## Key Metrics (SR8 Project Scale)
-
-```
-TEAM STRUCTURE
-├── 80 members
-├── 16 departments (technical + operational)
-└── 189 concurrent projects
-
-ENGINEERING COMPLEXITY
-├── 100,000+ components
-├── 600,000+ requirements (internal + external)
-├── 5,000+ subsystem interfaces
-└── 113 Australian Design Rules
-
-DATA VOLUME
-├── 4 TB documents, reports, spreadsheets
-├── 1.5 TB mechanical simulations
-├── 1 TB electrical drawings
-└── 500 GB code (high-level + low-level)
-```
-
----
 
 ## Workflow Summary
 
@@ -429,73 +237,6 @@ WHERE NOT (c)-[:compliesWith]->(adr)
 RETURN c.hasName, adr.hasName, req.hasDescription
 ```
 
----
-
-## Import Into Neo4j
-
-### Step 1: Install Neo4j
-```bash
-# macOS
-brew install neo4j
-
-# Start Neo4j
-neo4j start
-
-# Open browser
-open http://localhost:7474
-```
-
-### Step 2: Create Constraints
-```cypher
-// Unique IDs
-CREATE CONSTRAINT req_id IF NOT EXISTS FOR (r:Requirement) REQUIRE r.hasID IS UNIQUE;
-CREATE CONSTRAINT comp_id IF NOT EXISTS FOR (c:Component) REQUIRE c.hasID IS UNIQUE;
-CREATE CONSTRAINT adr_id IF NOT EXISTS FOR (a:AustralianDesignRule) REQUIRE a.hasID IS UNIQUE;
-
-// Indexes for performance
-CREATE INDEX req_name IF NOT EXISTS FOR (r:Requirement) ON (r.hasName);
-CREATE INDEX comp_name IF NOT EXISTS FOR (c:Component) ON (c.hasName);
-```
-
-### Step 3: Import Ontology Schema
-```cypher
-// Create node labels from ontology classes
-CALL apoc.meta.load("file:///project-ontology.owl")
-```
-
-### Step 4: Verify Schema
-```cypher
-CALL db.schema.visualization()
-```
-
----
-
-## Open in Protégé
-
-### Installation
-```bash
-# Download from https://protege.stanford.edu/
-# OR via Homebrew
-brew install --cask protege
-```
-
-### Open Ontology
-1. Launch Protégé
-2. File → Open → Select `project-ontology.owl`
-3. Navigate tabs:
-   - **Classes**: See hierarchy
-   - **Object Properties**: See relationships
-   - **Data Properties**: See attributes
-   - **Individuals**: See instances
-
-### Run Reasoner
-1. Reasoner → HermiT
-2. Reasoner → Start reasoner
-3. View inferred class hierarchy
-4. Check for inconsistencies
-
----
-
 ## Extend the Ontology
 
 ### Add a New Class
@@ -527,86 +268,7 @@ brew install --cask protege
 
 ---
 
-## Integration with Thesis
-
-### Where to Reference
-
-1. **Abstract** - "ontology-driven framework"
-2. **Introduction** - Semantic representation approach
-3. **Context** - Domain model formalization
-4. **Literature Review** - Knowledge representation techniques
-5. **Methodology Section 5.1** - Ontology formalization process
-6. **Methodology Section 5.2** - Systems of systems modeling
-8. **Appendix** - Include ontology diagrams
-
-### Thesis Deliverables
-
-- [ ] Reference ontology file in appendix
-- [ ] Include class hierarchy diagram in methodology
-- [ ] Show example Cypher queries for validation
-- [ ] Demonstrate ontology-based validation
-- [ ] Provide traceability examples using ontology
-- [ ] Document provenance through ontology metadata
-
----
-
-## Validation Checklist
-
-- [ ] All 113 ADRs mapped to RegulatoryDocument class?
-- [ ] All 600,000 requirements captured in Requirement hierarchy?
-- [ ] All 100,000+ components represented?
-- [ ] All 16 departments linked to SunswiftRacing?
-- [ ] All 189 projects instantiated?
-- [ ] All 5,000+ interfaces modeled?
-- [ ] All verification methods and evidence types defined?
-- [ ] Provenance tracking implemented?
-- [ ] Confidence scores for inferred knowledge?
-
----
-
-## Common Issues & Solutions
-
-### Issue 1: Ontology won't load in Protégé
-**Solution**: Validate XML syntax, check namespace declarations
-
-### Issue 2: Reasoner finds inconsistencies
-**Solution**: Check disjoint classes, ensure proper subclass relationships
-
-### Issue 3: Neo4j import fails
-**Solution**: Use APOC plugin for OWL import or manually map schema
-
-### Issue 4: Too many relationships (performance)
-**Solution**: Create indexes on high-cardinality properties
-
-### Issue 5: Validation conflicts with ontology
-**Solution**: Strengthen validation rules, add consistency constraints
-
----
-
-## Next Steps
-
-1. **Validate**: Run HermiT reasoner in Protégé
-2. **Import**: Load into Neo4j and create sample instances
-3. **Populate**: Add SR8 project data (requirements, components, etc.)
-4. **Test**: Run example queries to verify relationships
-5. **Extend**: Add domain-specific classes and properties as needed
-6. **Document**: Reference in thesis methodology section
-
----
-
-## Support Resources
-
-- **OWL Documentation**: https://www.w3.org/OWL/
-- **Protégé Tutorial**: https://protege.stanford.edu/support.php
-- **Neo4j Cypher**: https://neo4j.com/docs/cypher-manual/
-- **Ontology Best Practices**: https://www.w3.org/TR/owl2-primer/
-
----
-
-*This quick reference provides the essential information needed to understand, use, and extend the SR8 thesis ontology.*
 # Three-System Alignment
-
-This document shows how the ontology aligns with the three core management systems for the SR8 project.
 
 ## 1. Project Tracking System (PTS)
 
@@ -783,8 +445,8 @@ This document shows how the ontology aligns with the three core management syste
 │  - Evidence             │         │                      │
 └─────────────────────────┘         └──────────────────────┘
         │                                      │
-        │ usedInADR                           │
-        │ relatedADRs                         │
+        │ usedInADR                            │
+        │ relatedADRs                          │
         └──────────────────────────────────────┘
 ```
 
@@ -856,27 +518,6 @@ RETURN p.projectID,
              count(DISTINCT adr), 1) AS VerificationProgress
 ORDER BY p.projectID;
 ```
-
----
-
-## Implementation Notes
-
-1. **Project Tracking System**
-   - All 189 projects exist as individual nodes
-   - Each project links to 1 primary and 0-1 secondary departments
-   - Each project has 1+ assignees (members)
-
-2. **Parts Management System**
-   - Components linked to projects via `usedInProject`
-   - BOM hierarchy via `partOfBOM` (transitive)
-   - ADR relationships tracked via both property (`relatedADRs`) and relationship (`usedInADR`)
-
-3. **ADR Management System**
-   - 100 ADRs as individual nodes
-   - Each ADR has 1+ verification methods (Inspection, Demonstration, Test, Analysis)
-   - Projects and departments linked via both assignment and relevance relationships
-   - Testing procedures stored per requirement
-
 ---
 
 *This structure provides complete traceability across Projects, Components, and Regulatory Compliance.*
@@ -1647,18 +1288,6 @@ graph TB
     style MCP fill:#ffff99
     style KG fill:#99ff99
 ```
-
----
-
-## Visualization Tools
-
-To visualize this ontology:
-
-1. **Protégé**: Open `project-ontology.owl` for interactive exploration
-2. **Neo4j Browser**: Import and visualize graph relationships
-3. **Mermaid**: Render these diagrams in Markdown viewers
-4. **GraphViz**: Export from Protégé as DOT format
-5. **WebVOWL**: Online ontology visualization at http://vowl.visualdataweb.org/webvowl.html
 
 ---
 
@@ -2722,7 +2351,7 @@ import pandas as pd
 class OntologyImporter:
     def __init__(self, uri, user, password):
         self.driver = GraphDatabase.driver(uri, auth=(user, password))
-    
+
     def import_labels(self, csv_file):
         df = pd.read_csv(csv_file)
         with self.driver.session() as session:
@@ -2738,7 +2367,7 @@ class OntologyImporter:
                      description=row['Description'],
                      type=row['Type'],
                      category=row['Category'])
-    
+
     def close(self):
         self.driver.close()
 
@@ -2747,37 +2376,12 @@ importer = OntologyImporter("bolt://localhost:7687", "neo4j", "password")
 importer.import_labels("neo4j-node-labels.csv")
 importer.close()
 ```
-
----
-
-## File Locations
-
-Default Neo4j import directory:
-- **macOS**: `~/Library/Application Support/Neo4j Desktop/Application/relate-data/dbmss/dbms-xxx/import/`
-- **Linux**: `/var/lib/neo4j/import/`
-- **Windows**: `C:\Users\<username>\.Neo4jDesktop\relate-data\dbmss\dbms-xxx\import\`
-
-Copy CSV files to this directory before running LOAD CSV commands.
-
----
-
-## Next Steps
-
-1. ✅ Import schema CSVs into Neo4j
-2. ✅ Create constraints and indexes
-3. ✅ Populate with SR8 project data
-4. ✅ Link with existing ontology (project-ontology.owl)
-5. ✅ Run validation queries
-6. ✅ Export visualizations for thesis
-
 ---
 
 ## References
 
-- **Neo4j Import Documentation**: https://neo4j.com/docs/operations-manual/current/tools/neo4j-admin/neo4j-admin-import/
+- **neo4j Import Documentation**: https://neo4j.com/docs/operations-manual/current/tools/neo4j-admin/neo4j-admin-import/
 - **Cypher Manual**: https://neo4j.com/docs/cypher-manual/current/
 - **APOC Procedures**: https://neo4j.com/labs/apoc/
 
 ---
-
-*These CSV files provide a complete mapping of the SR8 ontology to Neo4j's property graph model, enabling efficient import and querying of the knowledge graph.*
