@@ -28,10 +28,9 @@ InternalRecommendedRequirement,InternalRequirement,Contextual Internal Requireme
 ExternalEssentialRequirement,ExternalRequirement,Non-Negotiable External Requirement Imposing Strict Constraints,Derived,Artifact
 ExternalRecommendedRequirement,ExternalRequirement,Contextual External Requirement With Interpretative Flexibility,Derived,Artifact
 Component,Artifact,,Derived,Artifact
-Subsystem,Artifact,,Derived,Artifact
-Interface,Artifact,Connection Or Interaction Point Between Subsystems,Derived,Artifact
-Project,Artifact,,Derived,Artifact
-TestPlan,Artifact,,Derived,Artifact
+Subsystem,Artifact,Functional Unit Within A System (2+ Subsystems Make A System),Derived,Artifact
+Interface,Artifact,Connection Point Enabling 2+ Projects To Work Together,Derived,Artifact
+Project,Artifact,Engineering Project With ID Name And Description (189 Concurrent Projects),Derived,Artifact
 VerificationProcedure,Requirement,Detailed Procedure For Verifying ADR Compliance,Derived,Artifact
 VerificationMethod,VerificationProcedure,Method Used To Verify Compliance With Requirements,Derived,Artifact
 Inspection,VerificationMethod,Visual Or Manual Inspection Verification Method,Derived,Artifact
@@ -47,8 +46,4 @@ TestEvidence,Evidence,Evidence Obtained Through Physical Or Functional Testing,D
 AnalysisEvidence,Evidence,Evidence Obtained Through Simulations And Calculations,Derived,Artifact
 ADRAnnexEvidence,Evidence,Evidence Obtained Through ADR Annex Procedures,Derived,Artifact
 ADRTestingProcedureEvidence,Evidence,Evidence Obtained Through Official ADR Testing Procedures,Derived,Artifact
-Clause,Artifact,Specific Clause Reference Within An ADR,Derived,Artifact
-RequirementName,Artifact,Name Or Title Of A Requirement,Derived,Artifact
-RequirementDescription,Artifact,Detailed Description Of A Requirement,Derived,Artifact
-ProjectID,Artifact,Unique Identifier For A Project,Derived,Artifact
-ProjectName,Artifact,Name Of A Project,Derived,Artifact
+Clause,Artifact,Specific Clause Within An ADR (Each Clause Is A New Node Connected To 1 ADR),Derived,Artifact

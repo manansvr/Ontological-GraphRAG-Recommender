@@ -5,9 +5,9 @@
 This repository contains a comprehensive OWL/RDF ontology for the Sunswift Racing SR8 tri-brid electric vehicle project, structured around three integrated management systems.
 
 **Ontology Statistics:**
-- 53 classes (node labels) including Member class
-- 41 object properties (relationships)
-- 51 data properties (attributes)
+- 48 classes (node labels) including Member class
+- 37 object properties (relationships)
+- 56 data properties (attributes)
 - 185+ total semantic elements
 
 ## Quick Start
@@ -63,7 +63,8 @@ open http://localhost:7474
 - **Supply Chain**: suppliedBy → IndustryPartner
 
 ### 3. ADR Management System (100 ADRs)
-- **ADR Related Nodes**: Clause, RequirementName, RequirementDescription, ProjectID, ProjectName
+- **ADR Related Nodes**: Clause (each clause is a new node connected to 1 ADR)
+- **ADR Properties**: requirementName, requirementDescription
 - **Verification Methods**: Inspection, Demonstration, Test, Analysis (Simulations/Calculations)
 - **Testing Procedures**: testingProcedurePerRequirement
 - **Project/Department Links**: assignedToProject, hasRelevantProject, hasRelevantDepartment
@@ -357,13 +358,11 @@ RETURN c.hasName, adr.hasName, req.hasDescription
 - `hasID` - ADR identifier (e.g., "ADR-42")
 - `hasName` - ADR name
 - `requirementText` - Full requirement text
+- `requirementName` - Name or title of requirement
+- `requirementDescription` - Detailed description of requirement
 
 #### ADR Related Nodes (Connected via Relationships)
-- Uses `hasClause` relationship → Clause node - Specific clause reference
-- Uses `hasRequirementName` relationship → RequirementName node - Short name/title of requirement
-- Uses `hasRequirementDescription` relationship → RequirementDescription node - Detailed requirement description
-- Uses `hasProjectID` relationship → ProjectID node - Unique project identifier
-- Uses `hasProjectName` relationship → ProjectName node - Project name
+- Uses `hasClause` relationship → Clause node - Specific clause reference (each clause is a new node connected to 1 ADR)
 
 #### Project Connection (Connected to PTS)
 - Uses `hasRelevantProject` relationship to link to Project node
@@ -384,11 +383,7 @@ RETURN c.hasName, adr.hasName, req.hasDescription
 **Relationships**:
 
 #### ADR Related Nodes
-- `hasClause` → Clause - Specific clause reference within ADR
-- `hasRequirementName` → RequirementName - Short name/title of requirement
-- `hasRequirementDescription` → RequirementDescription - Detailed requirement description
-- `hasProjectID` → ProjectID - Unique project identifier
-- `hasProjectName` → ProjectName - Project name
+- `hasClause` → Clause - Specific clause reference within ADR (each clause is a new node connected to 1 ADR)
 
 #### Project & Department Connections
 - `assignedToProject` → Project - Project assigned to handle this ADR
@@ -481,9 +476,8 @@ OPTIONAL MATCH (adr)-[:hasVerificationMethod]->(vm:VerificationMethod)
 OPTIONAL MATCH (adr)-[:assignedToProject]->(p:Project)
 OPTIONAL MATCH (adr)-[:hasRelevantDepartment]->(d:Department)
 OPTIONAL MATCH (adr)-[:hasClause]->(clause:Clause)
-OPTIONAL MATCH (adr)-[:hasRequirementName]->(reqName:RequirementName)
 RETURN adr.hasID, 
-       reqName.hasName AS RequirementName,
+       adr.requirementName AS RequirementName,
        clause.hasName AS Clause,
        vm.hasName AS VerificationMethod,
        p.projectID AS AssignedProject,
@@ -572,8 +566,11 @@ Organization
 ```
 Artifact
 ├── Vehicle
-│   └── SR8 (Sunswift 8)
-│       └── [100,000+ components, road-legal tri-brid electric]
+│   ├── SR8 (Sunswift 8)
+│   │   └── [100,000+ components, road-legal tri-brid electric]
+│   ├── Subsystem (2+ subsystems make a system)
+│   ├── Interface (5,000+ interactions; how 2+ projects work together)
+│   └── Project (189 concurrent; properties: projectID, projectName, projectDescription)
 ├── Document
 │   ├── RegulatoryDocument
 │   │   └── AustralianDesignRule (ADR)
@@ -608,15 +605,7 @@ Artifact
 │       ├── AnalysisEvidence (simulation/calculation results)
 │       ├── ADRAnnexEvidence (ADR annex procedure results)
 │       └── ADRTestingProcedureEvidence (official ADR testing results)
-├── Subsystem
-├── Interface (5,000+ interactions)
-├── Project (189 concurrent)
-├── TestPlan
-├── Clause (specific clause references within ADRs)
-├── RequirementName (names/titles of requirements)
-├── RequirementDescription (detailed descriptions of requirements)
-├── ProjectID (unique project identifiers)
-└── ProjectName (project names)
+└── Clause (each clause is a new node connected to 1 ADR)
 ```
 
 **Key Relationships**:
@@ -634,11 +623,7 @@ Artifact
 - `hasVerificationMethod`: Procedures linked to verification methods
 - `supportedByEvidence`: Procedures linked to evidence
 - `verifiedBy`: ADRs linked to verification evidence
-- `hasClause`: ADRs linked to Clause nodes
-- `hasRequirementName`: ADRs linked to RequirementName nodes
-- `hasRequirementDescription`: ADRs linked to RequirementDescription nodes
-- `hasProjectID`: ADRs linked to ProjectID nodes
-- `hasProjectName`: ADRs linked to ProjectName nodes
+- `hasClause`: ADRs linked to Clause nodes (each clause is a new node connected to 1 ADR)
 
 ---
 
@@ -667,10 +652,6 @@ Artifact
 - `verifiedBy`: AustralianDesignRule → Evidence
 - `compliesWith`: Artifact → AustralianDesignRule
 - `hasClause`: AustralianDesignRule → Clause
-- `hasRequirementName`: AustralianDesignRule → RequirementName
-- `hasRequirementDescription`: AustralianDesignRule → RequirementDescription
-- `hasProjectID`: AustralianDesignRule → ProjectID
-- `hasProjectName`: AustralianDesignRule → ProjectName
 
 ### Component Management Relations
 - `usedInProject`: Component → Project
@@ -920,12 +901,11 @@ graph TD
     Art --> Doc[Document]
     Art --> Req[Requirement<br/>600,000+]
     Art --> Comp[Component<br/>100,000+]
-    Art --> Sub[Subsystem]
-    Art --> Int[Interface<br/>5,000+]
-    Art --> Proj[Project<br/>189]
-    Art --> Test[TestPlan]
     
     Veh --> SR8[SR8<br/>Tri-brid Electric<br/>Road Legal]
+    Veh --> Sub[Subsystem]
+    Veh --> Int[Interface<br/>5,000+]
+    Veh --> Proj[Project<br/>189]
     
     Doc --> Reg[RegulatoryDocument]
     Doc --> Eng[EngineeringBrief]
@@ -1707,11 +1687,10 @@ ORDER BY Inventory_Value DESC;
 #### 6. Unverified ADRs
 ```cypher
 MATCH (adr:AustralianDesignRule)
-OPTIONAL MATCH (adr)-[:hasRequirementName]->(reqName:RequirementName)
 OPTIONAL MATCH (adr)-[:hasClause]->(clause:Clause)
 WHERE adr.isVerified = false
 RETURN adr.hasID AS ADR_ID,
-       reqName.hasName AS Requirement,
+       adr.requirementName AS Requirement,
        clause.hasName AS Clause
 ORDER BY adr.hasID;
 ```
@@ -1745,12 +1724,11 @@ ORDER BY ADR_Count DESC;
 ```cypher
 MATCH (c:Component)-[:generatesEvidence]->(ev:Evidence)
       <-[:verifiedBy]-(adr:AustralianDesignRule)
-OPTIONAL MATCH (adr)-[:hasRequirementName]->(reqName:RequirementName)
 RETURN c.partNumber AS Part_Number,
        c.partDescription AS Component,
        labels(ev)[0] AS Evidence_Type,
        adr.hasID AS ADR_ID,
-       reqName.hasName AS Requirement
+       adr.requirementName AS Requirement
 ORDER BY adr.hasID;
 ```
 
