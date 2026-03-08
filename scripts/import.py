@@ -35,7 +35,7 @@ class SR8OntologyImporter:
                 except Exception as e:
                     print(f"  (Already exists or error: {constraint.split()[1]})")
 
-    def import_node_labels(self, csv_file="neo4j-node-labels.csv"):
+    def import_node_labels(self, csv_file="csv/node-labels.csv"):
         print(f"\n📊 Importing Node Labels From {csv_file}...")
 
         with open(csv_file, 'r') as f:
@@ -77,7 +77,7 @@ class SR8OntologyImporter:
         print(f"✓ Created {count} hierarchy relationships")
         return count
 
-    def import_relationships(self, csv_file="neo4j-relationships.csv"):
+    def import_relationships(self, csv_file="csv/relationships.csv"):
         print(f"\n📊 Importing Relationships From {csv_file}...")
 
         with open(csv_file, 'r') as f:
@@ -103,7 +103,7 @@ class SR8OntologyImporter:
         print(f"✓ Imported {len(relationships)} Relationship Types")
         return len(relationships)
 
-    def import_properties(self, csv_file="neo4j-node-properties.csv"):
+    def import_properties(self, csv_file="csv/node-properties.csv"):
         print(f"\n📊 Importing Properties From {csv_file}...")
 
         with open(csv_file, 'r') as f:

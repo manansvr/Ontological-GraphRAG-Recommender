@@ -295,7 +295,10 @@
     </owl:Class>
 
     <owl:Class rdf:about="#Clause">
-        <rdfs:subClassOf rdf:resource="#Artifact"/>
+        <rdfs:subClassOf rdf:resource="#InternalEssentialRequirement"/>
+        <rdfs:subClassOf rdf:resource="#InternalRecommendedRequirement"/>
+        <rdfs:subClassOf rdf:resource="#ExternalEssentialRequirement"/>
+        <rdfs:subClassOf rdf:resource="#ExternalRecommendedRequirement"/>
         <rdfs:label>Clause</rdfs:label>
         <rdfs:comment>Specific Clause Within An ADR (Each Clause Is A New Node Connected To 1 ADR)</rdfs:comment>
     </owl:Class>

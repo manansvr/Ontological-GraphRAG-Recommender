@@ -584,10 +584,14 @@ Artifact
 ├── Requirement (600,000+)
 │   ├── InternalRequirement
 │   │   ├── InternalEssentialRequirement (non-negotiable constraints)
+│   │   │   └── Clause
 │   │   └── InternalRecommendedRequirement (contextual flexibility)
+│   │       └── Clause
 │   ├── ExternalRequirement
 │   │   ├── ExternalEssentialRequirement (non-negotiable constraints)
+│   │   │   └── Clause
 │   │   └── ExternalRecommendedRequirement (contextual flexibility)
+│   │       └── Clause
 │   └── VerificationProcedure
 │       ├── [Detailed procedures for verifying ADR compliance]
 │       └── VerificationMethod
@@ -597,15 +601,14 @@ Artifact
 │           ├── Analysis (simulations/calculations)
 │           ├── ADRAnnex (ADR annex procedures)
 │           └── ADRTestingProcedure (official ADR testing)
-├── Component (100,000+)
-│   └── Evidence (formed when multiple components work together to pass testing procedures)
-│       ├── InspectionEvidence (visual/manual inspection results)
-│       ├── DemonstrationEvidence (demonstration results)
-│       ├── TestEvidence (physical/functional testing results)
-│       ├── AnalysisEvidence (simulation/calculation results)
-│       ├── ADRAnnexEvidence (ADR annex procedure results)
-│       └── ADRTestingProcedureEvidence (official ADR testing results)
-└── Clause (each clause is a new node connected to 1 ADR)
+└── Component (100,000+)
+    └── Evidence (formed when multiple components work together to pass testing procedures)
+        ├── InspectionEvidence (visual/manual inspection results)
+        ├── DemonstrationEvidence (demonstration results)
+        ├── TestEvidence (physical/functional testing results)
+        ├── AnalysisEvidence (simulation/calculation results)
+        ├── ADRAnnexEvidence (ADR annex procedure results)
+        └── ADRTestingProcedureEvidence (official ADR testing results)
 ```
 
 **Key Relationships**:
@@ -927,6 +930,11 @@ graph TD
     
     ExtR --> ExtEss[ExternalEssentialRequirement]
     ExtR --> ExtRec[ExternalRecommendedRequirement]
+    
+    IntEss --> Clause1[Clause]
+    IntRec --> Clause2[Clause]
+    ExtEss --> Clause3[Clause]
+    ExtRec --> Clause4[Clause]
     
     VP --> VM[VerificationMethod]
     VM --> Insp[Inspection]

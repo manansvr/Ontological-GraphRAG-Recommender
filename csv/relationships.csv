@@ -21,6 +21,7 @@ propagatesRiskTo,Subsystem,Subsystem,Propagates Risk To,
 isInputTo,Artifact,Process,Is Input To,inverseOf:hasInput
 hasVerificationProcedure,AustralianDesignRule,VerificationProcedure,Has Verification Procedure,
 hasVerificationMethod,VerificationProcedure,VerificationMethod,Has Verification Method,
+supportedByEvidence,VerificationProcedure,Evidence,Supported By Evidence,
 assignedToProject,AustralianDesignRule,Project,Assigned To Project,
 assignedToDepartment,AustralianDesignRule,Department,Assigned To Department,
 hasRelevantProject,AustralianDesignRule,Project,Has Relevant Project,
@@ -30,5 +31,8 @@ providesEvidenceFor,Evidence,AustralianDesignRule,Provides Evidence For,inverseO
 usedInProject,Component,Project,Used In Project,
 usedInADR,Component,AustralianDesignRule,Used In ADR,
 generatesEvidence,Component,Evidence,Generates Evidence,
-partOfComponent,Component,Component,Part Of Component,transitive
+suppliedBy,Component,IndustryPartner,Supplied By,
+partOfBOM,Component,Component,Part Of BOM (Bill Of Materials Hierarchy),transitive
+belongsToDepartment,Component,Department,Belongs To Department,
+hasSection,Department,Department,Has Section (Organizational Hierarchy),
 hasClause,AustralianDesignRule,Clause,Has Clause (Each Clause Is A New Node Connected To 1 ADR),
