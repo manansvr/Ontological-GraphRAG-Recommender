@@ -3,7 +3,7 @@
 import xml.etree.ElementTree as ET
 
 def analyze_ontology():
-    tree = ET.parse('project-ontology.owl')
+    tree = ET.parse('ontology.owl')
     root = tree.getroot()
 
     ns = {
@@ -78,7 +78,7 @@ def analyze_ontology():
     print(f"\nNext Steps:")
     print(f"  1. open in protégé: brew install --cask protege")
     print(f"  2. import to neo4j: brew install neo4j")
-    print(f"  3. view documentation: cat ontology-documentation.md")
+    print(f"  3. view documentation: cat docs/ontology.md")
     print()
 
 if __name__ == '__main__':
