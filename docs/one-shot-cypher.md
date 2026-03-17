@@ -1,6 +1,6 @@
 # SR8 neo4j One-Shot Cypher
 
-Run these blocks in order in Neo4j Browser.
+run these blocks in order in neo4j Browser.
 
 ## 0) Optional Reset (Clean Run)
 
@@ -59,6 +59,26 @@ MATCH (t:SchemaLabel {name: r.targetLabel})
 MERGE (s)-[e:SCHEMA_REL {name: r.name}]->(t)
 SET e.description = r.description,
     e.properties = r.properties;
+```
+
+This makes connection name a relationship property (`e.name`).
+
+## 5b) Backfill Relationship Name Property (If Needed)
+
+run this if you already had `SCHEMA_REL` edges without `name`:
+
+```cypher
+MATCH (s:SchemaLabel)-[e:SCHEMA_REL]->(t:SchemaLabel)
+WHERE e.name IS NULL OR trim(toString(e.name)) = ''
+SET e.name = 'CONNECTED_TO';
+```
+
+use this to confirm all connections have a name property:
+
+```cypher
+MATCH ()-[e:SCHEMA_REL]->()
+RETURN count(e) AS total,
+       count(CASE WHEN e.name IS NOT NULL AND trim(toString(e.name)) <> '' THEN 1 END) AS withName;
 ```
 
 ## 6) Quick Counts
