@@ -1,36 +1,54 @@
 Label,ParentLabel,Description,Type,Category
 Organization,,Entities Involved In The SR8 Project,TopLevel,Organization
-Artifact,,Engineering Artifacts Documents And Knowledge Items,TopLevel,Artifact
-Process,,Methodological Processes And Workflows,TopLevel,Process
-SunswiftRacing,Organization,Student Engineering Organization Focused On Solar-Electric Vehicles,Derived,Organization
 Department,Organization,Technical Or Operational Department Within Sunswift,Derived,Organization
 TechnicalDepartment,Department,,Derived,Organization
 OperationalDepartment,Department,,Derived,Organization
+ChassisAndBodywork,TechnicalDepartment,Chassis & Bodywork Technical Department,Derived,Organization
+Interior,TechnicalDepartment,Interior Technical Department,Derived,Organization
+Powertrain,TechnicalDepartment,Powertrain Technical Department,Derived,Organization
+VehicleDynamics,TechnicalDepartment,Vehicle Dynamics Technical Department,Derived,Organization
+EnergySystems,TechnicalDepartment,Energy Systems Technical Department,Derived,Organization
+EmbeddedSystems,TechnicalDepartment,Embedded Systems Technical Department,Derived,Organization
+TechnicalSupportSystems,TechnicalDepartment,Technical Support Systems Department,Derived,Organization
+IndustrialDesign,TechnicalDepartment,Industrial Design Technical Department,Derived,Organization
+WholeTeam,TechnicalDepartment,Whole Team Technical Department,Derived,Organization
+RemoteDriving,TechnicalDepartment,Remote Driving Technical Department,Derived,Organization
+General,TechnicalDepartment,General Technical Department,Derived,Organization
+AlternativeEnergies,TechnicalDepartment,Alternative Energies Technical Department,Derived,Organization
 IndustryPartner,Organization,,Derived,Organization
 AcademicPartner,Organization,,Derived,Organization
 Member,Organization,Team Member Or Project Assignee (100 Members),Derived,Organization
-Vehicle,Artifact,,Derived,Artifact
-SR8,Vehicle,World's First Road-Legal Student-Built Tri-Brid Electric Vehicle,Derived,Artifact
-Document,Artifact,,Derived,Artifact
+Vehicle,,,TopLevel,Artifact
+System,Vehicle,System Grouping Within A Vehicle (Contains 2+ Subsystems),Derived,Artifact
+Document,,,TopLevel,Artifact
 RegulatoryDocument,Document,,Derived,Artifact
 AustralianDesignRule,RegulatoryDocument,National Regulatory Framework For Vehicle Compliance,Derived,Artifact
 EngineeringBrief,Document,,Derived,Artifact
-TechnicalSpecification,EngineeringBrief,,Derived,Artifact
-TestReport,EngineeringBrief,,Derived,Artifact
-DesignNote,EngineeringBrief,,Derived,Artifact
-SimulationOutput,EngineeringBrief,,Derived,Artifact
-EngineeringDrawing,EngineeringBrief,,Derived,Artifact
-Requirement,Artifact,,Derived,Artifact
+TestingDocuments,Document,Testing Document Collection,Derived,Artifact
+ConceptualDesign,Document,Conceptual Design Stage Documentation,Derived,Artifact
+PreliminaryDesign,Document,Preliminary Design Stage Documentation,Derived,Artifact
+DetailedDesign,Document,Detailed Design Stage Documentation,Derived,Artifact
+TechnicalSpecification,TestingDocuments,,Derived,Artifact
+TestReport,TestingDocuments,,Derived,Artifact
+DesignNote,TestingDocuments,,Derived,Artifact
+SimulationOutput,TestingDocuments,,Derived,Artifact
+EngineeringDrawing,TestingDocuments,,Derived,Artifact
+Requirement,,,TopLevel,Artifact
 InternalRequirement,Requirement,,Derived,Artifact
 ExternalRequirement,Requirement,,Derived,Artifact
 InternalEssentialRequirement,InternalRequirement,Non-Negotiable Internal Requirement Imposing Strict Constraints,Derived,Artifact
 InternalRecommendedRequirement,InternalRequirement,Contextual Internal Requirement With Interpretative Flexibility,Derived,Artifact
 ExternalEssentialRequirement,ExternalRequirement,Non-Negotiable External Requirement Imposing Strict Constraints,Derived,Artifact
 ExternalRecommendedRequirement,ExternalRequirement,Contextual External Requirement With Interpretative Flexibility,Derived,Artifact
-Component,Artifact,,Derived,Artifact
-Subsystem,Artifact,Functional Unit Within A System (2+ Subsystems Make A System),Derived,Artifact
-Interface,Artifact,Connection Point Enabling 2+ Projects To Work Together,Derived,Artifact
-Project,Artifact,Engineering Project With ID Name And Description (189 Concurrent Projects),Derived,Artifact
+ValidationScenario,Requirement,Operational Context Used To Validate Intended Use,Derived,Artifact
+AcceptanceCriterion,ValidationScenario,Measurable Criterion Defining Validation Success,Derived,Artifact
+ValidationResult,Requirement,Outcome Record For Validation Execution,Derived,Artifact
+PartsManagement,,,TopLevel,Artifact
+Assembly,PartsManagement,,Derived,Artifact
+Component,Assembly,,Derived,Artifact
+Subsystem,System,Functional Unit Within A System,Derived,Artifact
+Interface,,Connection Point Enabling 2+ Projects To Work Together,TopLevel,Artifact
+Project,,Engineering Project With ID Name And Description (189 Concurrent Projects),TopLevel,Artifact
 VerificationProcedure,Requirement,Detailed Procedure For Verifying ADR Compliance,Derived,Artifact
 VerificationMethod,VerificationProcedure,Method Used To Verify Compliance With Requirements,Derived,Artifact
 Inspection,VerificationMethod,Visual Or Manual Inspection Verification Method,Derived,Artifact
@@ -39,11 +57,11 @@ Test,VerificationMethod,Physical Or Functional Test Verification Method,Derived,
 Analysis,VerificationMethod,Analytical Verification Including Simulations And Calculations,Derived,Artifact
 ADRAnnex,VerificationMethod,Verification Through ADR Annex Procedures,Derived,Artifact
 ADRTestingProcedure,VerificationMethod,Official ADR Testing Procedure Verification Method,Derived,Artifact
-Evidence,Component,Evidence Supporting Verification Of Compliance Formed When Multiple Components Work Together,Derived,Artifact
-InspectionEvidence,Evidence,Evidence Obtained Through Visual Or Manual Inspection,Derived,Artifact
-DemonstrationEvidence,Evidence,Evidence Obtained Through Functional Demonstration,Derived,Artifact
-TestEvidence,Evidence,Evidence Obtained Through Physical Or Functional Testing,Derived,Artifact
-AnalysisEvidence,Evidence,Evidence Obtained Through Simulations And Calculations,Derived,Artifact
-ADRAnnexEvidence,Evidence,Evidence Obtained Through ADR Annex Procedures,Derived,Artifact
-ADRTestingProcedureEvidence,Evidence,Evidence Obtained Through Official ADR Testing Procedures,Derived,Artifact
+TestingEvidence,Document,Evidence Supporting Verification Of Compliance Formed When Multiple Components Work Together,Derived,Artifact
+InspectionEvidence,TestingEvidence,Evidence Obtained Through Visual Or Manual Inspection,Derived,Artifact
+DemonstrationEvidence,TestingEvidence,Evidence Obtained Through Functional Demonstration,Derived,Artifact
+TestEvidence,TestingEvidence,Evidence Obtained Through Physical Or Functional Testing,Derived,Artifact
+AnalysisEvidence,TestingEvidence,Evidence Obtained Through Simulations And Calculations,Derived,Artifact
+ADRAnnexEvidence,TestingEvidence,Evidence Obtained Through ADR Annex Procedures,Derived,Artifact
+ADRTestingProcedureEvidence,TestingEvidence,Evidence Obtained Through Official ADR Testing Procedures,Derived,Artifact
 Clause,InternalEssentialRequirement|InternalRecommendedRequirement|ExternalEssentialRequirement|ExternalRecommendedRequirement,Specific Clause Within An ADR (Each Clause Is A New Node Connected To 1 ADR),Derived,Artifact

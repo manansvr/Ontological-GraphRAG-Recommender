@@ -24,10 +24,10 @@ class OntologyVerifier:
             result = session.run("MATCH (n:SchemaLabel) RETURN count(n) as count")
             count = result.single()['count']
 
-            if count == 49:
-                print(f"✓ All 49 Node Labels Imported Correctly")
+            if count == 66:
+                print(f"✓ All 66 Node Labels Imported Correctly")
             else:
-                print(f"✗ Expected 49 Node Labels, Found {count}")
+                print(f"✗ Expected 66 Node Labels, Found {count}")
                 return False
 
             result = session.run("""
@@ -73,10 +73,10 @@ class OntologyVerifier:
             result = session.run("MATCH (r:SchemaRelationship) RETURN count(r) as count")
             count = result.single()['count']
 
-            if count == 36:
-                print(f"✓ All 36 Relationship Types Imported Correctly")
+            if count == 49:
+                print(f"✓ All 49 Relationship Types Imported Correctly")
             else:
-                print(f"✗ Expected 36 Relationships, Found {count}")
+                print(f"✗ Expected 49 Relationships, Found {count}")
                 return False
 
             key_relationships = [
@@ -109,6 +109,90 @@ class OntologyVerifier:
                 return False
 
         return True
+
+    def verify_validation_and_verification_rules(self):
+        print("\n" + "="*60)
+        print("VERIFYING VALIDATION & VERIFICATION RULES")
+        print("="*60)
+
+        with self.driver.session() as session:
+            checks = [
+                {
+                    'name': 'TechnicalDepartment assignment trio',
+                    'query': """
+                        MATCH (r:SchemaRelationship)
+                        WHERE (r.name = 'departmentAssignedToProject' AND r.sourceLabel = 'TechnicalDepartment' AND r.targetLabel = 'Project')
+                           OR (r.name = 'assignedToSystem' AND r.sourceLabel = 'TechnicalDepartment' AND r.targetLabel = 'System')
+                           OR (r.name = 'assignedToSubsystem' AND r.sourceLabel = 'TechnicalDepartment' AND r.targetLabel = 'Subsystem')
+                        RETURN count(r) as count
+                    """,
+                    'expected': 3
+                },
+                {
+                    'name': 'System hierarchy linkage',
+                    'query': """
+                        MATCH (r:SchemaRelationship {name: 'hasSubsystem', sourceLabel: 'System', targetLabel: 'Subsystem'})
+                        RETURN count(r) as count
+                    """,
+                    'expected': 1
+                },
+                {
+                    'name': 'Requirement ownership trio',
+                    'query': """
+                        MATCH (r:SchemaRelationship)
+                        WHERE (r.name = 'projectHasRequirement' AND r.sourceLabel = 'Project' AND r.targetLabel = 'Requirement')
+                           OR (r.name = 'systemHasRequirement' AND r.sourceLabel = 'System' AND r.targetLabel = 'Requirement')
+                           OR (r.name = 'subsystemHasRequirement' AND r.sourceLabel = 'Subsystem' AND r.targetLabel = 'Requirement')
+                        RETURN count(r) as count
+                    """,
+                    'expected': 3
+                },
+                {
+                    'name': 'Component placement trio',
+                    'query': """
+                        MATCH (r:SchemaRelationship)
+                        WHERE (r.name = 'componentInProject' AND r.sourceLabel = 'Component' AND r.targetLabel = 'Project')
+                           OR (r.name = 'componentInSystem' AND r.sourceLabel = 'Component' AND r.targetLabel = 'System')
+                           OR (r.name = 'componentInSubsystem' AND r.sourceLabel = 'Component' AND r.targetLabel = 'Subsystem')
+                        RETURN count(r) as count
+                    """,
+                    'expected': 3
+                },
+                {
+                    'name': 'ADR external requirement links',
+                    'query': """
+                        MATCH (r:SchemaRelationship)
+                        WHERE (r.name = 'hasExternalEssentialRequirement' AND r.sourceLabel = 'AustralianDesignRule' AND r.targetLabel = 'ExternalEssentialRequirement')
+                           OR (r.name = 'hasExternalRecommendedRequirement' AND r.sourceLabel = 'AustralianDesignRule' AND r.targetLabel = 'ExternalRecommendedRequirement')
+                        RETURN count(r) as count
+                    """,
+                    'expected': 2
+                },
+                {
+                    'name': 'Validation relationship chain',
+                    'query': """
+                        MATCH (r:SchemaRelationship)
+                        WHERE (r.name = 'validatesUseCase' AND r.targetLabel = 'ValidationScenario')
+                           OR (r.name = 'hasAcceptanceCriterion' AND r.sourceLabel = 'ValidationScenario' AND r.targetLabel = 'AcceptanceCriterion')
+                           OR (r.name = 'validatedBy' AND r.targetLabel = 'ValidationResult')
+                           OR (r.name = 'validatesRequirement' AND r.sourceLabel = 'ValidationResult' AND r.targetLabel = 'Requirement')
+                        RETURN count(r) as count
+                    """,
+                    'expected': 4
+                }
+            ]
+
+            all_passed = True
+            for check in checks:
+                result = session.run(check['query'])
+                found = result.single()['count']
+                if found == check['expected']:
+                    print(f"✓ {check['name']}")
+                else:
+                    print(f"✗ {check['name']} (expected {check['expected']}, found {found})")
+                    all_passed = False
+
+        return all_passed
 
     def verify_properties(self):
         print("\n" + "="*60)
@@ -195,7 +279,15 @@ class OntologyVerifier:
             """)
 
             top_level = [r['name'] for r in result]
-            expected_top = ['Artifact', 'Organization', 'Process']
+            expected_top = [
+                'Organization',
+                'Vehicle',
+                'Document',
+                'Requirement',
+                'PartsManagement',
+                'Interface',
+                'Project',
+            ]
 
             if sorted(top_level) == sorted(expected_top):
                 print(f"\n✓ All Top-Level Classes Present:")
@@ -234,7 +326,8 @@ class OntologyVerifier:
             'Node Labels': self.verify_node_labels(),
             'Relationships': self.verify_relationships(),
             'Properties': self.verify_properties(),
-            'Hierarchy': self.verify_hierarchy()
+            'Hierarchy': self.verify_hierarchy(),
+            'Validation/Verification Rules': self.verify_validation_and_verification_rules()
         }
 
         print("\n" + "="*60)

@@ -57,10 +57,10 @@ FOR (n:NodeLabel) ON (n.name);
 ### Organizations & Vehicles
 
 ```cypher
-// Create Sunswift Racing Organization
-CREATE (sunswift:SunswiftRacing {
+// Create Organization
+CREATE (org:Organization {
     hasID: "ORG-001",
-    hasName: "Sunswift Racing",
+    hasName: "Sunswift Racing Organization",
     numberOfMembers: 80,
     numberOfDepartments: 16,
     numberOfProjects: 189,
@@ -68,15 +68,15 @@ CREATE (sunswift:SunswiftRacing {
 });
 
 // Create Industry Partner
-CREATE (neo4j:IndustryPartner {
+CREATE (partner:IndustryPartner {
     hasID: "PARTNER-001",
-    hasName: "neo4j",
-    hasDescription: "Leading graph database technology partner"
+    hasName: "Industry Partner A",
+    hasDescription: "Strategic technology partner"
 });
 
-// Create SR8 Vehicle
-CREATE (sr8:SR8 {
-    hasID: "VEH-SR8",
+// Create Vehicle
+CREATE (veh:Vehicle {
+    hasID: "VEH-001",
     hasName: "Sunswift 8",
     hasDescription: "World's first road-legal, student-built, tri-brid electric vehicle",
     isRoadLegal: true,
@@ -84,10 +84,17 @@ CREATE (sr8:SR8 {
     numberOfRequirements: 600000
 });
 
+// Create System
+CREATE (sys:System {
+    hasID: "SYS-001",
+    hasName: "Propulsion System",
+    hasDescription: "Vehicle-level system containing multiple subsystems"
+});
+
 // Create Relationship
-MATCH (s:SunswiftRacing), (n:IndustryPartner)
-WHERE s.hasID = "ORG-001" AND n.hasID = "PARTNER-001"
-CREATE (s)-[:collaboratesWith]->(n);
+MATCH (o:Organization), (p:IndustryPartner)
+WHERE o.hasID = "ORG-001" AND p.hasID = "PARTNER-001"
+CREATE (o)-[:collaboratesWith]->(p);
 ```
 
 ### Sub-Systems
@@ -115,15 +122,15 @@ CREATE (safety:Subsystem {
     hasDescription: "ECU, sensors, and safety controls"
 });
 
-// Link Subsystems To Vehicle
-MATCH (v:SR8), (b:Subsystem), (p:Subsystem), (s:Subsystem)
-WHERE v.hasID = "VEH-SR8" 
+// Link Subsystems To System
+MATCH (sys:System), (b:Subsystem), (p:Subsystem), (s:Subsystem)
+WHERE sys.hasID = "SYS-001"
   AND b.hasID = "SS-BATT"
   AND p.hasID = "SS-PWTR"
   AND s.hasID = "SS-SAFE"
-CREATE (v)-[:hasSubsystem]->(b),
-       (v)-[:hasSubsystem]->(p),
-       (v)-[:hasSubsystem]->(s);
+CREATE (sys)-[:hasSubsystem]->(b),
+             (sys)-[:hasSubsystem]->(p),
+             (sys)-[:hasSubsystem]->(s);
 
 // Create Subsystem Interfaces
 MATCH (b:Subsystem), (p:Subsystem), (s:Subsystem)
@@ -342,8 +349,8 @@ WHERE root.type = 'TopLevel'
 RETURN n, r, root
 LIMIT 100;
 
-// Explore Artifact Hierarchy
-MATCH path = (:SchemaLabel {name: 'Artifact'})<-[:SUBCLASS_OF*]-(child)
+// Explore Requirement Hierarchy
+MATCH path = (:SchemaLabel {name: 'Requirement'})<-[:SUBCLASS_OF*]-(child)
 RETURN path;
 
 // Count Classes By Category
@@ -499,7 +506,7 @@ ORDER BY d.hasName, p.projectID, c.partNumber;
 // All ADRs With Verification Status
 MATCH (adr:AustralianDesignRule)
 OPTIONAL MATCH (adr)-[:hasVerificationProcedure]->(proc:VerificationProcedure)
-OPTIONAL MATCH (proc)-[:supportedByEvidence]->(ev:Evidence)
+OPTIONAL MATCH (proc)-[:supportedByEvidence]->(ev:TestingEvidence)
 OPTIONAL MATCH (adr)-[:hasRequirementName]->(reqName:RequirementName)
 RETURN adr.hasID AS ADR_ID,
        reqName.hasName AS Requirement,
@@ -560,7 +567,7 @@ RETURN adr.hasID AS ADR_ID,
 // ADRs Missing Evidence
 MATCH (adr:AustralianDesignRule)
 OPTIONAL MATCH (adr)-[:hasRequirementName]->(reqName:RequirementName)
-WHERE NOT (adr)-[:verifiedBy]->(:Evidence)
+WHERE NOT (adr)-[:verifiedBy]->(:TestingEvidence)
 RETURN adr.hasID AS ADR_ID,
        reqName.hasName AS Requirement,
        "Missing Evidence" AS Status;
@@ -569,7 +576,7 @@ RETURN adr.hasID AS ADR_ID,
 MATCH path = (adr:AustralianDesignRule)-[:hasVerificationProcedure]->
              (proc:VerificationProcedure)-[:hasVerificationMethod]->
              (method:VerificationMethod)
-MATCH (proc)-[:supportedByEvidence]->(ev:Evidence)
+MATCH (proc)-[:supportedByEvidence]->(ev:TestingEvidence)
 RETURN adr.hasID AS ADR,
        proc.hasName AS Procedure,
        labels(method)[0] AS Method,
@@ -582,7 +589,7 @@ OPTIONAL MATCH (adr)-[:assignedToProject]->(p:Project)
 OPTIONAL MATCH (adr)-[:assignedToDepartment]->(d:Department)
 OPTIONAL MATCH (adr)-[:hasVerificationProcedure]->(proc:VerificationProcedure)
 OPTIONAL MATCH (proc)-[:hasVerificationMethod]->(method:VerificationMethod)
-OPTIONAL MATCH (proc)-[:supportedByEvidence]->(ev:Evidence)
+OPTIONAL MATCH (proc)-[:supportedByEvidence]->(ev:TestingEvidence)
 OPTIONAL MATCH (adr)-[:hasClause]->(clause:Clause)
 OPTIONAL MATCH (adr)-[:hasRequirementName]->(reqName:RequirementName)
 RETURN clause.hasName AS Clause,
@@ -674,7 +681,7 @@ RETURN p.projectID, p.projectName,
 
 ```cypher
 // Components Generating ADR Evidence
-MATCH (c:Component)-[:generatesEvidence]->(ev:Evidence)
+MATCH (c:Component)-[:generatesEvidence]->(ev:TestingEvidence)
       <-[:verifiedBy]-(adr:AustralianDesignRule)
 RETURN c.partNumber AS Part_Number,
        c.partDescription AS Component,
@@ -684,7 +691,7 @@ ORDER BY adr.hasID;
 
 // Complete Traceability Path
 MATCH path = (c:Component)-[:usedInProject]->(p:Project),
-             (c)-[:generatesEvidence]->(ev:Evidence),
+             (c)-[:generatesEvidence]->(ev:TestingEvidence),
              (ev)<-[:verifiedBy]-(adr:AustralianDesignRule),
              (adr)-[:assignedToProject]->(p)
 RETURN c.partNumber AS Component,
@@ -804,9 +811,9 @@ SHOW INDEXES;
 // Show All Constraints
 SHOW CONSTRAINTS;
 
-// Find All Subclasses Of A Category
+// Find All Labels In Organization Category
 MATCH (n:SchemaLabel)
-WHERE n.category = 'Artifact'
+WHERE n.category = 'Organization'
 RETURN n.name, n.description;
 
 // Get Relationship Hierarchy

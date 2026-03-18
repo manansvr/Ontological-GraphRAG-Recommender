@@ -7,9 +7,9 @@ This ontology formally represents the knowledge domain of the Sunswift Racing SR
 **Authors**: Manan Rathi, Ilina Sharma
 
 **Ontology Statistics:**
-- **Classes**: 48 (Node Labels)
-- **Object Properties**: 37 (Relationships)
-- **Data Properties**: 56 (Attributes)
+- **Classes**: 66 (Node Labels)
+- **Object Properties**: 49 (Relationships)
+- **Data Properties**: 50 (Attributes)
 - **Total Elements**: 200+
 
 ---
@@ -20,8 +20,9 @@ This ontology formally represents the knowledge domain of the Sunswift Racing SR
 2. [Class Hierarchies](#class-hierarchies)
 3. [Object Properties (Relationships)](#object-properties-relationships)
 4. [Data Properties (Attributes)](#data-properties-attributes)
-5. [Visual Diagrams](#visual-diagrams)
-6. [Neo4j Access](#neo4j-access)
+5. [Validation & Verification Framework](#validation--verification-framework)
+6. [Visual Diagrams](#visual-diagrams)
+7. [Neo4j Access](#neo4j-access)
 
 ---
 
@@ -35,23 +36,35 @@ The SR8 ontology integrates three main management systems:
 ┌─────────────────────────┐
 │  Project Tracking (PTS) │
 │  - 189 Projects         │
-│  - 15 Departments       │
+│  - 12 Technical Depts   │
 │  - 100 Members          │
 └───────┬─────────────────┘
         │
-        │ assignedToProject
-        │ hasPrimaryDepartment
+    │ departmentAssignedToProject
+    │ assignedToSystem
+    │ assignedToSubsystem
         │
+┌───────▼─────────────────┐
+│  Systems Engineering    │
+│  - Vehicle > System     │
+│  - System > Subsystem   │
+│  - Requirement Flow     │
+└───────┬─────────────────┘
+    │ subsystemHasRequirement
+    │ systemHasRequirement
+    │ projectHasRequirement
+    │
 ┌───────▼─────────────────┐         ┌──────────────────────┐
 │  ADR Management         │◄────────┤  Parts Management    │
 │  - 100 ADRs             │         │  - 100,000+ Parts    │
-│  - Verification         │         │  - BOM Hierarchy     │
-│  - Evidence             │         │  - Supply Chain      │
+│  - Verification         │         │  - Assembly/Component│
+│  - External Req Links   │         │  - componentIn* links│
 └─────────────────────────┘         └──────────────────────┘
-        │                                      │
-        │ usedInADR                            │
-        │ generatesEvidence                    │
-        └──────────────────────────────────────┘
+    │                                      │
+    │ hasExternalEssentialRequirement      │ componentInSubsystem
+    │ hasExternalRecommendedRequirement    │ componentInSystem
+    │ verifiedBy / supportedByEvidence     │ componentInProject
+    └──────────────────────────────────────┘
 ```
 
 ### 1. Project Tracking System (PTS)
@@ -61,10 +74,24 @@ The SR8 ontology integrates three main management systems:
 - `projectName` - Name of the project
 - `projectDescription` - Description of the project
 
-**Departments** (15 total) - Organizational units:
+**Departments** (12 technical departments + operational units) - Organizational units:
 - `TechnicalDepartment` - Technical departments
 - `OperationalDepartment` - Operational departments
 - Properties: `hasID`, `hasName`, `sectionName`
+
+Technical departments:
+- `ChassisAndBodywork`
+- `Interior`
+- `Powertrain`
+- `VehicleDynamics`
+- `EnergySystems`
+- `EmbeddedSystems`
+- `TechnicalSupportSystems`
+- `IndustrialDesign`
+- `WholeTeam`
+- `RemoteDriving`
+- `General`
+- `AlternativeEnergies`
 
 **Members** (100 total) - Project assignees:
 - `hasID` - Member identifier
@@ -114,7 +141,7 @@ The SR8 ontology integrates three main management systems:
 - `usedInProject` → Project
 - `belongsToDepartment` → Department
 - `usedInADR` → AustralianDesignRule
-- `generatesEvidence` → Evidence
+- `generatesEvidence` → TestingEvidence
 - `suppliedBy` → IndustryPartner
 - `partOfBOM` → Component (BOM hierarchy)
 
@@ -170,14 +197,14 @@ The SR8 ontology integrates three main management systems:
 - `hasRelevantDepartment` → Department
 - `hasVerificationProcedure` → VerificationProcedure
 - `hasVerificationMethod` → VerificationMethod
-- `supportedByEvidence` → Evidence
-- `verifiedBy` → Evidence
+- `supportedByEvidence` → TestingEvidence
+- `verifiedBy` → TestingEvidence
 
 ### Key Metrics
 
 | System | Entities | Key Features |
 |--------|----------|--------------|
-| Project Tracking | 189 Projects, 15 Departments, 100 Members | Primary/secondary departments, member assignments |
+| Project Tracking | 189 Projects, 12 Technical Departments, 100 Members | Primary/secondary departments, member assignments |
 | Parts Management | 100,000+ Components | BOM hierarchy, supply chain, cost tracking |
 | ADR Management | 100 ADRs | 6 verification methods, evidence tracking |
 
@@ -189,12 +216,22 @@ The SR8 ontology integrates three main management systems:
 
 ```
 Organization
-├── SunswiftRacing [80 members, 16 departments, 189 projects]
 ├── Department
 │   ├── TechnicalDepartment
+│   │   ├── ChassisAndBodywork
+│   │   ├── Interior
+│   │   ├── Powertrain
+│   │   ├── VehicleDynamics
+│   │   ├── EnergySystems
+│   │   ├── EmbeddedSystems
+│   │   ├── TechnicalSupportSystems
+│   │   ├── IndustrialDesign
+│   │   ├── WholeTeam
+│   │   ├── General
+│   │   ├── RemoteDriving
+│   │   └── AlternativeEnergies
 │   └── OperationalDepartment
 ├── IndustryPartner
-│   └── Neo4j
 └── AcademicPartner
 ```
 
@@ -203,35 +240,52 @@ Organization
 - `collaboratesWith` - Organization ↔ Organization (symmetric)
 - `hasSection` - Department → Department (organizational hierarchy)
 
-### 2. Artifact Hierarchy
+### 2. Engineering Hierarchy
 
 ```
-Artifact
-├── Vehicle
-│   ├── SR8 (Sunswift 8) [100,000+ components, road-legal tri-brid electric]
-│   ├── Subsystem (2+ subsystems make a system)
-│   ├── Interface (5,000+ interactions)
-│   └── Project (189 concurrent)
-├── Document
+Vehicle
+├── System
+│   └── Subsystem
+├── Interface
+└── Project
+
+Document
 │   ├── RegulatoryDocument
-│   │   └── AustralianDesignRule (ADR) [113 rules]
-│   └── EngineeringBrief
-│       ├── TechnicalSpecification
-│       ├── TestReport
-│       ├── DesignNote
-│       ├── SimulationOutput
-│       └── EngineeringDrawing
-├── Requirement (600,000+)
+│   │   └── AustralianDesignRule (ADR)
+│   │       ├── ExternalEssentialRequirement
+│   │       └── ExternalRecommendedRequirement
+│   ├── EngineeringBrief
+│   ├── TestingDocuments
+│   │   ├── TechnicalSpecification
+│   │   ├── TestReport
+│   │   ├── DesignNote
+│   │   ├── SimulationOutput
+│   │   └── EngineeringDrawing
+│   ├── TestingEvidence
+│   │   ├── InspectionEvidence
+│   │   ├── DemonstrationEvidence
+│   │   ├── TestEvidence
+│   │   ├── AnalysisEvidence
+│   │   ├── ADRAnnexEvidence
+│   │   └── ADRTestingProcedureEvidence
+│   ├── ConceptualDesign
+│   ├── PreliminaryDesign
+│   └── DetailedDesign
+
+Requirement
 │   ├── InternalRequirement
-│   │   ├── InternalEssentialRequirement (non-negotiable constraints)
+│   │   ├── InternalEssentialRequirement
 │   │   │   └── Clause
-│   │   └── InternalRecommendedRequirement (contextual flexibility)
+│   │   └── InternalRecommendedRequirement
 │   │       └── Clause
 │   ├── ExternalRequirement
-│   │   ├── ExternalEssentialRequirement (non-negotiable constraints)
+│   │   ├── ExternalEssentialRequirement
 │   │   │   └── Clause
-│   │   └── ExternalRecommendedRequirement (contextual flexibility)
+│   │   └── ExternalRecommendedRequirement
 │   │       └── Clause
+│   ├── ValidationScenario
+│   │   └── AcceptanceCriterion
+│   ├── ValidationResult
 │   └── VerificationProcedure
 │       └── VerificationMethod
 │           ├── Inspection
@@ -240,33 +294,10 @@ Artifact
 │           ├── Analysis
 │           ├── ADRAnnex
 │           └── ADRTestingProcedure
-└── Component (100,000+)
-    └── Evidence (formed when components work together to pass testing)
-        ├── InspectionEvidence
-        ├── DemonstrationEvidence
-        ├── TestEvidence
-        ├── AnalysisEvidence
-        ├── ADRAnnexEvidence
-        └── ADRTestingProcedureEvidence
-```
 
-### 3. Process Hierarchy
-
-```
-Process
-├── ExtractionProcess
-│   ├── DocumentParsing
-│   ├── NLPProcessing
-│   ├── EntityRecognition
-│   └── RelationExtraction
-├── ExtensionProcess
-│   ├── LinkPredictionProcess
-│   ├── LLMInferenceProcess
-│   └── RLPrioritizationProcess
-└── ValidationProcess
-    ├── ConsistencyChecking
-    ├── CompletenessValidation
-    └── QualityAssessment
+PartsManagement
+└── Assembly
+    └── Component
 ```
 
 ---
@@ -277,16 +308,31 @@ Process
 - `hasDepartment` - Organization → Department
 - `collaboratesWith` - Organization ↔ Organization (symmetric)
 - `hasSection` - Department → Department
+- `assignedToSystem` - TechnicalDepartment → System
+- `assignedToSubsystem` - TechnicalDepartment → Subsystem
+- `departmentAssignedToProject` - TechnicalDepartment → Project
 
-### Artifact Relationships
-- `hasRequirement` - Artifact → Requirement
+### Engineering Relationships
+- `hasRequirement` - All → Requirement
+- `subsystemHasRequirement` - Subsystem → Requirement
+- `systemHasRequirement` - System → Requirement
+- `projectHasRequirement` - Project → Requirement
+- `validatesUseCase` - All → ValidationScenario
+- `hasAcceptanceCriterion` - ValidationScenario → AcceptanceCriterion
+- `validatedBy` - All → ValidationResult
+- `validatesRequirement` - ValidationResult → Requirement
 - `hasComponent` - Subsystem → Component (transitive)
-- `hasSubsystem` - Vehicle → Subsystem
+- `componentInSubsystem` - Component → Subsystem
+- `componentInSystem` - Component → System
+- `componentInProject` - Component → Project
+- `assembledFrom` - Assembly → Component
+- `hasSubsystem` - System → Subsystem
 - `interfacesWith` - Subsystem ↔ Subsystem (symmetric)
 - `dependsOn` - Requirement → Requirement (transitive)
-- `appliesTo` - Requirement → Artifact
+- `impactsOn` - Requirement → Requirement
+- `appliesTo` - Requirement → All
 - `derivedFrom` - Requirement → AustralianDesignRule
-- `documentedIn` - Artifact → Document
+- `documentedIn` - All → Document
 
 ### ADR Verification Relationships
 - `assignedToProject` - AustralianDesignRule → Project
@@ -295,14 +341,16 @@ Process
 - `hasRelevantDepartment` - AustralianDesignRule → Department
 - `hasVerificationProcedure` - AustralianDesignRule → VerificationProcedure
 - `hasVerificationMethod` - VerificationProcedure → VerificationMethod
-- `supportedByEvidence` - VerificationProcedure → Evidence
-- `verifiedBy` - AustralianDesignRule → Evidence
+- `supportedByEvidence` - VerificationProcedure → TestingEvidence
+- `verifiedBy` - AustralianDesignRule → TestingEvidence
 - `hasClause` - AustralianDesignRule → Clause
+- `hasExternalEssentialRequirement` - AustralianDesignRule → ExternalEssentialRequirement
+- `hasExternalRecommendedRequirement` - AustralianDesignRule → ExternalRecommendedRequirement
 
 ### Component Management Relationships
 - `usedInProject` - Component → Project
 - `usedInADR` - Component → AustralianDesignRule
-- `generatesEvidence` - Component → Evidence
+- `generatesEvidence` - Component → TestingEvidence
 - `suppliedBy` - Component → IndustryPartner
 - `partOfBOM` - Component → Component (BOM hierarchy)
 - `belongsToDepartment` - Component → Department
@@ -312,21 +360,60 @@ Process
 - `hasSecondaryDepartment` - Project → Department
 - `hasAssignee` - Project → Member
 
-### Process Relationships
-- `hasInput` - Process → Artifact
-- `isInputTo` - Artifact → Process (inverse of hasInput)
-- `hasOutput` - Process → Artifact
-- `precedesProcess` - Process → Process
-
 ### Compliance & Risk Relationships
-- `compliesWith` - Artifact → AustralianDesignRule
-- `hasRisk` - Artifact → Requirement
+- `compliesWith` - All → AustralianDesignRule
+- `hasRisk` - All → Requirement
 - `propagatesRiskTo` - Subsystem → Subsystem
 
 ### Property Characteristics
 - **Symmetric**: `interfacesWith`, `collaboratesWith`
 - **Transitive**: `dependsOn`, `hasComponent`
-- **Inverse**: `hasInput` ↔ `isInputTo`
+
+---
+
+## Validation & Verification Framework
+
+### Distinction
+- **Verification** answers: Are we building the system right?
+- **Validation** answers: Are we building the right system for intended use?
+
+### Validation Flow
+
+```mermaid
+graph LR
+    P[Project/System/Subsystem]
+    VS[ValidationScenario]
+    AC[AcceptanceCriterion]
+    VR[ValidationResult]
+    R[Requirement]
+
+    P -->|validatesUseCase| VS
+    VS -->|hasAcceptanceCriterion| AC
+    P -->|validatedBy| VR
+    VR -->|validatesRequirement| R
+
+    style VS fill:#fff4cc
+    style VR fill:#e6f7ff
+    style R fill:#f2e6ff
+```
+
+### Verification Flow
+
+```mermaid
+graph LR
+    ADR[AustralianDesignRule]
+    VP[VerificationProcedure]
+    VM[VerificationMethod]
+    TE[TestingEvidence]
+
+    ADR -->|hasVerificationProcedure| VP
+    VP -->|hasVerificationMethod| VM
+    VP -->|supportedByEvidence| TE
+    ADR -->|verifiedBy| TE
+
+    style ADR fill:#ffdddd
+    style TE fill:#e6f7ff
+```
 
 ---
 
@@ -428,7 +515,7 @@ graph TB
 
     subgraph Extraction[Extraction Pipeline]
         Parse[Document Parsing<br/>PDFMiner, Tesseract]
-        NLP[NLP Processing<br/>SpaCy, NLTK]
+        NLP[NLP Pipeline<br/>SpaCy, NLTK]
         Entity[Entity Recognition<br/>BERT, RoBERTa]
         Relation[Relation Extraction]
         Onto[Ontology Mapping<br/>OWL/RDF]
@@ -471,36 +558,117 @@ graph TB
     style Output fill:#e1f5ff
 ```
 
-### SR8 Systems Architecture
+### Engineering Systems Architecture
 
 ```mermaid
 graph TD
-    SR8[Sunswift 8<br/>Tri-brid Electric Vehicle]
+    ORG[Organization]
+    TD[TechnicalDepartment]
+    PROJ[Project]
 
-    SR8 --> SS1[Powertrain<br/>Subsystem]
-    SR8 --> SS2[Battery<br/>Subsystem]
-    SR8 --> SS3[Solar Array<br/>Subsystem]
-    SR8 --> SS4[Chassis<br/>Subsystem]
-    SR8 --> SS5[Safety Systems<br/>Subsystem]
-    SR8 --> SS6[Electronics<br/>Subsystem]
+    VEH[Vehicle]
+    SYS[System]
+    SS[Subsystem]
+    INTF[Interface]
 
-    SS1 -.interfacesWith.- SS2
-    SS2 -.interfacesWith.- SS3
-    SS2 -.interfacesWith.- SS6
-    SS4 -.interfacesWith.- SS5
-    SS5 -.interfacesWith.- SS6
-    SS1 -.interfacesWith.- SS6
+    PM[PartsManagement]
+    ASM[Assembly]
+    COMP[Component]
 
-    ADR[Australian<br/>Design Rules] -.derivedFrom.-> R1[Safety<br/>Requirements]
-    ADR -.derivedFrom.-> R2[Performance<br/>Requirements]
-    ADR -.derivedFrom.-> R3[Emission<br/>Requirements]
+    ADR[AustralianDesignRule]
+    EER[ExternalEssentialRequirement]
+    ERR[ExternalRecommendedRequirement]
+    REQ[Requirement]
+    VP[VerificationProcedure]
+    VM[VerificationMethod]
+    TEV[TestingEvidence]
 
-    R1 -.appliesTo.-> SS5
-    R2 -.appliesTo.-> SS1
-    R3 -.appliesTo.-> SS2
+    DOC[Document]
+    TDOC[TestingDocuments]
 
-    style SR8 fill:#ffcc99
+    ORG --> TD
+    TD -.departmentAssignedToProject.-> PROJ
+    TD -.assignedToSystem.-> SYS
+    TD -.assignedToSubsystem.-> SS
+
+    VEH --> SYS
+    SYS -.hasSubsystem.-> SS
+    VEH --> INTF
+    SS -.interfacesWith.-> SS
+
+    PM --> ASM
+    ASM --> COMP
+    ASM -.assembledFrom.-> COMP
+
+    COMP -.componentInSubsystem.-> SS
+    COMP -.componentInSystem.-> SYS
+    COMP -.componentInProject.-> PROJ
+
+    SS -.subsystemHasRequirement.-> REQ
+    SYS -.systemHasRequirement.-> REQ
+    PROJ -.projectHasRequirement.-> REQ
+
+    ADR -.hasExternalEssentialRequirement.-> EER
+    ADR -.hasExternalRecommendedRequirement.-> ERR
+    ADR -.hasVerificationProcedure.-> VP
+    VP -.hasVerificationMethod.-> VM
+    VP -.supportedByEvidence.-> TEV
+    ADR -.verifiedBy.-> TEV
+    COMP -.generatesEvidence.-> TEV
+
+    DOC --> TDOC
+    DOC --> TEV
+
+    style VEH fill:#ffcc99
     style ADR fill:#ff9999
+    style PM fill:#e1f5ff
+    style DOC fill:#e1ffe1
+    style TD fill:#fff1cc
+```
+
+### Relationship Matrix (Consolidated)
+
+```mermaid
+graph LR
+    TD[TechnicalDepartment]
+    PROJ[Project]
+    SYS[System]
+    SS[Subsystem]
+    COMP[Component]
+    REQ[Requirement]
+    ADR[AustralianDesignRule]
+    EER[ExternalEssentialRequirement]
+    ERR[ExternalRecommendedRequirement]
+    VP[VerificationProcedure]
+    VM[VerificationMethod]
+    TEV[TestingEvidence]
+
+    TD -->|departmentAssignedToProject| PROJ
+    TD -->|assignedToSystem| SYS
+    TD -->|assignedToSubsystem| SS
+
+    SYS -->|hasSubsystem| SS
+
+    PROJ -->|projectHasRequirement| REQ
+    SYS -->|systemHasRequirement| REQ
+    SS -->|subsystemHasRequirement| REQ
+
+    COMP -->|componentInProject| PROJ
+    COMP -->|componentInSystem| SYS
+    COMP -->|componentInSubsystem| SS
+
+    ADR -->|hasExternalEssentialRequirement| EER
+    ADR -->|hasExternalRecommendedRequirement| ERR
+    ADR -->|hasVerificationProcedure| VP
+    VP -->|hasVerificationMethod| VM
+    VP -->|supportedByEvidence| TEV
+    ADR -->|verifiedBy| TEV
+    COMP -->|generatesEvidence| TEV
+
+    style TD fill:#fff1cc
+    style ADR fill:#ffdddd
+    style COMP fill:#e1f5ff
+    style REQ fill:#f5e1ff
 ```
 
 ---

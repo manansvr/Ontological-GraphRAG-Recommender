@@ -1,10 +1,10 @@
 PropertyName,ApplicableLabels,DataType,Description,Constraints
-hasID,Artifact,string,Has ID,
+hasID,All,string,Has ID,
 hasName,All,string,Has Name,
 hasDescription,All,string,Has Description,
 hasConfidenceScore,Requirement,float,Has Confidence Score,range:0.0-1.0
-hasSource,Artifact,string,Has Source,
-hasProvenance,Artifact,string,Has Provenance,
+hasSource,All,string,Has Source,
+hasProvenance,All,string,Has Provenance,
 isEssential,Requirement,boolean,Is Essential,
 hasRiskLevel,Requirement,string,Has Risk Level,values:Low|Medium|High|Critical
 hasTimestamp,All,dateTime,Has Timestamp,
