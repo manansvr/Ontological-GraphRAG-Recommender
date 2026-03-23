@@ -71,22 +71,10 @@ SET p.applicableLabels = row.ApplicableLabels,
 
 ```cypher
 MATCH (r:SchemaRelationship)
-FOREACH (_ IN CASE WHEN r.sourceLabel = 'All' THEN [1] ELSE [] END |
-  MERGE (allSrc:SchemaScope {name: 'All'})
-  MERGE (allSrc)-[:SOURCE_OF]->(r)
-)
-FOREACH (_ IN CASE WHEN r.sourceLabel <> 'All' THEN [1] ELSE [] END |
-  MERGE (s:SchemaLabel {name: r.sourceLabel})
-  MERGE (s)-[:SOURCE_OF]->(r)
-)
-FOREACH (_ IN CASE WHEN r.targetLabel = 'All' THEN [1] ELSE [] END |
-  MERGE (allTgt:SchemaScope {name: 'All'})
-  MERGE (r)-[:TARGET_OF]->(allTgt)
-)
-FOREACH (_ IN CASE WHEN r.targetLabel <> 'All' THEN [1] ELSE [] END |
-  MERGE (t:SchemaLabel {name: r.targetLabel})
-  MERGE (r)-[:TARGET_OF]->(t)
-);
+MATCH (s:SchemaLabel {name: r.sourceLabel})
+MATCH (t:SchemaLabel {name: r.targetLabel})
+MERGE (s)-[:SOURCE_OF]->(r)
+MERGE (r)-[:TARGET_OF]->(t);
 ```
 
 this renders each schema relationship as its own node in the graph.
@@ -181,20 +169,8 @@ relationship.TARGET_OF {
 MATCH ()-[e:SOURCE_OF|TARGET_OF]->() DELETE e;
 
 MATCH (r:SchemaRelationship)
-FOREACH (_ IN CASE WHEN r.sourceLabel = 'All' THEN [1] ELSE [] END |
-  MERGE (allSrc:SchemaScope {name: 'All'})
-  MERGE (allSrc)-[:SOURCE_OF]->(r)
-)
-FOREACH (_ IN CASE WHEN r.sourceLabel <> 'All' THEN [1] ELSE [] END |
-  MERGE (s:SchemaLabel {name: r.sourceLabel})
-  MERGE (s)-[:SOURCE_OF]->(r)
-)
-FOREACH (_ IN CASE WHEN r.targetLabel = 'All' THEN [1] ELSE [] END |
-  MERGE (allTgt:SchemaScope {name: 'All'})
-  MERGE (r)-[:TARGET_OF]->(allTgt)
-)
-FOREACH (_ IN CASE WHEN r.targetLabel <> 'All' THEN [1] ELSE [] END |
-  MERGE (t:SchemaLabel {name: r.targetLabel})
-  MERGE (r)-[:TARGET_OF]->(t)
-);
+MATCH (s:SchemaLabel {name: r.sourceLabel})
+MATCH (t:SchemaLabel {name: r.targetLabel})
+MERGE (s)-[:SOURCE_OF]->(r)
+MERGE (r)-[:TARGET_OF]->(t);
 ```

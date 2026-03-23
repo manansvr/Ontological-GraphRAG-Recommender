@@ -17,9 +17,10 @@ General,TechnicalDepartment,General Technical Department,Derived,Organization
 AlternativeEnergies,TechnicalDepartment,Alternative Energies Technical Department,Derived,Organization
 IndustryPartner,Organization,,Derived,Organization
 AcademicPartner,Organization,,Derived,Organization
-Member,Organization,Team Member Or Project Assignee (100 Members),Derived,Organization
-Vehicle,,,TopLevel,Artifact
-System,Vehicle,System Grouping Within A Vehicle (Contains 2+ Subsystems),Derived,Artifact
+Members,Department,Team Members Or Project Assignees (100 Members),Derived,Organization
+ProjectLead,Members,Lead Responsible For Project Delivery,Derived,Organization
+ProjectTrackingSystem,,,TopLevel,Artifact
+System,ProjectTrackingSystem,System Grouping Within A Project Tracking System (Contains 2+ Subsystems),Derived,Artifact
 Document,,,TopLevel,Artifact
 RegulatoryDocument,Document,,Derived,Artifact
 AustralianDesignRule,RegulatoryDocument,National Regulatory Framework For Vehicle Compliance,Derived,Artifact
@@ -35,11 +36,11 @@ SimulationOutput,TestingDocuments,,Derived,Artifact
 EngineeringDrawing,TestingDocuments,,Derived,Artifact
 Requirement,,,TopLevel,Artifact
 InternalRequirement,Requirement,,Derived,Artifact
-ExternalRequirement,Requirement,,Derived,Artifact
+ExtractedRequirement,Requirement,,Derived,Artifact
 InternalEssentialRequirement,InternalRequirement,Non-Negotiable Internal Requirement Imposing Strict Constraints,Derived,Artifact
 InternalRecommendedRequirement,InternalRequirement,Contextual Internal Requirement With Interpretative Flexibility,Derived,Artifact
-ExternalEssentialRequirement,ExternalRequirement,Non-Negotiable External Requirement Imposing Strict Constraints,Derived,Artifact
-ExternalRecommendedRequirement,ExternalRequirement,Contextual External Requirement With Interpretative Flexibility,Derived,Artifact
+ExtractedEssentialRequirement,ExtractedRequirement,Non-Negotiable External Requirement Imposing Strict Constraints,Derived,Artifact
+ExtractedRecommendedRequirement,ExtractedRequirement,Contextual External Requirement With Interpretative Flexibility,Derived,Artifact
 ValidationScenario,Requirement,Operational Context Used To Validate Intended Use,Derived,Artifact
 AcceptanceCriterion,ValidationScenario,Measurable Criterion Defining Validation Success,Derived,Artifact
 ValidationResult,Requirement,Outcome Record For Validation Execution,Derived,Artifact
@@ -47,7 +48,6 @@ PartsManagement,,,TopLevel,Artifact
 Assembly,PartsManagement,,Derived,Artifact
 Component,Assembly,,Derived,Artifact
 Subsystem,System,Functional Unit Within A System,Derived,Artifact
-Interface,,Connection Point Enabling 2+ Projects To Work Together,TopLevel,Artifact
 Project,,Engineering Project With ID Name And Description (189 Concurrent Projects),TopLevel,Artifact
 VerificationProcedure,Requirement,Detailed Procedure For Verifying ADR Compliance,Derived,Artifact
 VerificationMethod,VerificationProcedure,Method Used To Verify Compliance With Requirements,Derived,Artifact
@@ -64,4 +64,4 @@ TestEvidence,TestingEvidence,Evidence Obtained Through Physical Or Functional Te
 AnalysisEvidence,TestingEvidence,Evidence Obtained Through Simulations And Calculations,Derived,Artifact
 ADRAnnexEvidence,TestingEvidence,Evidence Obtained Through ADR Annex Procedures,Derived,Artifact
 ADRTestingProcedureEvidence,TestingEvidence,Evidence Obtained Through Official ADR Testing Procedures,Derived,Artifact
-Clause,InternalEssentialRequirement|InternalRecommendedRequirement|ExternalEssentialRequirement|ExternalRecommendedRequirement,Specific Clause Within An ADR (Each Clause Is A New Node Connected To 1 ADR),Derived,Artifact
+Clause,InternalEssentialRequirement|InternalRecommendedRequirement|ExtractedEssentialRequirement|ExtractedRecommendedRequirement,Specific Clause Within An ADR (Each Clause Is A New Node Connected To 1 ADR),Derived,Artifact

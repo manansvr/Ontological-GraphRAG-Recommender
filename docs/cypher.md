@@ -54,7 +54,7 @@ FOR (n:NodeLabel) ON (n.name);
 
 ## Sample Data Creation
 
-### Organizations & Vehicles
+### Organizations & Project Tracking Systems
 
 ```cypher
 // Create Organization
@@ -74,8 +74,8 @@ CREATE (partner:IndustryPartner {
     hasDescription: "Strategic technology partner"
 });
 
-// Create Vehicle
-CREATE (veh:Vehicle {
+// Create Project Tracking System
+CREATE (veh:ProjectTrackingSystem {
     hasID: "VEH-001",
     hasName: "Sunswift 8",
     hasDescription: "World's first road-legal, student-built, tri-brid electric vehicle",
@@ -88,7 +88,7 @@ CREATE (veh:Vehicle {
 CREATE (sys:System {
     hasID: "SYS-001",
     hasName: "Propulsion System",
-    hasDescription: "Vehicle-level system containing multiple subsystems"
+    hasDescription: "System-level grouping containing multiple subsystems"
 });
 
 // Create Relationship
@@ -132,14 +132,23 @@ CREATE (sys)-[:hasSubsystem]->(b),
              (sys)-[:hasSubsystem]->(p),
              (sys)-[:hasSubsystem]->(s);
 
-// Create Subsystem Interfaces
+// Create interface Relationships (Subsystem + System)
 MATCH (b:Subsystem), (p:Subsystem), (s:Subsystem)
 WHERE b.hasID = "SS-BATT"
   AND p.hasID = "SS-PWTR"
   AND s.hasID = "SS-SAFE"
-CREATE (b)-[:interfacesWith]->(p),
-       (b)-[:interfacesWith]->(s),
-       (p)-[:interfacesWith]->(s);
+CREATE (b)-[:interface]->(p),
+       (b)-[:interface]->(s),
+       (p)-[:interface]->(s);
+
+CREATE (thermal:System {
+        hasID: "SYS-002",
+        hasName: "Thermal Management System",
+        hasDescription: "System managing cooling and thermal controls"
+});
+
+MATCH (sys1:System {hasID: "SYS-001"}), (sys2:System {hasID: "SYS-002"})
+CREATE (sys1)-[:interface]->(sys2);
 
 // Risk Propagation
 MATCH (b:Subsystem), (p:Subsystem)
@@ -205,7 +214,7 @@ CREATE (req1:EssentialRequirement {
 CREATE (req2:EssentialRequirement {
     hasID: "REQ-ADR63-001",
     hasName: "Emergency Braking Performance",
-    hasDescription: "Vehicle must achieve specified braking distance",
+    hasDescription: "System must achieve specified braking distance",
     isEssential: true,
     isConditional: false,
     hasRiskLevel: "Critical",
@@ -392,8 +401,17 @@ RETURN
     SUM(CASE WHEN c.usedInRoadTest01 THEN 1 ELSE 0 END) AS Road_Test_Ready;
 
 // Find All Subsystems Interfacing With Battery
-MATCH (b:Subsystem {hasName: "Battery Subsystem"})-[:interfacesWith]-(other:Subsystem)
+MATCH (b:Subsystem {hasName: "Battery Subsystem"})-[:interface]-(other:Subsystem)
 RETURN other.hasName, other.hasRiskLevel;
+
+// Find interface Connections Across Systems/SubSystems
+MATCH (a)-[:interface]-(b)
+WHERE (a:System OR a:Subsystem)
+    AND (b:System OR b:Subsystem)
+RETURN labels(a)[0] AS FromType,
+             a.hasName AS FromName,
+             labels(b)[0] AS ToType,
+             b.hasName AS ToName;
 
 // Find Requirement Dependency Chains
 MATCH path = (r1:Requirement)-[:dependsOn*]->(r2:Requirement)
@@ -663,14 +681,14 @@ RETURN path;
 ```cypher
 // Interfaces Between Powertrain & Electronics Departments
 MATCH (d1:Department {hasName: "Powertrain"})-[:owns]->(s1:Subsystem)
-      -[:interfacesWith]-(s2:Subsystem)<-[:owns]-(d2:Department {hasName: "Electronics"})
+      -[:interface]-(s2:Subsystem)<-[:owns]-(d2:Department {hasName: "Electronics"})
 RETURN s1.hasName, s2.hasName;
 
 // Find All Projects With Departments
 MATCH (p:Project)
 OPTIONAL MATCH (p)-[:hasPrimaryDepartment]->(primary:Department)
 OPTIONAL MATCH (p)-[:hasSecondaryDepartment]->(secondary:Department)
-OPTIONAL MATCH (p)-[:hasAssignee]->(m:Member)
+OPTIONAL MATCH (p)-[:hasAssignee]->(m:Members)
 RETURN p.projectID, p.projectName, 
        primary.hasName AS PrimaryDept,
        secondary.hasName AS SecondaryDept,

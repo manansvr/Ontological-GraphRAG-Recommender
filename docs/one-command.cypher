@@ -33,14 +33,10 @@ SET p.applicableLabels = row.ApplicableLabels,
 MATCH ()-[e:SOURCE_OF|TARGET_OF|SCHEMA_REL]->() DELETE e;
 MATCH (scope:SchemaScope {name: 'All'}) DETACH DELETE scope;
 
-MERGE (allScope:SchemaScope {name: 'All'})
-WITH allScope
 MATCH (r:SchemaRelationship)
 OPTIONAL MATCH (sLabel:SchemaLabel {name: r.sourceLabel})
 OPTIONAL MATCH (tLabel:SchemaLabel {name: r.targetLabel})
-WITH r, allScope,
-     CASE WHEN r.sourceLabel = 'All' THEN allScope ELSE sLabel END AS src,
-     CASE WHEN r.targetLabel = 'All' THEN allScope ELSE tLabel END AS tgt
+WITH r, sLabel AS src, tLabel AS tgt
 WHERE src IS NOT NULL AND tgt IS NOT NULL
 MERGE (src)-[e:SCHEMA_REL {name: r.name}]->(tgt)
 SET e.name = r.name,

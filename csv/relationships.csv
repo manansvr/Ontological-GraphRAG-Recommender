@@ -2,7 +2,7 @@ RelationshipType,SourceLabel,TargetLabel,Description,Properties
 hasDepartment,Organization,Department,Has Department,
 hasPrimaryDepartment,Project,Department,Has Primary Department,
 hasSecondaryDepartment,Project,Department,Has Secondary Department,
-hasAssignee,Project,Member,Has Assignee (Project Assignee),
+hasAssignee,Project,Members,Has Assignee (Project Assignee),
 collaboratesWith,Organization,Organization,Collaborates With,symmetric
 hasRequirement,All,Requirement,Has Requirement,
 subsystemHasRequirement,Subsystem,Requirement,Subsystem Has Requirement,
@@ -18,7 +18,7 @@ componentInSystem,Component,System,Component Goes Into System,
 componentInProject,Component,Project,Component Goes Into Project,
 assembledFrom,Assembly,Component,Assembly Is Composed Of Multiple Components,
 hasSubsystem,System,Subsystem,Has Subsystem,
-interfacesWith,Subsystem,Subsystem,Interfaces With,symmetric
+interface,System|Subsystem,System|Subsystem,Interface Between 2+ Systems And/Or 2+ Subsystems,symmetric
 dependsOn,Requirement,Requirement,Depends On,transitive
 impactsOn,Requirement,Requirement,Impacts On,
 appliesTo,Requirement,All,Applies To,
@@ -46,5 +46,5 @@ assignedToSubsystem,TechnicalDepartment,Subsystem,Technical Department Assigned 
 departmentAssignedToProject,TechnicalDepartment,Project,Technical Department Assigned To Project,
 hasSection,Department,Department,Has Section (Organizational Hierarchy),
 hasClause,AustralianDesignRule,Clause,Has Clause (Each Clause Is A New Node Connected To 1 ADR),
-hasExternalEssentialRequirement,AustralianDesignRule,ExternalEssentialRequirement,ADR Has External Essential Requirement,
-hasExternalRecommendedRequirement,AustralianDesignRule,ExternalRecommendedRequirement,ADR Has External Recommended Requirement,
+hasExternalEssentialRequirement,AustralianDesignRule,ExtractedEssentialRequirement,ADR Has External Essential Requirement,
+hasExternalRecommendedRequirement,AustralianDesignRule,ExtractedRecommendedRequirement,ADR Has External Recommended Requirement,

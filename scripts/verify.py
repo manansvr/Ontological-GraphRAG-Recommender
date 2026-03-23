@@ -48,8 +48,8 @@ class OntologyVerifier:
 
             parents = [r['parent'] for r in result]
             expected_parents = [
-                'ExternalEssentialRequirement',
-                'ExternalRecommendedRequirement',
+                'ExtractedEssentialRequirement',
+                'ExtractedRecommendedRequirement',
                 'InternalEssentialRequirement',
                 'InternalRecommendedRequirement'
             ]
@@ -162,8 +162,8 @@ class OntologyVerifier:
                     'name': 'ADR external requirement links',
                     'query': """
                         MATCH (r:SchemaRelationship)
-                        WHERE (r.name = 'hasExternalEssentialRequirement' AND r.sourceLabel = 'AustralianDesignRule' AND r.targetLabel = 'ExternalEssentialRequirement')
-                           OR (r.name = 'hasExternalRecommendedRequirement' AND r.sourceLabel = 'AustralianDesignRule' AND r.targetLabel = 'ExternalRecommendedRequirement')
+                        WHERE (r.name = 'hasExternalEssentialRequirement' AND r.sourceLabel = 'AustralianDesignRule' AND r.targetLabel = 'ExtractedEssentialRequirement')
+                           OR (r.name = 'hasExternalRecommendedRequirement' AND r.sourceLabel = 'AustralianDesignRule' AND r.targetLabel = 'ExtractedRecommendedRequirement')
                         RETURN count(r) as count
                     """,
                     'expected': 2
@@ -203,10 +203,10 @@ class OntologyVerifier:
             result = session.run("MATCH (p:SchemaProperty) RETURN count(p) as count")
             count = result.single()['count']
 
-            if count == 50:
-                print(f"✓ All 50 Properties Imported Correctly")
+            if count == 43:
+                print(f"✓ All 43 Properties Imported Correctly")
             else:
-                print(f"✗ Expected 50 Properties, Found {count}")
+                print(f"✗ Expected 43 Properties, Found {count}")
                 return False
 
             result = session.run("""
@@ -281,11 +281,10 @@ class OntologyVerifier:
             top_level = [r['name'] for r in result]
             expected_top = [
                 'Organization',
-                'Vehicle',
+                'ProjectTrackingSystem',
                 'Document',
                 'Requirement',
                 'PartsManagement',
-                'Interface',
                 'Project',
             ]
 

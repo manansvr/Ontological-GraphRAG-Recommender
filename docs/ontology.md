@@ -46,7 +46,7 @@ The SR8 ontology integrates three main management systems:
         │
 ┌───────▼─────────────────┐
 │  Systems Engineering    │
-│  - Vehicle > System     │
+│  - ProjectTrackingSystem > System     │
 │  - System > Subsystem   │
 │  - Requirement Flow     │
 └───────┬─────────────────┘
@@ -58,7 +58,7 @@ The SR8 ontology integrates three main management systems:
 │  ADR Management         │◄────────┤  Parts Management    │
 │  - 100 ADRs             │         │  - 100,000+ Parts    │
 │  - Verification         │         │  - Assembly/Component│
-│  - External Req Links   │         │  - componentIn* links│
+│  - Extracted Req Links  │         │  - componentIn* links│
 └─────────────────────────┘         └──────────────────────┘
     │                                      │
     │ hasExternalEssentialRequirement      │ componentInSubsystem
@@ -94,13 +94,13 @@ Technical departments:
 - `AlternativeEnergies`
 
 **Members** (100 total) - Project assignees:
-- `hasID` - Member identifier
-- `hasName` - Member name
+- `hasID` - Members identifier
+- `hasName` - Members name
 
 **Relationships**:
 - `hasPrimaryDepartment` → Department
 - `hasSecondaryDepartment` → Department
-- `hasAssignee` → Member
+- `hasAssignee` → Members
 - `belongsToDepartment` → Department (for members)
 
 ### 2. Parts Management System
@@ -243,17 +243,17 @@ Organization
 ### 2. Engineering Hierarchy
 
 ```
-Vehicle
+ProjectTrackingSystem
 ├── System
 │   └── Subsystem
-├── Interface
-└── Project
+
+Project
 
 Document
 │   ├── RegulatoryDocument
 │   │   └── AustralianDesignRule (ADR)
-│   │       ├── ExternalEssentialRequirement
-│   │       └── ExternalRecommendedRequirement
+│   │       ├── ExtractedEssentialRequirement
+│   │       └── ExtractedRecommendedRequirement
 │   ├── EngineeringBrief
 │   ├── TestingDocuments
 │   │   ├── TechnicalSpecification
@@ -278,10 +278,10 @@ Requirement
 │   │   │   └── Clause
 │   │   └── InternalRecommendedRequirement
 │   │       └── Clause
-│   ├── ExternalRequirement
-│   │   ├── ExternalEssentialRequirement
+│   ├── ExtractedRequirement
+│   │   ├── ExtractedEssentialRequirement
 │   │   │   └── Clause
-│   │   └── ExternalRecommendedRequirement
+│   │   └── ExtractedRecommendedRequirement
 │   │       └── Clause
 │   ├── ValidationScenario
 │   │   └── AcceptanceCriterion
@@ -327,7 +327,7 @@ PartsManagement
 - `componentInProject` - Component → Project
 - `assembledFrom` - Assembly → Component
 - `hasSubsystem` - System → Subsystem
-- `interfacesWith` - Subsystem ↔ Subsystem (symmetric)
+- `interface` - (System|Subsystem) ↔ (System|Subsystem) (symmetric)
 - `dependsOn` - Requirement → Requirement (transitive)
 - `impactsOn` - Requirement → Requirement
 - `appliesTo` - Requirement → All
@@ -344,8 +344,8 @@ PartsManagement
 - `supportedByEvidence` - VerificationProcedure → TestingEvidence
 - `verifiedBy` - AustralianDesignRule → TestingEvidence
 - `hasClause` - AustralianDesignRule → Clause
-- `hasExternalEssentialRequirement` - AustralianDesignRule → ExternalEssentialRequirement
-- `hasExternalRecommendedRequirement` - AustralianDesignRule → ExternalRecommendedRequirement
+- `hasExternalEssentialRequirement` - AustralianDesignRule → ExtractedEssentialRequirement
+- `hasExternalRecommendedRequirement` - AustralianDesignRule → ExtractedRecommendedRequirement
 
 ### Component Management Relationships
 - `usedInProject` - Component → Project
@@ -358,7 +358,7 @@ PartsManagement
 ### Project Tracking Relationships
 - `hasPrimaryDepartment` - Project → Department
 - `hasSecondaryDepartment` - Project → Department
-- `hasAssignee` - Project → Member
+- `hasAssignee` - Project → Members
 
 ### Compliance & Risk Relationships
 - `compliesWith` - All → AustralianDesignRule
@@ -366,7 +366,7 @@ PartsManagement
 - `propagatesRiskTo` - Subsystem → Subsystem
 
 ### Property Characteristics
-- **Symmetric**: `interfacesWith`, `collaboratesWith`
+- **Symmetric**: `interface`, `collaboratesWith`
 - **Transitive**: `dependsOn`, `hasComponent`
 
 ---
@@ -495,7 +495,7 @@ graph LR
 
 **Disjoint Classes**:
 - `EssentialRequirement` ⊥ `RecommendedRequirement`
-- `InternalRequirement` ⊥ `ExternalRequirement`
+- `InternalRequirement` ⊥ `ExtractedRequirement`
 
 ---
 
@@ -566,18 +566,17 @@ graph TD
     TD[TechnicalDepartment]
     PROJ[Project]
 
-    VEH[Vehicle]
+    VEH[ProjectTrackingSystem]
     SYS[System]
     SS[Subsystem]
-    INTF[Interface]
 
     PM[PartsManagement]
     ASM[Assembly]
     COMP[Component]
 
     ADR[AustralianDesignRule]
-    EER[ExternalEssentialRequirement]
-    ERR[ExternalRecommendedRequirement]
+    EER[ExtractedEssentialRequirement]
+    ERR[ExtractedRecommendedRequirement]
     REQ[Requirement]
     VP[VerificationProcedure]
     VM[VerificationMethod]
@@ -593,8 +592,9 @@ graph TD
 
     VEH --> SYS
     SYS -.hasSubsystem.-> SS
-    VEH --> INTF
-    SS -.interfacesWith.-> SS
+    SYS -.interface.-> SS
+    SS -.interface.-> SS
+    SYS -.interface.-> SYS
 
     PM --> ASM
     ASM --> COMP
@@ -637,8 +637,8 @@ graph LR
     COMP[Component]
     REQ[Requirement]
     ADR[AustralianDesignRule]
-    EER[ExternalEssentialRequirement]
-    ERR[ExternalRecommendedRequirement]
+    EER[ExtractedEssentialRequirement]
+    ERR[ExtractedRecommendedRequirement]
     VP[VerificationProcedure]
     VM[VerificationMethod]
     TEV[TestingEvidence]

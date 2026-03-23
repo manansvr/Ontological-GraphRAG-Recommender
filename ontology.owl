@@ -118,10 +118,16 @@
         <rdfs:label>Academic Partner</rdfs:label>
     </owl:Class>
 
-    <owl:Class rdf:about="#Member">
-        <rdfs:subClassOf rdf:resource="#Organization"/>
-        <rdfs:label>Member</rdfs:label>
-        <rdfs:comment>Team Member Or Project Assignee (100 Members)</rdfs:comment>
+    <owl:Class rdf:about="#Members">
+        <rdfs:subClassOf rdf:resource="#Department"/>
+        <rdfs:label>Members</rdfs:label>
+        <rdfs:comment>Team Members Or Project Assignees (100 Members)</rdfs:comment>
+    </owl:Class>
+
+    <owl:Class rdf:about="#ProjectLead">
+        <rdfs:subClassOf rdf:resource="#Members"/>
+        <rdfs:label>Project Lead</rdfs:label>
+        <rdfs:comment>Lead Responsible For Project Delivery</rdfs:comment>
     </owl:Class>
 
 
@@ -129,14 +135,14 @@
     <!-- ENGINEERING HIERARCHY (FLATTENED)               -->
     <!-- =============================================== -->
 
-    <owl:Class rdf:about="#Vehicle">
-        <rdfs:label>Vehicle</rdfs:label>
+    <owl:Class rdf:about="#ProjectTrackingSystem">
+        <rdfs:label>Project Tracking System</rdfs:label>
     </owl:Class>
 
     <owl:Class rdf:about="#System">
-        <rdfs:subClassOf rdf:resource="#Vehicle"/>
+        <rdfs:subClassOf rdf:resource="#ProjectTrackingSystem"/>
         <rdfs:label>System</rdfs:label>
-        <rdfs:comment>System Grouping Within A Vehicle (Contains 2+ Subsystems)</rdfs:comment>
+        <rdfs:comment>System Grouping Within A Project Tracking System (Contains 2+ Subsystems)</rdfs:comment>
     </owl:Class>
 
     <owl:Class rdf:about="#Document">
@@ -213,9 +219,9 @@
         <rdfs:label>Internal Requirement</rdfs:label>
     </owl:Class>
 
-    <owl:Class rdf:about="#ExternalRequirement">
+    <owl:Class rdf:about="#ExtractedRequirement">
         <rdfs:subClassOf rdf:resource="#Requirement"/>
-        <rdfs:label>External Requirement</rdfs:label>
+        <rdfs:label>Extracted Requirement</rdfs:label>
     </owl:Class>
 
     <owl:Class rdf:about="#InternalEssentialRequirement">
@@ -230,15 +236,15 @@
         <rdfs:comment>Contextual Internal Requirement With Interpretative Flexibility</rdfs:comment>
     </owl:Class>
 
-    <owl:Class rdf:about="#ExternalEssentialRequirement">
-        <rdfs:subClassOf rdf:resource="#ExternalRequirement"/>
-        <rdfs:label>External Essential Requirement</rdfs:label>
+    <owl:Class rdf:about="#ExtractedEssentialRequirement">
+        <rdfs:subClassOf rdf:resource="#ExtractedRequirement"/>
+        <rdfs:label>Extracted Essential Requirement</rdfs:label>
         <rdfs:comment>Non-Negotiable External Requirement Imposing Strict Constraints</rdfs:comment>
     </owl:Class>
 
-    <owl:Class rdf:about="#ExternalRecommendedRequirement">
-        <rdfs:subClassOf rdf:resource="#ExternalRequirement"/>
-        <rdfs:label>External Recommended Requirement</rdfs:label>
+    <owl:Class rdf:about="#ExtractedRecommendedRequirement">
+        <rdfs:subClassOf rdf:resource="#ExtractedRequirement"/>
+        <rdfs:label>Extracted Recommended Requirement</rdfs:label>
         <rdfs:comment>Contextual External Requirement With Interpretative Flexibility</rdfs:comment>
     </owl:Class>
 
@@ -280,11 +286,6 @@
         <rdfs:subClassOf rdf:resource="#System"/>
         <rdfs:label>Subsystem</rdfs:label>
         <rdfs:comment>Functional Unit Within A System</rdfs:comment>
-    </owl:Class>
-
-    <owl:Class rdf:about="#Interface">
-        <rdfs:label>Interface</rdfs:label>
-        <rdfs:comment>Connection Point Enabling 2+ Projects To Work Together</rdfs:comment>
     </owl:Class>
 
     <owl:Class rdf:about="#Project">
@@ -385,8 +386,8 @@
     <owl:Class rdf:about="#Clause">
         <rdfs:subClassOf rdf:resource="#InternalEssentialRequirement"/>
         <rdfs:subClassOf rdf:resource="#InternalRecommendedRequirement"/>
-        <rdfs:subClassOf rdf:resource="#ExternalEssentialRequirement"/>
-        <rdfs:subClassOf rdf:resource="#ExternalRecommendedRequirement"/>
+        <rdfs:subClassOf rdf:resource="#ExtractedEssentialRequirement"/>
+        <rdfs:subClassOf rdf:resource="#ExtractedRecommendedRequirement"/>
         <rdfs:label>Clause</rdfs:label>
         <rdfs:comment>Specific Clause Within An ADR (Each Clause Is A New Node Connected To 1 ADR)</rdfs:comment>
     </owl:Class>
@@ -419,9 +420,9 @@
 
     <owl:ObjectProperty rdf:about="#hasAssignee">
         <rdfs:domain rdf:resource="#Project"/>
-        <rdfs:range rdf:resource="#Member"/>
+        <rdfs:range rdf:resource="#Members"/>
         <rdfs:label>has assignee</rdfs:label>
-        <rdfs:comment>Links A Project To A Member (Project Assignee)</rdfs:comment>
+        <rdfs:comment>Links A Project To A Members Node (Project Assignee)</rdfs:comment>
     </owl:ObjectProperty>
 
     <owl:ObjectProperty rdf:about="#collaboratesWith">
@@ -533,10 +534,25 @@
         <rdfs:label>has subsystem</rdfs:label>
     </owl:ObjectProperty>
 
-    <owl:ObjectProperty rdf:about="#interfacesWith">
-        <rdfs:domain rdf:resource="#Subsystem"/>
-        <rdfs:range rdf:resource="#Subsystem"/>
-        <rdfs:label>interfaces with</rdfs:label>
+    <owl:ObjectProperty rdf:about="#interface">
+        <rdfs:domain>
+            <owl:Class>
+                <owl:unionOf rdf:parseType="Collection">
+                    <rdf:Description rdf:about="#System"/>
+                    <rdf:Description rdf:about="#Subsystem"/>
+                </owl:unionOf>
+            </owl:Class>
+        </rdfs:domain>
+        <rdfs:range>
+            <owl:Class>
+                <owl:unionOf rdf:parseType="Collection">
+                    <rdf:Description rdf:about="#System"/>
+                    <rdf:Description rdf:about="#Subsystem"/>
+                </owl:unionOf>
+            </owl:Class>
+        </rdfs:range>
+        <rdfs:label>interface</rdfs:label>
+        <rdfs:comment>Connection Relationship Between 2+ Systems And/Or 2+ Subsystems</rdfs:comment>
         <rdf:type rdf:resource="http://www.w3.org/2002/07/owl#SymmetricProperty"/>
     </owl:ObjectProperty>
 
@@ -655,13 +671,13 @@
 
     <owl:ObjectProperty rdf:about="#hasExternalEssentialRequirement">
         <rdfs:domain rdf:resource="#AustralianDesignRule"/>
-        <rdfs:range rdf:resource="#ExternalEssentialRequirement"/>
+        <rdfs:range rdf:resource="#ExtractedEssentialRequirement"/>
         <rdfs:label>has external essential requirement</rdfs:label>
     </owl:ObjectProperty>
 
     <owl:ObjectProperty rdf:about="#hasExternalRecommendedRequirement">
         <rdfs:domain rdf:resource="#AustralianDesignRule"/>
-        <rdfs:range rdf:resource="#ExternalRecommendedRequirement"/>
+        <rdfs:range rdf:resource="#ExtractedRecommendedRequirement"/>
         <rdfs:label>has external recommended requirement</rdfs:label>
     </owl:ObjectProperty>
 
@@ -790,7 +806,7 @@
     </owl:DatatypeProperty>
 
     <owl:DatatypeProperty rdf:about="#numberOfComponents">
-        <rdfs:domain rdf:resource="#Vehicle"/>
+        <rdfs:domain rdf:resource="#ProjectTrackingSystem"/>
         <rdfs:range rdf:resource="http://www.w3.org/2001/XMLSchema#integer"/>
         <rdfs:label>number of components</rdfs:label>
     </owl:DatatypeProperty>
@@ -801,7 +817,7 @@
     </owl:DatatypeProperty>
 
     <owl:DatatypeProperty rdf:about="#isRoadLegal">
-        <rdfs:domain rdf:resource="#Vehicle"/>
+        <rdfs:domain rdf:resource="#ProjectTrackingSystem"/>
         <rdfs:range rdf:resource="http://www.w3.org/2001/XMLSchema#boolean"/>
         <rdfs:label>is road legal</rdfs:label>
     </owl:DatatypeProperty>
@@ -1064,12 +1080,12 @@
         <owl:disjointWith rdf:resource="#InternalRecommendedRequirement"/>
     </rdf:Description>
 
-    <rdf:Description rdf:about="#ExternalEssentialRequirement">
-        <owl:disjointWith rdf:resource="#ExternalRecommendedRequirement"/>
+    <rdf:Description rdf:about="#ExtractedEssentialRequirement">
+        <owl:disjointWith rdf:resource="#ExtractedRecommendedRequirement"/>
     </rdf:Description>
 
     <rdf:Description rdf:about="#InternalRequirement">
-        <owl:disjointWith rdf:resource="#ExternalRequirement"/>
+        <owl:disjointWith rdf:resource="#ExtractedRequirement"/>
     </rdf:Description>
 
     <!-- Transitive Properties -->
