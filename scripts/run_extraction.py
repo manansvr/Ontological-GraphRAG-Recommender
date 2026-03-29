@@ -2,16 +2,13 @@
 """
 run_extraction.py
 ==================
-Master script — runs all extractors in dependency order:
-  1. ADRs     — data/adrs/*.csv
-  2. Projects — data/project-tracking-system.csv  (export xlsx first)
-  3. Parts    — data/parts-management.csv          (export xlsx first)
+Master script — runs extractors in dependency order.
 
 Usage:
-  python scripts/run_extraction.py --only adrs             # just ADRs
-  python scripts/run_extraction.py --only adrs --dry-run   # preview ADRs
-  python scripts/run_extraction.py                         # everything
-  python scripts/run_extraction.py --dry-run               # preview all
+  python3 scripts/run_extraction.py --only adrs --dry-run
+  python3 scripts/run_extraction.py --only adrs
+  python3 scripts/run_extraction.py --dry-run
+  python3 scripts/run_extraction.py
 """
 
 import argparse
@@ -20,16 +17,14 @@ import sys
 
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
 
+# Only import what exists right now — projects and parts loaded lazily below
 from neo4j import GraphDatabase
-from extract_adrs     import extract_adrs
-from extract_projects import extract_projects
-from extract_parts    import extract_parts
+from extract_adrs import extract_adrs
 
-# ── File paths — matches your repo structure ─────────────────────────
 DEFAULTS = {
-    "adrs_folder":   "data/adrs",                        # all ADR CSVs
-    "projects_file": "data/project-tracking-system.csv", # export xlsx → csv
-    "parts_file":    "data/parts-management.csv",        # export xlsx → csv
+    "adrs_folder":   "data/adrs",
+    "projects_file": "data/project-tracking-system.csv",
+    "parts_file":    "data/parts-management.csv",
 }
 
 
@@ -38,10 +33,8 @@ def main():
     parser.add_argument("--uri",           default="bolt://localhost:7687")
     parser.add_argument("--user",          default="neo4j")
     parser.add_argument("--password",      default="password")
-    parser.add_argument("--dry-run",       action="store_true",
-                        help="Preview without writing to neo4j")
-    parser.add_argument("--only",          choices=["adrs", "projects", "parts"],
-                        help="Run only one extractor")
+    parser.add_argument("--dry-run",       action="store_true")
+    parser.add_argument("--only",          choices=["adrs", "projects", "parts"])
     parser.add_argument("--adrs-folder",   default=DEFAULTS["adrs_folder"])
     parser.add_argument("--projects-file", default=DEFAULTS["projects_file"])
     parser.add_argument("--parts-file",    default=DEFAULTS["parts_file"])
@@ -71,28 +64,30 @@ def main():
                 print(f"  ⚠️  ADR folder not found: {args.adrs_folder}")
                 print(f"      Expected: {os.path.abspath(args.adrs_folder)}")
 
-        # ── 2. Projects ───────────────────────────────────────────────
+        # ── 2. Projects (export xlsx → csv first) ─────────────────────
         if not args.only or args.only == "projects":
             if os.path.exists(args.projects_file):
+                from extract_projects import extract_projects   # loaded lazily
                 extract_projects(
                     args.projects_file,
                     driver=driver,
                     dry_run=args.dry_run,
                 )
             else:
-                print(f"  ⚠️  Projects file not found: {args.projects_file}")
+                print(f"\n  ⚠️  Projects file not found: {args.projects_file}")
                 print(f"      Export project-tracing-system.xlsx → CSV first")
 
-        # ── 3. Parts ─────────────────────────────────────────────────
+        # ── 3. Parts (export xlsx → csv first) ────────────────────────
         if not args.only or args.only == "parts":
             if os.path.exists(args.parts_file):
+                from extract_parts import extract_parts         # loaded lazily
                 extract_parts(
                     args.parts_file,
                     driver=driver,
                     dry_run=args.dry_run,
                 )
             else:
-                print(f"  ⚠️  Parts file not found: {args.parts_file}")
+                print(f"\n  ⚠️  Parts file not found: {args.parts_file}")
                 print(f"      Export parts-management.xlsx → CSV first")
 
     finally:
@@ -107,21 +102,19 @@ def main():
         print("""
   Verify in neo4j Browser → http://localhost:7474
 
-  // All node types
+  // All node types and counts
   MATCH (n) RETURN labels(n)[0] AS label, count(n) AS count
   ORDER BY count DESC
 
-  // ADRs and their linked projects
+  // ADRs linked to Projects
   MATCH (a:AustralianDesignRule)-[:assignedToProject]->(p:Project)
   RETURN a.hasID, collect(distinct p.projectID) AS projects
   ORDER BY a.hasID
 
-  // Full chain: ADR → Clause → linked project
+  // ADR → Clause count
   MATCH (a:AustralianDesignRule)-[:hasClause]->(c:Clause)
-  OPTIONAL MATCH (a)-[:assignedToProject]->(p:Project)
-  RETURN a.hasID, c.hasName AS clause, p.projectID
-  ORDER BY a.hasID, clause
-  LIMIT 30
+  RETURN a.hasID, count(c) AS clauses
+  ORDER BY a.hasID
         """)
 
 

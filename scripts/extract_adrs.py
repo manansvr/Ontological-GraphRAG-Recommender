@@ -4,23 +4,15 @@ extract_adrs.py
 ================
 Extracts from per-ADR CSV files stored in data/adrs/.
 
-What this script does, step by step:
-  1. Reads every CSV file in data/adrs/ (or a single file if --file is used)
-  2. Forward-fills the ADR Number column down all rows
-     (because it only appears in the first row of each CSV)
-  3. For each row it decides what to create:
-       - Always: a Clause node (if there is a clause number)
-       - If named: an ExtractedEssentialRequirement node
-       - If method filled in: a VerificationProcedure node + evidence stub
-       - If project ID present: assignedToProject relationship
-       - Skips: section headers, Not Applicable rows
-  4. All writes use MERGE so re-running is always safe
+ALL requirements are extracted — including Not Applicable ones.
+The isApplicable property on each node records whether it applies to SR8.
+This means the graph contains the full ADR picture, not just what applies.
 
 Usage:
-  python scripts/extract_adrs.py --folder data/adrs/ --dry-run
-  python scripts/extract_adrs.py --folder data/adrs/
-  python scripts/extract_adrs.py --file data/adrs/ADR10-Requirements.csv --dry-run
-  python scripts/extract_adrs.py --file data/adrs/ADR10-Requirements.csv
+  python3 scripts/extract_adrs.py --folder data/adrs/ --dry-run
+  python3 scripts/extract_adrs.py --folder data/adrs/
+  python3 scripts/extract_adrs.py --file data/adrs/ADR10-Requirements.csv --dry-run
+  python3 scripts/extract_adrs.py --file data/adrs/ADR10-Requirements.csv
 """
 
 import csv
@@ -29,8 +21,6 @@ import argparse
 from pathlib import Path
 from neo4j import GraphDatabase
 
-# ── Verification method normaliser ──────────────────────────────────
-# Maps whatever someone types in the CSV to the exact ontology label
 VERIFICATION_METHOD_MAP = {
     "inspection":               "Inspection",
     "visual inspection":        "Inspection",
@@ -52,7 +42,6 @@ VERIFICATION_METHOD_MAP = {
     "adr test procedure":       "ADRTestingProcedure",
 }
 
-# Maps verification method to the correct evidence node label
 EVIDENCE_LABEL_MAP = {
     "Inspection":          "InspectionEvidence",
     "Demonstration":       "DemonstrationEvidence",
@@ -62,13 +51,15 @@ EVIDENCE_LABEL_MAP = {
     "ADRTestingProcedure": "ADRTestingProcedureEvidence",
 }
 
-# ── Column header aliases ────────────────────────────────────────────
-# Each key maps to every possible way that column might be named in the CSV.
-# get_col() tries each alias in order until it finds a non-empty value.
 COLUMN_ALIASES = {
     "adr_id": [
-        "ADR Number",   # ← your actual header
-        "ADR ID", "ADRID", "ADR Id", "adr_id", "ADR",
+        "ADR Number", "ADR ID", "ADRID", "ADR Id", "adr_id", "ADR",
+    ],
+    "applicability": [
+    "Applicability",
+    "applicability",
+    "Is Applicable",
+    "Applicable?",
     ],
     "adr_name":  ["ADR Name", "ADRName", "adr_name"],
     "checklist": ["Checklist", "Check", "check", "#"],
@@ -114,7 +105,6 @@ COLUMN_ALIASES = {
 
 
 def get_col(row: dict, key: str) -> str:
-    """Try every alias for this key, return the first non-empty value found."""
     for alias in COLUMN_ALIASES.get(key, [key]):
         if alias in row and str(row[alias]).strip():
             return str(row[alias]).strip()
@@ -122,18 +112,15 @@ def get_col(row: dict, key: str) -> str:
 
 
 def normalise_adr_id(raw: str) -> str:
-    """'ADR 10', 'ADR-10/00', 'adr10' → 'ADR-10'."""
     m = re.search(r'\d+', str(raw))
     return f"ADR-{int(m.group())}" if m else ""
 
 
 def normalise_bool(val: str) -> bool:
-    """Yes/No/TRUE/FALSE/Pending → bool. Pending and No → False."""
     return str(val).strip().upper() in {"YES", "TRUE", "1", "Y"}
 
 
 def normalise_verification_method(raw: str) -> str:
-    """Map any freeform text to one of the 6 valid ontology labels."""
     if not raw:
         return ""
     key = raw.strip().lower()
@@ -145,50 +132,42 @@ def normalise_verification_method(raw: str) -> str:
     return ""
 
 
-def is_not_applicable(req_name: str) -> bool:
+def read_applicability(row: dict, req_name: str) -> tuple:
     """
-    Returns True if this row is a section header or not-applicable row
-    that should be skipped entirely.
-    These rows appear in the ADR spreadsheets as structural dividers —
-    they are not real requirements.
+    Reads the Applicability column directly from the CSV.
+    'Applicable'     → (True,  "")
+    'Not Applicable' → (False, req_name as the note)
+    Column missing   → falls back to checking req_name text
     """
-    skip_phrases = [
-        "not applicable",
-        "post collision testing",
-        "specifications",
-        "requirements",
-        "exemptions and alternative procedures",
-        "exemptions",
-        "scope",
-        "definitions",
-        "note (from",       # catches "ADR XX Note (From Andy)" rows
-    ]
+    raw = get_col(row, "applicability").strip().lower()
+
+    if raw in {"applicable", "yes", "true", "1", "y"}:
+        return True, ""
+
+    if raw in {"not applicable", "no", "false", "0", "n", "n/a"}:
+        return False, req_name.strip()
+
+    # Column not present or empty — infer from req_name as fallback
+    if not req_name:
+        return True, ""
     name_lower = req_name.strip().lower()
-    if name_lower in {"n/a", "na"}:
-        return True
-    return any(phrase in name_lower for phrase in skip_phrases)
+    if "not applicable" in name_lower or "post collision" in name_lower:
+        return False, req_name.strip()
+    return True, ""
 
 
 def forward_fill_adr_id(rows: list) -> list:
-    """
-    In your CSVs, the ADR Number only appears in the first data row.
-    Every row after that has an empty ADR Number column.
-    This function reads down the rows, remembers the last non-empty
-    ADR Number, and writes it into every row that is missing it.
-    This means every row knows which ADR it belongs to before extraction starts.
-    """
+    """Forward-fill ADR Number down all rows — it only appears in the first row."""
     current_id   = ""
     current_name = ""
-    id_header    = COLUMN_ALIASES["adr_id"][0]    # "ADR Number"
-    name_header  = COLUMN_ALIASES["adr_name"][0]  # "ADR Name"
+    id_header    = COLUMN_ALIASES["adr_id"][0]
+    name_header  = COLUMN_ALIASES["adr_name"][0]
 
     for row in rows:
         raw = get_col(row, "adr_id")
         if raw:
             current_id   = raw
             current_name = get_col(row, "adr_name")
-
-        # Inject the filled value if the cell was empty
         if not row.get(id_header):
             row[id_header] = current_id
         if not row.get(name_header):
@@ -197,17 +176,9 @@ def forward_fill_adr_id(rows: list) -> list:
     return rows
 
 
-# ── Neo4j writers ────────────────────────────────────────────────────
-# Each function is responsible for one type of node or relationship.
-# All use MERGE so they are safe to call multiple times — no duplicates.
+# ── Neo4j writers ─────────────────────────────────────────────────────
 
 def write_adr_node(session, adr_id: str, adr_name: str):
-    """
-    Creates or updates the top-level AustralianDesignRule node.
-    Called once per unique ADR ID per file.
-    Gets three labels: AustralianDesignRule, RegulatoryDocument, Document —
-    matching the ontology hierarchy.
-    """
     session.run("""
         MERGE (a:AustralianDesignRule:RegulatoryDocument:Document {hasID: $id})
         ON CREATE SET a.hasName       = $name,
@@ -219,13 +190,12 @@ def write_adr_node(session, adr_id: str, adr_name: str):
 
 
 def write_clause(session, adr_id: str, clause_num: str,
-                 req_name: str, text: str):
+                 req_name: str, text: str,
+                 is_applicable: bool, applicability_note: str):
     """
-    Creates a Clause node for every row that has a clause number,
-    even if Req Name is blank. The full text of the clause is stored.
-    Clause carries four requirement parent labels so it can be found
-    via any branch of the requirement hierarchy.
-    The hasClause relationship connects it back to its ADR.
+    Creates a Clause node for every row with a clause number.
+    isApplicable property records whether this clause applies to SR8.
+    applicabilityNote records the reason if not applicable.
     """
     cid     = f"CLAUSE-{adr_id.replace('ADR-','')}-{clause_num.replace('.','_')}"
     display = req_name if req_name else clause_num
@@ -237,58 +207,56 @@ def write_clause(session, adr_id: str, clause_num: str,
                :ExtractedEssentialRequirement
                :ExtractedRecommendedRequirement
                {hasID: $cid})
-        ON CREATE SET c.hasName    = $display,
-                      c.clauseText = $text
-        ON MATCH  SET c.clauseText = CASE WHEN $text <> '' THEN $text
-                                          ELSE c.clauseText END
+        ON CREATE SET c.hasName            = $display,
+                      c.clauseText         = $text,
+                      c.isApplicable       = $applicable,
+                      c.applicabilityNote  = $note
+        ON MATCH  SET c.clauseText         = CASE WHEN $text <> '' THEN $text
+                                                   ELSE c.clauseText END,
+                      c.isApplicable       = $applicable,
+                      c.applicabilityNote  = $note
         WITH c
         MATCH (a:AustralianDesignRule {hasID: $aid})
         MERGE (a)-[:hasClause]->(c)
-    """, cid=cid, display=display, text=text, aid=adr_id)
+    """, cid=cid, display=display, text=text, aid=adr_id,
+         applicable=is_applicable, note=applicability_note)
 
 
 def write_requirement(session, adr_id: str, req_id: str,
-                       req_name: str, text: str):
+                       req_name: str, text: str,
+                       is_applicable: bool, applicability_note: str):
     """
-    Creates an ExtractedEssentialRequirement node.
-    Only called when both Req Name and Text are present.
-    Links back to the ADR via hasExternalEssentialRequirement
-    and derivedFrom.
-    All CSV-sourced requirements are marked as essential with
-    confidence score 1.0 since they come directly from the ADR document.
+    Creates an ExtractedEssentialRequirement node for ALL named requirements.
+    isApplicable=False means SR8 does not need to comply with this one,
+    but it is stored so you can see the full ADR picture.
     """
     session.run("""
         MERGE (r:ExtractedEssentialRequirement
                :ExtractedRequirement
                :Requirement
                {hasID: $rid})
-        ON CREATE SET r.requirementName        = $name,
+        ON CREATE SET r.requirementName       = $name,
                       r.requirementDescription = $text,
                       r.hasRiskLevel           = 'High',
                       r.isEssential            = true,
                       r.isConditional          = false,
                       r.hasConfidenceScore     = 1.0,
-                      r.hasProvenance          = 'CSV-Extracted'
+                      r.hasProvenance          = 'CSV-Extracted',
+                      r.isApplicable           = $applicable,
+                      r.applicabilityNote      = $note
+        ON MATCH  SET r.isApplicable           = $applicable,
+                      r.applicabilityNote      = $note
         WITH r
         MATCH (a:AustralianDesignRule {hasID: $aid})
         MERGE (a)-[:hasExternalEssentialRequirement]->(r)
         MERGE (r)-[:derivedFrom]->(a)
-    """, rid=req_id, name=req_name, text=text, aid=adr_id)
+    """, rid=req_id, name=req_name, text=text, aid=adr_id,
+         applicable=is_applicable, note=applicability_note)
 
 
 def write_verification(session, adr_id: str, clause_num: str,
                         vmethod: str, vdesc: str, test_proc: str,
                         is_verified: bool):
-    """
-    Creates three nodes and links them:
-      AustralianDesignRule
-        -[:hasVerificationProcedure]-> VerificationProcedure
-        -[:hasVerificationMethod]->    <VerificationMethod subtype>
-        -[:supportedByEvidence]->      <TestingEvidence subtype>
-    The evidence subtype matches the method —
-    e.g. Inspection → InspectionEvidence.
-    Only called when the Verification Method column is filled in.
-    """
     evidence_label = EVIDENCE_LABEL_MAP.get(vmethod, "TestEvidence")
     suffix = clause_num.replace(".", "_")
     vp_id  = f"VP-{adr_id.replace('ADR-','')}-{suffix}"
@@ -328,13 +296,6 @@ def write_verification(session, adr_id: str, clause_num: str,
 
 def write_project_links(session, adr_id: str, project_id: str,
                          rel_project: str, rel_dept: str):
-    """
-    Links an ADR to a Project and/or Department.
-    Creates stub Project/Department nodes if they don't exist yet —
-    they will be enriched later when extract_projects.py runs.
-    Uses both assignedToProject and hasRelevantProject relationships
-    as defined in relationships.csv.
-    """
     if project_id:
         session.run("""
             MERGE (p:Project {projectID: $pid})
@@ -356,10 +317,6 @@ def write_project_links(session, adr_id: str, project_id: str,
 
 
 def write_adr_properties(session, adr_id: str, row: dict):
-    """
-    Updates the ADR node's boolean flags using the last row seen.
-    Called once per file after all rows are processed.
-    """
     session.run("""
         MATCH (a:AustralianDesignRule {hasID: $aid})
         SET a.rightProjectAssigned           = $rightProj,
@@ -378,25 +335,24 @@ def write_adr_properties(session, adr_id: str, row: dict):
 # ── Per-file extractor ────────────────────────────────────────────────
 
 def extract_one_file(path: str, driver, dry_run: bool = False) -> dict:
-    """
-    Processes a single ADR CSV file.
-    Returns a dict of counts for reporting.
-    """
     print(f"\n📄 {Path(path).name}")
 
     with open(path, newline='', encoding='utf-8-sig') as f:
-        rows = list(csv.DictReader(f))
+        reader = csv.DictReader(f)
+        rows = [
+            {k.strip(): v for k, v in row.items()}
+            for row in reader
+    ]
 
     if not rows:
         print("   Empty file — skipping")
         return {}
 
-    # Step 1: forward-fill ADR Number down all rows
     rows = forward_fill_adr_id(rows)
     print(f"   {len(rows)} rows | Headers: {list(rows[0].keys())}")
 
     counts = {
-        "clauses": 0, "requirements": 0,
+        "clauses": 0, "requirements": 0, "not_applicable": 0,
         "vps": 0, "proj_links": 0, "skipped": 0,
     }
     seen_adr_id   = None
@@ -404,8 +360,6 @@ def extract_one_file(path: str, driver, dry_run: bool = False) -> dict:
     req_counter   = 0
 
     for i, row in enumerate(rows, start=2):
-
-        # Step 2: get ADR ID for this row
         adr_id   = normalise_adr_id(get_col(row, "adr_id"))
         adr_name = get_col(row, "adr_name")
 
@@ -413,7 +367,6 @@ def extract_one_file(path: str, driver, dry_run: bool = False) -> dict:
             counts["skipped"] += 1
             continue
 
-        # Step 3: read all fields for this row
         clause_num  = get_col(row, "clause")
         req_name    = get_col(row, "req_name")
         text        = get_col(row, "text")
@@ -426,84 +379,91 @@ def extract_one_file(path: str, driver, dry_run: bool = False) -> dict:
         is_verified = normalise_bool(get_col(row, "verified"))
         vmethod     = normalise_verification_method(vmethod_raw)
 
-        # Step 4: skip section headers and not-applicable rows
-        if req_name and is_not_applicable(req_name):
-            counts["skipped"] += 1
-            if dry_run:
-                print(f"  [SKIP] {clause_num}: {req_name[:60]}")
-            continue
-
-        # Skip rows with nothing useful at all
+        # Skip rows with nothing useful
         if not clause_num and not req_name and not text:
             counts["skipped"] += 1
+            continue
+
+        # Check applicability — returns (None, None) for pure section headers
+        if req_name:
+            is_applicable, applicability_note = read_applicability(row, req_name)
+        else:
+            is_applicable, applicability_note = True, ""
+
+        # None means it is a pure section header — skip it entirely
+        if is_applicable is None:
+            counts["skipped"] += 1
+            if dry_run:
+                print(f"  [HEADER] {clause_num}: {req_name[:60]}")
             continue
 
         seen_adr_id   = adr_id
         seen_last_row = row
 
-        # ── DRY RUN: just print, don't write ────────────────────
+        # ── DRY RUN ──────────────────────────────────────────────
         if dry_run:
+            status = "NOT APPLICABLE" if not is_applicable else "applicable"
             proj_info = f"→ {project_id}" if project_id else "no project"
-            method_info = f"| method: {vmethod}" if vmethod else ""
-            print(f"  [DRY]  {adr_id} | clause {clause_num} "
-                  f"| {req_name[:40]} | {proj_info} {method_info}")
+            text_preview = f" | \"{text[:50]}...\"" if text else " | (no text)"
+            print(f"  [{'N/A ' if not is_applicable else 'DRY '}]  "
+                f"{adr_id} | {clause_num} | "
+                f"{req_name[:40]} | {proj_info} | {status}{text_preview}")
             if clause_num:
                 counts["clauses"] += 1
-            if req_name and text and not is_not_applicable(req_name):
+            if req_name and (text or not is_applicable):
                 counts["requirements"] += 1
+                if not is_applicable:
+                    counts["not_applicable"] += 1
             if vmethod:
                 counts["vps"] += 1
             if project_id or rel_dept:
                 counts["proj_links"] += 1
             continue
 
-        # ── LIVE RUN: write to neo4j ─────────────────────────────
+        # ── LIVE RUN ─────────────────────────────────────────────
         with driver.session() as s:
-
-            # Always write the ADR node (MERGE = safe to repeat)
             write_adr_node(s, adr_id, adr_name)
 
-            # Write Clause node for every row with a clause number
             if clause_num:
-                write_clause(s, adr_id, clause_num, req_name, text)
+                write_clause(s, adr_id, clause_num, req_name, text,
+                             is_applicable, applicability_note or "")
                 counts["clauses"] += 1
 
-            # Write Requirement node only if there is a named requirement
-            if req_name and text and not is_not_applicable(req_name):
+            if req_name and (text or not is_applicable):
                 req_counter += 1
                 req_id = f"REQ-{adr_id.replace('ADR-','')}-{req_counter:03d}"
-                write_requirement(s, adr_id, req_id, req_name, text)
+                write_requirement(s, adr_id, req_id, req_name, text,
+                                  is_applicable, applicability_note or "")
                 counts["requirements"] += 1
+                if not is_applicable:
+                    counts["not_applicable"] += 1
 
-            # Write VerificationProcedure if method is filled in
-            if vmethod and clause_num:
+            if vmethod and clause_num and is_applicable:
                 write_verification(s, adr_id, clause_num,
                                    vmethod, vdesc, test_proc, is_verified)
                 counts["vps"] += 1
 
-            # Write Project and Department links
             if project_id or rel_dept:
                 write_project_links(s, adr_id, project_id,
                                     rel_project, rel_dept)
                 counts["proj_links"] += 1
 
-    # Update ADR-level boolean flags using the last row seen
     if not dry_run and seen_adr_id and seen_last_row:
         with driver.session() as s:
             write_adr_properties(s, seen_adr_id, seen_last_row)
 
     print(f"   ✓ Clauses: {counts['clauses']} | "
-          f"Requirements: {counts['requirements']} | "
+          f"Requirements: {counts['requirements']} "
+          f"({counts['not_applicable']} not applicable) | "
           f"VPs: {counts['vps']} | "
-          f"Project links: {counts['proj_links']} | "
-          f"Skipped: {counts['skipped']}")
+          f"Links: {counts['proj_links']} | "
+          f"Headers skipped: {counts['skipped']}")
     return counts
 
 
 # ── Entry point ───────────────────────────────────────────────────────
 
 def extract_adrs(path=None, folder=None, driver=None, dry_run=False):
-    """Called by run_extraction.py or directly from the CLI."""
     files = []
     if folder:
         p = Path(folder)
@@ -514,7 +474,7 @@ def extract_adrs(path=None, folder=None, driver=None, dry_run=False):
     else:
         raise ValueError("Provide either --file or --folder")
 
-    total = {"clauses": 0, "requirements": 0,
+    total = {"clauses": 0, "requirements": 0, "not_applicable": 0,
              "vps": 0, "proj_links": 0, "skipped": 0}
 
     for f in files:
@@ -531,17 +491,14 @@ def extract_adrs(path=None, folder=None, driver=None, dry_run=False):
 
 
 if __name__ == "__main__":
-    parser = argparse.ArgumentParser(
-        description="Extract ADR requirements from per-ADR CSV files in data/adrs/"
-    )
+    parser = argparse.ArgumentParser()
     group = parser.add_mutually_exclusive_group(required=True)
     group.add_argument("--file",   help="Single ADR CSV file")
-    group.add_argument("--folder", help="Folder containing ADR CSV files")
+    group.add_argument("--folder", help="Folder of ADR CSV files")
     parser.add_argument("--uri",      default="bolt://localhost:7687")
     parser.add_argument("--user",     default="neo4j")
     parser.add_argument("--password", default="password")
-    parser.add_argument("--dry-run",  action="store_true",
-                        help="Preview without writing to neo4j")
+    parser.add_argument("--dry-run",  action="store_true")
     args = parser.parse_args()
 
     driver = None
