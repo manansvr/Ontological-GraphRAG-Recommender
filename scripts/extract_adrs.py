@@ -201,12 +201,7 @@ def write_clause(session, adr_id: str, clause_num: str,
     display = req_name if req_name else clause_num
 
     session.run("""
-        MERGE (c:Clause
-               :InternalEssentialRequirement
-               :InternalRecommendedRequirement
-               :ExtractedEssentialRequirement
-               :ExtractedRecommendedRequirement
-               {hasID: $cid})
+        MERGE (c:Clause {hasID: $cid})
         ON CREATE SET c.hasName            = $display,
                       c.clauseText         = $text,
                       c.isApplicable       = $applicable,
@@ -295,7 +290,7 @@ def write_verification(session, adr_id: str, clause_num: str,
 
 
 def write_project_links(session, adr_id: str, project_id: str,
-                         rel_project: str, rel_dept: str):
+                         rel_project: str, rel_dept: str, req_id: str = None):
     if project_id:
         session.run("""
             MERGE (p:Project {projectID: $pid})
@@ -306,14 +301,13 @@ def write_project_links(session, adr_id: str, project_id: str,
             MERGE (a)-[:hasRelevantProject]->(p)
         """, pid=project_id, pname=rel_project, aid=adr_id)
 
-    if rel_dept:
-        session.run("""
-            MERGE (d:Department {hasName: $dept})
-            WITH d
-            MATCH (a:AustralianDesignRule {hasID: $aid})
-            MERGE (a)-[:assignedToDepartment]->(d)
-            MERGE (a)-[:hasRelevantDepartment]->(d)
-        """, dept=rel_dept, aid=adr_id)
+        # Link requirement → project if a requirement was created for this row
+        if req_id:
+            session.run("""
+                MATCH (r:ExtractedEssentialRequirement {hasID: $rid})
+                MATCH (p:Project {projectID: $pid})
+                MERGE (r)-[:assignedToProject]->(p)
+            """, rid=req_id, pid=project_id)
 
 
 def write_adr_properties(session, adr_id: str, row: dict):
@@ -444,8 +438,9 @@ def extract_one_file(path: str, driver, dry_run: bool = False) -> dict:
                 counts["vps"] += 1
 
             if project_id or rel_dept:
+                current_req_id = f"REQ-{adr_id.replace('ADR-','')}-{req_counter:03d}" if req_name and text else None
                 write_project_links(s, adr_id, project_id,
-                                    rel_project, rel_dept)
+                                    rel_project, rel_dept, current_req_id)
                 counts["proj_links"] += 1
 
     if not dry_run and seen_adr_id and seen_last_row:
