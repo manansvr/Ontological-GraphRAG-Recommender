@@ -4,9 +4,15 @@ extract_adrs.py
 ================
 Extracts from per-ADR CSV files stored in data/adrs/.
 
-ALL requirements are extracted — including Not Applicable ones.
-The isApplicable property on each node records whether it applies to SR8.
-This means the graph contains the full ADR picture, not just what applies.
+3-level hierarchy:
+  AustralianDesignRule
+    -[:hasExternalEssentialRequirement]-> ExtractedEssentialRequirement
+      -[:assignedToProject]-> Project
+
+Also written:
+  AustralianDesignRule -[:hasClause]-> Clause
+  ExtractedEssentialRequirement -[:derivedFrom]-> AustralianDesignRule
+  AustralianDesignRule -[:assignedToDepartment]-> Department
 
 Usage:
   python3 scripts/extract_adrs.py --folder data/adrs/ --dry-run
@@ -56,49 +62,39 @@ COLUMN_ALIASES = {
         "ADR Number", "ADR ID", "ADRID", "ADR Id", "adr_id", "ADR",
     ],
     "applicability": [
-    "Applicability",
-    "applicability",
-    "Is Applicable",
-    "Applicable?",
+        "Applicability", "applicability", "Is Applicable", "Applicable?",
     ],
     "adr_name":  ["ADR Name", "ADRName", "adr_name"],
     "checklist": ["Checklist", "Check", "check", "#"],
     "clause":    ["Clause", "Cla", "clause", "Clause No"],
     "req_name":  ["Req Name", "ReqName", "Requirement Name"],
     "text":      ["Text", "Requirement Text", "text"],
-    "project_id":    ["Project ID", "ProjectID", "project_id"],
-    "rel_project":   ["Relevant Project", "RelevantProject", "Project Name"],
-    "rel_dept":      ["Relevant Department", "RelevantDepartment", "Department"],
+    "project_id":   ["Project ID", "ProjectID", "project_id"],
+    "rel_project":  ["Relevant Project", "RelevantProject", "Project Name"],
+    "rel_dept":     ["Relevant Department", "RelevantDepartment", "Department"],
     "right_project": [
         "Right Project Assigned? (If not, list the appropriate one)",
-        "Right Project Assigned?",
-        "Right Project Assigned",
-        "rightProjectAssigned",
+        "Right Project Assigned?", "Right Project Assigned", "rightProjectAssigned",
     ],
     "alt_testing": [
         "Would like to use Alternative Means of Testing compared to ADR (Yes/No)?",
         "Would like to use Alternative Means Testing compared to ADR (Yes/No)",
-        "Alternative Means Testing",
-        "Uses Alternative Testing",
+        "Alternative Means Testing", "Uses Alternative Testing",
     ],
     "verif_method": [
         "Verification Method : Inspection, Demonstration, Test, Analysis (Simulations/Calculations), ADR Annex, ADR Testing Procedure",
         "Verification Method: Inspection, Demonstration, Test, Analysis (Simulations/Calculations), ADR Annex, ADR Testing Procedure",
-        "Verification Method",
-        "VerificationMethod",
+        "Verification Method", "VerificationMethod",
     ],
     "verif_desc": [
         "Verification Method Description (As detailed as you can be)",
         "Verification Method Description (be as detailed as you can be)",
-        "Verification Method Description",
-        "VerificationMethodDescription",
+        "Verification Method Description", "VerificationMethodDescription",
     ],
     "test_procedure": [
         "Testing Procedure Per Req (To Be Done Later)",
-        "Testing Procedure Per Requirement",
-        "Testing Procedure Per...",
-        "Testing Procedure",
-        "TestingProcedure",
+        "Testing Procedure Per Requirement", "Testing Procedure Per...",
+        "Testing Procedure", "TestingProcedure",
     ],
     "verified": ["Verified?", "Verified", "Is Verified", "isVerified"],
 }
@@ -133,21 +129,11 @@ def normalise_verification_method(raw: str) -> str:
 
 
 def read_applicability(row: dict, req_name: str) -> tuple:
-    """
-    Reads the Applicability column directly from the CSV.
-    'Applicable'     → (True,  "")
-    'Not Applicable' → (False, req_name as the note)
-    Column missing   → falls back to checking req_name text
-    """
     raw = get_col(row, "applicability").strip().lower()
-
     if raw in {"applicable", "yes", "true", "1", "y"}:
         return True, ""
-
     if raw in {"not applicable", "no", "false", "0", "n", "n/a"}:
         return False, req_name.strip()
-
-    # Column not present or empty — infer from req_name as fallback
     if not req_name:
         return True, ""
     name_lower = req_name.strip().lower()
@@ -157,12 +143,10 @@ def read_applicability(row: dict, req_name: str) -> tuple:
 
 
 def forward_fill_adr_id(rows: list) -> list:
-    """Forward-fill ADR Number down all rows — it only appears in the first row."""
     current_id   = ""
     current_name = ""
     id_header    = COLUMN_ALIASES["adr_id"][0]
     name_header  = COLUMN_ALIASES["adr_name"][0]
-
     for row in rows:
         raw = get_col(row, "adr_id")
         if raw:
@@ -172,11 +156,10 @@ def forward_fill_adr_id(rows: list) -> list:
             row[id_header] = current_id
         if not row.get(name_header):
             row[name_header] = current_name
-
     return rows
 
 
-# ── Neo4j writers ─────────────────────────────────────────────────────
+# ── Writers ───────────────────────────────────────────────────────────
 
 def write_adr_node(session, adr_id: str, adr_name: str):
     session.run("""
@@ -192,24 +175,19 @@ def write_adr_node(session, adr_id: str, adr_name: str):
 def write_clause(session, adr_id: str, clause_num: str,
                  req_name: str, text: str,
                  is_applicable: bool, applicability_note: str):
-    """
-    Creates a Clause node for every row with a clause number.
-    isApplicable property records whether this clause applies to SR8.
-    applicabilityNote records the reason if not applicable.
-    """
+    """Clause node — pure Clause label only, connected via hasClause."""
     cid     = f"CLAUSE-{adr_id.replace('ADR-','')}-{clause_num.replace('.','_')}"
     display = req_name if req_name else clause_num
-
     session.run("""
         MERGE (c:Clause {hasID: $cid})
-        ON CREATE SET c.hasName            = $display,
-                      c.clauseText         = $text,
-                      c.isApplicable       = $applicable,
-                      c.applicabilityNote  = $note
-        ON MATCH  SET c.clauseText         = CASE WHEN $text <> '' THEN $text
-                                                   ELSE c.clauseText END,
-                      c.isApplicable       = $applicable,
-                      c.applicabilityNote  = $note
+        ON CREATE SET c.hasName           = $display,
+                      c.clauseText        = $text,
+                      c.isApplicable      = $applicable,
+                      c.applicabilityNote = $note
+        ON MATCH  SET c.clauseText        = CASE WHEN $text <> '' THEN $text
+                                                  ELSE c.clauseText END,
+                      c.isApplicable      = $applicable,
+                      c.applicabilityNote = $note
         WITH c
         MATCH (a:AustralianDesignRule {hasID: $aid})
         MERGE (a)-[:hasClause]->(c)
@@ -221,16 +199,13 @@ def write_requirement(session, adr_id: str, req_id: str,
                        req_name: str, text: str,
                        is_applicable: bool, applicability_note: str):
     """
-    Creates an ExtractedEssentialRequirement node for ALL named requirements.
-    isApplicable=False means SR8 does not need to comply with this one,
-    but it is stored so you can see the full ADR picture.
+    ExtractedEssentialRequirement — sits between ADR and Project.
+    ADR -[:hasExternalEssentialRequirement]-> Requirement -[:assignedToProject]-> Project
     """
     session.run("""
-        MERGE (r:ExtractedEssentialRequirement
-               :ExtractedRequirement
-               :Requirement
+        MERGE (r:ExtractedEssentialRequirement:ExtractedRequirement:Requirement
                {hasID: $rid})
-        ON CREATE SET r.requirementName       = $name,
+        ON CREATE SET r.requirementName        = $name,
                       r.requirementDescription = $text,
                       r.hasRiskLevel           = 'High',
                       r.isEssential            = true,
@@ -239,8 +214,8 @@ def write_requirement(session, adr_id: str, req_id: str,
                       r.hasProvenance          = 'CSV-Extracted',
                       r.isApplicable           = $applicable,
                       r.applicabilityNote      = $note
-        ON MATCH  SET r.isApplicable           = $applicable,
-                      r.applicabilityNote      = $note
+        ON MATCH  SET r.isApplicable      = $applicable,
+                      r.applicabilityNote = $note
         WITH r
         MATCH (a:AustralianDesignRule {hasID: $aid})
         MERGE (a)-[:hasExternalEssentialRequirement]->(r)
@@ -257,7 +232,6 @@ def write_verification(session, adr_id: str, clause_num: str,
     vp_id  = f"VP-{adr_id.replace('ADR-','')}-{suffix}"
     vm_id  = f"VM-{vmethod}-{adr_id.replace('ADR-','')}-{suffix}"
     ev_id  = f"EV-{adr_id.replace('ADR-','')}-{suffix}"
-
     session.run(f"""
         MERGE (vp:VerificationProcedure {{hasID: $vpid}})
         ON CREATE SET
@@ -267,47 +241,64 @@ def write_verification(session, adr_id: str, clause_num: str,
         WITH vp
         MATCH (a:AustralianDesignRule {{hasID: $aid}})
         MERGE (a)-[:hasVerificationProcedure]->(vp)
-
         MERGE (m:{vmethod}:VerificationMethod:VerificationProcedure:Requirement
                {{hasID: $vmid}})
         ON CREATE SET m.hasName = $method
         MERGE (vp)-[:hasVerificationMethod]->(m)
-
         MERGE (ev:{evidence_label}:TestingEvidence:Document {{hasID: $evid}})
         ON CREATE SET ev.hasName    = $evname,
                       ev.isVerified = $verified
         MERGE (vp)-[:supportedByEvidence]->(ev)
         MERGE (a)-[:verifiedBy]->(ev)
     """,
-        vpid=vp_id,
-        vpname=f"VP — {adr_id} clause {clause_num}",
+        vpid=vp_id, vpname=f"VP — {adr_id} clause {clause_num}",
         vdesc=vdesc, testproc=test_proc, aid=adr_id,
         vmid=vm_id, method=vmethod,
-        evid=ev_id,
-        evname=f"{vmethod} Evidence — {adr_id} {clause_num}",
+        evid=ev_id, evname=f"{vmethod} Evidence — {adr_id} {clause_num}",
         verified=is_verified,
     )
 
 
-def write_project_links(session, adr_id: str, project_id: str,
-                         rel_project: str, rel_dept: str, req_id: str = None):
+def write_project_links(session, adr_id: str, req_id: str,
+                         project_id: str, rel_project: str, rel_dept: str):
+    """
+    Links Requirement → Project (not ADR → Project).
+    This creates the 3-level hierarchy:
+      AustralianDesignRule
+        → ExtractedEssentialRequirement
+          → Project
+    Department is still linked from the ADR directly.
+    """
     if project_id:
+        # Create Project node
         session.run("""
             MERGE (p:Project {projectID: $pid})
             ON CREATE SET p.projectName = $pname
-            WITH p
-            MATCH (a:AustralianDesignRule {hasID: $aid})
-            MERGE (a)-[:assignedToProject]->(p)
-            MERGE (a)-[:hasRelevantProject]->(p)
-        """, pid=project_id, pname=rel_project, aid=adr_id)
+        """, pid=project_id, pname=rel_project)
 
-        # Link requirement → project if a requirement was created for this row
+        # Link Requirement → Project (creates the 3rd tier)
         if req_id:
             session.run("""
                 MATCH (r:ExtractedEssentialRequirement {hasID: $rid})
                 MATCH (p:Project {projectID: $pid})
                 MERGE (r)-[:assignedToProject]->(p)
             """, rid=req_id, pid=project_id)
+
+        # Also keep ADR → Project for completeness (used in analytics queries)
+        session.run("""
+            MATCH (a:AustralianDesignRule {hasID: $aid})
+            MATCH (p:Project {projectID: $pid})
+            MERGE (a)-[:hasRelevantProject]->(p)
+        """, aid=adr_id, pid=project_id)
+
+    if rel_dept:
+        session.run("""
+            MERGE (d:Department {hasName: $dept})
+            WITH d
+            MATCH (a:AustralianDesignRule {hasID: $aid})
+            MERGE (a)-[:assignedToDepartment]->(d)
+            MERGE (a)-[:hasRelevantDepartment]->(d)
+        """, dept=rel_dept, aid=adr_id)
 
 
 def write_adr_properties(session, adr_id: str, row: dict):
@@ -330,13 +321,9 @@ def write_adr_properties(session, adr_id: str, row: dict):
 
 def extract_one_file(path: str, driver, dry_run: bool = False) -> dict:
     print(f"\n📄 {Path(path).name}")
-
     with open(path, newline='', encoding='utf-8-sig') as f:
         reader = csv.DictReader(f)
-        rows = [
-            {k.strip(): v for k, v in row.items()}
-            for row in reader
-    ]
+        rows = [{k.strip(): v for k, v in row.items()} for row in reader]
 
     if not rows:
         print("   Empty file — skipping")
@@ -356,7 +343,6 @@ def extract_one_file(path: str, driver, dry_run: bool = False) -> dict:
     for i, row in enumerate(rows, start=2):
         adr_id   = normalise_adr_id(get_col(row, "adr_id"))
         adr_name = get_col(row, "adr_name")
-
         if not adr_id:
             counts["skipped"] += 1
             continue
@@ -373,18 +359,15 @@ def extract_one_file(path: str, driver, dry_run: bool = False) -> dict:
         is_verified = normalise_bool(get_col(row, "verified"))
         vmethod     = normalise_verification_method(vmethod_raw)
 
-        # Skip rows with nothing useful
         if not clause_num and not req_name and not text:
             counts["skipped"] += 1
             continue
 
-        # Check applicability — returns (None, None) for pure section headers
         if req_name:
             is_applicable, applicability_note = read_applicability(row, req_name)
         else:
             is_applicable, applicability_note = True, ""
 
-        # None means it is a pure section header — skip it entirely
         if is_applicable is None:
             counts["skipped"] += 1
             if dry_run:
@@ -394,14 +377,12 @@ def extract_one_file(path: str, driver, dry_run: bool = False) -> dict:
         seen_adr_id   = adr_id
         seen_last_row = row
 
-        # ── DRY RUN ──────────────────────────────────────────────
         if dry_run:
-            status = "NOT APPLICABLE" if not is_applicable else "applicable"
+            status    = "NOT APPLICABLE" if not is_applicable else "applicable"
             proj_info = f"→ {project_id}" if project_id else "no project"
-            text_preview = f" | \"{text[:50]}...\"" if text else " | (no text)"
+            preview   = f" | \"{text[:50]}...\"" if text else " | (no text)"
             print(f"  [{'N/A ' if not is_applicable else 'DRY '}]  "
-                f"{adr_id} | {clause_num} | "
-                f"{req_name[:40]} | {proj_info} | {status}{text_preview}")
+                  f"{adr_id} | {clause_num} | {req_name[:40]} | {proj_info} | {status}{preview}")
             if clause_num:
                 counts["clauses"] += 1
             if req_name and (text or not is_applicable):
@@ -414,19 +395,21 @@ def extract_one_file(path: str, driver, dry_run: bool = False) -> dict:
                 counts["proj_links"] += 1
             continue
 
-        # ── LIVE RUN ─────────────────────────────────────────────
         with driver.session() as s:
             write_adr_node(s, adr_id, adr_name)
 
+            # Clause — always written via hasClause
             if clause_num:
                 write_clause(s, adr_id, clause_num, req_name, text,
                              is_applicable, applicability_note or "")
                 counts["clauses"] += 1
 
+            # Requirement — written first so we have req_id for project link
+            current_req_id = None
             if req_name and (text or not is_applicable):
                 req_counter += 1
-                req_id = f"REQ-{adr_id.replace('ADR-','')}-{req_counter:03d}"
-                write_requirement(s, adr_id, req_id, req_name, text,
+                current_req_id = f"REQ-{adr_id.replace('ADR-','')}-{req_counter:03d}"
+                write_requirement(s, adr_id, current_req_id, req_name, text,
                                   is_applicable, applicability_note or "")
                 counts["requirements"] += 1
                 if not is_applicable:
@@ -437,10 +420,10 @@ def extract_one_file(path: str, driver, dry_run: bool = False) -> dict:
                                    vmethod, vdesc, test_proc, is_verified)
                 counts["vps"] += 1
 
+            # Project link — goes from Requirement → Project (3-level hierarchy)
             if project_id or rel_dept:
-                current_req_id = f"REQ-{adr_id.replace('ADR-','')}-{req_counter:03d}" if req_name and text else None
-                write_project_links(s, adr_id, project_id,
-                                    rel_project, rel_dept, current_req_id)
+                write_project_links(s, adr_id, current_req_id,
+                                    project_id, rel_project, rel_dept)
                 counts["proj_links"] += 1
 
     if not dry_run and seen_adr_id and seen_last_row:
