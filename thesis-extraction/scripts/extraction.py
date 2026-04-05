@@ -19,10 +19,10 @@ sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
 
 # Only import what exists right now — projects and parts loaded lazily below
 from neo4j import GraphDatabase
-from extract_adrs import extract_adrs
+from extract import extract_adrs
 
 DEFAULTS = {
-    "adrs_folder":   "data/adrs",
+    "adrs_folder":   "csv",
     "projects_file": "data/project-tracking-system.csv",
     "parts_file":    "data/parts-management.csv",
 }
