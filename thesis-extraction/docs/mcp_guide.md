@@ -123,7 +123,7 @@ Quit Claude Desktop completely and reopen it. The `sr8-knowledge-graph` server w
 
 ## Available tools
 
-The recommender system currently has access to two tools:
+The recommender system currently has access to five tools:
 
 ### `get_graph_schema`
 
@@ -154,6 +154,76 @@ Example output (abbreviated):
   "properties_by_label": [...]
 }
 ```
+
+---
+
+### `get_compliance_gaps`
+
+Finds all `ExtractedEssentialRequirement` nodes where `isApplicable` is `true` but `isVerified` is `false` or `null`. Results are grouped by project and include the ADR source and requirement name for each gap.
+
+All filter parameters are optional — omit all three to return gaps across the entire graph.
+
+**Arguments:**
+- `project_id` (string, optional) — e.g. `"SRP8-048"`
+- `adr_id` (string, optional) — e.g. `"ADR-43"`
+- `assembly_id` (string, optional) — e.g. `"ASM-STEERING"`
+
+**Example output:**
+```json
+{
+  "filters": { "project_id": null, "adr_id": "ADR-43", "assembly_id": null },
+  "total_projects_with_gaps": 8,
+  "total_gaps": 24,
+  "by_project": [
+    {
+      "projectID": "SRP8-048",
+      "projectName": "Steering Rack",
+      "gapCount": 5,
+      "gaps": [
+        { "requirementID": "REQ-43-007", "requirementName": "...", "adrID": "ADR-43", "adrName": "..." }
+      ]
+    }
+  ]
+}
+```
+
+The recommender system calls this tool proactively whenever you mention a project, assembly, or ADR — you do not need to ask about compliance specifically.
+
+---
+
+### `get_verification_progress`
+
+Returns a verification progress summary: total applicable requirements, total verified, total unverified, and a completion percentage.
+
+**Arguments:**
+- `project_id` (string, optional) — scope to a single project
+- `assembly_id` (string, optional) — scope to all projects in an assembly
+- no arguments — returns graph-wide progress
+
+**Example output:**
+```json
+{
+  "filters": { "project_id": null, "assembly_id": "ASM-FRONT-AXLE" },
+  "total_applicable": 42,
+  "total_verified": 0,
+  "total_unverified": 42,
+  "completion_pct": 0.0
+}
+```
+
+The recommender system calls this tool proactively whenever you mention a project, assembly, or ADR — you do not need to ask about compliance specifically.
+
+---
+
+### `get_highest_risk_gaps`
+
+Returns the top 10 unverified applicable requirements ranked by the number of projects they affect. A requirement assigned to 3 projects is higher risk than one assigned to 1.
+
+Each result includes: ADR source, requirement name, affected project IDs, affected assembly names, and the project count used for ranking.
+
+**No arguments.**
+
+The recommender system calls this tool proactively whenever you mention a project, assembly, or ADR — you do not need to ask about compliance specifically.
 
 ---
 
@@ -194,6 +264,23 @@ RETURN DISTINCT a.hasID, a.hasName
 
 ---
 
+## Testing tools without Claude Desktop
+
+Before connecting to Claude Desktop, you can smoke-test all tools directly against neo4j:
+
+```bash
+python3 scripts/test_tools.py
+```
+
+With custom connection details:
+```bash
+python3 scripts/test_tools.py --uri bolt://localhost:7687 --user neo4j --password password
+```
+
+The test script calls every tool with representative arguments and prints results. It does not use the MCP protocol — it imports the tool functions directly and injects the neo4j driver. Use this to verify the graph is populated and queries return sensible data before opening Claude Desktop.
+
+---
+
 ## Talking to the recommender system
 
 Once Claude Desktop is connected to the MCP server, start a conversation and describe what you need in plain English. The recommender system will call the tools automatically.
@@ -229,6 +316,27 @@ Which requirements are marked as not applicable and why?
 
 ```
 Are there any requirements without a project assigned?
+```
+
+**Compliance gap detection:**
+```
+What are the compliance gaps for the steering assembly?
+```
+
+```
+How many requirements for ADR-43 are still unverified?
+```
+
+```
+What is our overall verification progress across the entire graph?
+```
+
+```
+Which unverified requirements are the highest risk?
+```
+
+```
+Show me verification progress for the front axle assembly.
 ```
 
 **Custom Cypher (power user):**
