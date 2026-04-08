@@ -1,8 +1,22 @@
-# SR8 Knowledge Graph — MCP & Recommender System Guide
+# SR8 Compliance Recommender System — MCP & Web Interface Guide
 
-This document explains how to run the MCP server, connect it to Claude, and use the recommender system to query the SR8 knowledge graph.
+This document explains how to run the recommender system — either as a Streamlit web app or connected to Claude Desktop via MCP.
 
 Keep this document open alongside neo4j Browser when working with the recommender system.
+
+---
+
+## Running the Streamlit recommender system
+
+The Streamlit app is the primary interface. It calls the Anthropic API directly with the neo4j tool functions — no MCP server required.
+
+```bash
+pip install -r requirements.txt    # first time
+cp .env.example .env               # add ANTHROPIC_API_KEY
+streamlit run scripts/recommender_app.py
+```
+
+Opens at `http://localhost:8501`. The sidebar shows live graph stats and quick-action buttons. Each tool call Claude makes is shown as a collapsible section in the chat.
 
 ---
 

@@ -365,12 +365,39 @@ python3 scripts/run_inference.py --write --min-confidence 0.6
 
 ---
 
+### Running the recommender system (Streamlit web app)
+
+The Streamlit app provides a web interface backed by the Anthropic API. It calls the neo4j tool functions directly — no MCP server is needed.
+
+**First-time setup:**
+```bash
+pip install -r requirements.txt
+cp .env.example .env          # then add your ANTHROPIC_API_KEY to .env
+```
+
+**Start neo4j, then run:**
+```bash
+streamlit run scripts/recommender_app.py
+```
+
+The app opens at `http://localhost:8501`. It connects to neo4j, loads the live graph schema into the system prompt, and exposes all 19 tool functions to Claude.
+
+### MCP server (Claude Desktop integration)
+
+As an alternative to the Streamlit app, the MCP server connects the same tools to Claude Desktop:
+
+```bash
+python3 scripts/mcp_server.py
+```
+
+See `docs/mcp_guide.md` for Claude Desktop connection instructions.
+
 ### Smoke-testing all tools
 
-Run the test script directly against neo4j (no MCP protocol):
+Run the test script directly against neo4j (no MCP protocol, no API key needed):
 
 ```bash
 python3 scripts/test_tools.py
 ```
 
-This calls every tool with representative arguments and prints results. Use it to verify the graph is populated and queries return sensible data before opening Claude Desktop.
+This calls every tool with representative arguments and prints results. Use it to verify the graph is populated and queries return sensible data before opening the Streamlit app or Claude Desktop.
