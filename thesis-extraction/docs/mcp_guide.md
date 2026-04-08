@@ -123,7 +123,7 @@ Quit Claude Desktop completely and reopen it. The `sr8-knowledge-graph` server w
 
 ## Available tools
 
-The recommender system currently has access to fourteen tools:
+The recommender system currently has access to nineteen tools:
 
 ### `get_graph_schema`
 
@@ -356,6 +356,67 @@ Then use `promote_inferred_link` (or the recommender system) to confirm correct 
 
 ---
 
+---
+
+## Change impact analysis tools
+
+This component analyses the impact of a proposed engineering design change by traversing the graph to find all affected requirements, projects, and assemblies. The typical workflow is: search by keyword → inspect the chain → scope the reverification → store the report.
+
+### `get_requirements_by_keyword`
+
+Searches `requirementName`, `requirementDescription`, and `clauseText` for a keyword (case-insensitive). Returns two groups: requirements that match directly, and clauses that match (with their parent ADR noted, since clauses are not directly linked to requirements).
+
+**Arguments:**
+- `keyword` (string) — e.g. `"steering"`, `"braking force"`, `"wheel"`
+
+---
+
+### `get_requirement_chain`
+
+For a single requirement, returns the full regulatory chain: ADR → requirement → projects → assemblies. Also returns all clauses from the parent ADR as context (since clauses and requirements are siblings under the ADR, not directly linked).
+
+**Arguments:**
+- `requirement_id` (string) — e.g. `"REQ-43-007"`
+
+---
+
+### `get_reverification_scope`
+
+Given a list of project IDs affected by a change, groups all their requirements into three buckets:
+
+| Bucket | Condition | Action |
+|---|---|---|
+| `must_reverify` | applicable + verified | Change may invalidate existing evidence |
+| `must_verify` | applicable + not verified | Still open, now more urgent |
+| `not_affected` | not applicable | No action required |
+
+**Arguments:**
+- `project_ids` (list of strings) — e.g. `["SRP8-047", "SRP8-048"]`
+
+---
+
+### `write_change_impact_report`
+
+Creates a `ChangeImpactReport` node in neo4j, linked to all affected requirements and projects via `[:affects]` relationships. Stores the change description, risk summary, and timestamp so the analysis is queryable later.
+
+**Call this after completing a change impact analysis to store the findings in the graph for future reference.**
+
+**Arguments:**
+- `change_description` (string)
+- `affected_requirement_ids` (list of strings)
+- `affected_project_ids` (list of strings)
+- `risk_summary` (string)
+
+---
+
+### `get_change_impact_reports`
+
+Returns all `ChangeImpactReport` nodes stored in the graph, newest first, with their affected requirement and project IDs.
+
+**No arguments.**
+
+---
+
 ## Testing tools without Claude Desktop
 
 Before connecting to Claude Desktop, you can smoke-test all tools directly against neo4j:
@@ -516,6 +577,27 @@ Infer a project for REQ-10-003 and write it to the graph.
 
 ```
 Show me all inferred links waiting for review.
+```
+
+**Change impact analysis:**
+```
+Which requirements are related to steering geometry?
+```
+
+```
+Show me the full regulatory chain for REQ-43-007.
+```
+
+```
+If projects SRP8-047 and SRP8-048 are affected by a change, what needs re-verification?
+```
+
+```
+Write a change impact report for a steering rack geometry change affecting SRP8-047 and SRP8-048.
+```
+
+```
+What change impact reports have been recorded?
 ```
 
 **Custom Cypher (power user):**

@@ -15,6 +15,7 @@ Usage:
 import argparse
 import json
 import sys
+from datetime import datetime
 from typing import Any
 
 from mcp.server.fastmcp import FastMCP
@@ -806,6 +807,318 @@ def promote_inferred_link(requirement_id: str, project_id: str) -> str:
 
 
 @mcp.tool()
+def get_requirements_by_keyword(keyword: str) -> str:
+    """
+    Search requirementName, requirementDescription, and clauseText fields
+    for a keyword (case-insensitive). Returns matching requirements with
+    their ADR source, assigned projects, and assemblies. Also returns
+    matching clauses separately, since clauses are not directly linked to
+    requirements in the graph.
+
+    Use this to find which requirements are relevant to a described
+    engineering change before running a full impact analysis.
+
+    Args:
+        keyword: The word or phrase to search for, e.g. "steering",
+                 "braking force", "wheel"
+    """
+    with _driver.session() as s:
+        # Requirements matching by name or description
+        req_rows = s.run("""
+            MATCH (a:AustralianDesignRule)
+                  -[:hasExternalEssentialRequirement]->(r:ExtractedEssentialRequirement)
+            WHERE toLower(r.requirementName)        CONTAINS toLower($kw)
+               OR toLower(r.requirementDescription) CONTAINS toLower($kw)
+            OPTIONAL MATCH (r)-[:assignedToProject]->(p:Project)
+            OPTIONAL MATCH (p)-[:belongsToAssembly]->(asm:Assembly)
+            RETURN
+                r.hasID                  AS requirementID,
+                r.requirementName        AS requirementName,
+                r.requirementDescription AS requirementDescription,
+                r.isApplicable           AS isApplicable,
+                r.isVerified             AS isVerified,
+                a.hasID                  AS adrID,
+                a.hasName                AS adrName,
+                collect(DISTINCT p.projectID)  AS assignedProjects,
+                collect(DISTINCT asm.hasID)    AS assignedAssemblies
+            ORDER BY a.hasID, r.hasID
+        """, kw=keyword).data()
+
+        # Clauses matching by text (not directly linked to requirements)
+        clause_rows = s.run("""
+            MATCH (a:AustralianDesignRule)-[:hasClause]->(c:Clause)
+            WHERE toLower(c.clauseText) CONTAINS toLower($kw)
+            RETURN
+                c.hasID      AS clauseID,
+                c.hasName    AS clauseName,
+                c.clauseText AS clauseText,
+                c.isApplicable AS isApplicable,
+                a.hasID      AS adrID,
+                a.hasName    AS adrName
+            ORDER BY a.hasID, c.hasID
+        """, kw=keyword).data()
+
+    return json.dumps({
+        "keyword": keyword,
+        "requirement_matches": {
+            "count": len(req_rows),
+            "results": req_rows,
+        },
+        "clause_matches": {
+            "count": len(clause_rows),
+            "note": "Clauses are not directly linked to requirements — "
+                    "use the adrID to find related requirements.",
+            "results": clause_rows,
+        },
+    }, indent=2)
+
+
+@mcp.tool()
+def get_requirement_chain(requirement_id: str) -> str:
+    """
+    For a single requirement, return the full regulatory chain:
+    AustralianDesignRule → ExtractedEssentialRequirement → Project → Assembly.
+    Also returns all clauses belonging to the parent ADR as context, since
+    clauses and requirements share the same ADR but are not directly linked.
+
+    Use this to understand the complete regulatory context of a requirement
+    before assessing the impact of a change.
+
+    Args:
+        requirement_id: The hasID of the requirement, e.g. "REQ-43-007"
+    """
+    with _driver.session() as s:
+        # Core chain: ADR → requirement → projects → assemblies
+        chain_row = s.run("""
+            MATCH (a:AustralianDesignRule)
+                  -[:hasExternalEssentialRequirement]->(r:ExtractedEssentialRequirement {hasID: $rid})
+            OPTIONAL MATCH (r)-[:assignedToProject]->(p:Project)
+            OPTIONAL MATCH (p)-[:belongsToAssembly]->(asm:Assembly)
+            RETURN
+                a.hasID                  AS adrID,
+                a.hasName                AS adrName,
+                r.hasID                  AS requirementID,
+                r.requirementName        AS requirementName,
+                r.requirementDescription AS requirementDescription,
+                r.isApplicable           AS isApplicable,
+                r.isVerified             AS isVerified,
+                collect(DISTINCT {
+                    projectID:    p.projectID,
+                    projectName:  p.projectName,
+                    assemblyID:   asm.hasID,
+                    assemblyName: asm.hasName
+                }) AS projectChain
+        """, rid=requirement_id).single()
+
+        if not chain_row:
+            return json.dumps(
+                {"error": f"Requirement {requirement_id!r} not found."},
+                indent=2,
+            )
+
+        # Sibling clauses from the same ADR (contextual — not directly linked)
+        clause_rows = s.run("""
+            MATCH (a:AustralianDesignRule {hasID: $aid})-[:hasClause]->(c:Clause)
+            RETURN
+                c.hasID      AS clauseID,
+                c.hasName    AS clauseName,
+                c.clauseText AS clauseText,
+                c.isApplicable AS isApplicable
+            ORDER BY c.hasID
+        """, aid=chain_row["adrID"]).data()
+
+    return json.dumps({
+        "chain": {
+            "adr": {
+                "adrID":   chain_row["adrID"],
+                "adrName": chain_row["adrName"],
+            },
+            "requirement": {
+                "requirementID":          chain_row["requirementID"],
+                "requirementName":        chain_row["requirementName"],
+                "requirementDescription": chain_row["requirementDescription"],
+                "isApplicable":           chain_row["isApplicable"],
+                "isVerified":             chain_row["isVerified"],
+            },
+            "projects_and_assemblies": _serialise(chain_row["projectChain"]),
+        },
+        "adr_clauses_for_context": {
+            "count": len(clause_rows),
+            "note": "All clauses from the parent ADR — not directly linked to "
+                    "this requirement but share the same regulatory document.",
+            "clauses": clause_rows,
+        },
+    }, indent=2)
+
+
+@mcp.tool()
+def get_reverification_scope(project_ids: list[str]) -> str:
+    """
+    Given a list of project IDs affected by a design change, return all
+    their requirements grouped by what action is needed:
+
+    - must_reverify:  applicable and currently verified — the change may
+                      invalidate existing verification evidence
+    - must_verify:    applicable and not yet verified — still open regardless
+                      of the change, but now more urgent
+    - not_affected:   not applicable — no action required
+
+    Args:
+        project_ids: List of project IDs, e.g. ["SRP8-048", "SRP8-047"]
+
+    Call this tool when the user asks about the impact of a design change,
+    what needs re-testing, or what verification work a change creates.
+    """
+    with _driver.session() as s:
+        rows = s.run("""
+            MATCH (a:AustralianDesignRule)
+                  -[:hasExternalEssentialRequirement]->(r:ExtractedEssentialRequirement)
+                  -[:assignedToProject]->(p:Project)
+            WHERE p.projectID IN $pids
+            RETURN
+                r.hasID           AS requirementID,
+                r.requirementName AS requirementName,
+                r.isApplicable    AS isApplicable,
+                r.isVerified      AS isVerified,
+                a.hasID           AS adrID,
+                a.hasName         AS adrName,
+                p.projectID       AS projectID,
+                p.projectName     AS projectName
+            ORDER BY a.hasID, r.hasID
+        """, pids=project_ids).data()
+
+    must_reverify = []
+    must_verify   = []
+    not_affected  = []
+
+    for row in rows:
+        if not row["isApplicable"]:
+            not_affected.append(row)
+        elif row["isVerified"] is True:
+            must_reverify.append(row)
+        else:
+            must_verify.append(row)
+
+    return json.dumps({
+        "projects_in_scope": project_ids,
+        "summary": {
+            "must_reverify_count": len(must_reverify),
+            "must_verify_count":   len(must_verify),
+            "not_affected_count":  len(not_affected),
+            "total":               len(rows),
+        },
+        "must_reverify": must_reverify,
+        "must_verify":   must_verify,
+        "not_affected":  not_affected,
+    }, indent=2)
+
+
+@mcp.tool()
+def write_change_impact_report(
+    change_description:       str,
+    affected_requirement_ids: list[str],
+    affected_project_ids:     list[str],
+    risk_summary:             str,
+) -> str:
+    """
+    Create a ChangeImpactReport node in neo4j storing the findings of a
+    change impact analysis. Links the report to all affected requirements
+    and projects via [:affects] relationships so the analysis is queryable
+    later.
+
+    The report node stores: change description, risk summary, creation
+    timestamp, and a generated report ID.
+
+    Call this after completing a change impact analysis to store the
+    findings in the graph for future reference.
+
+    Args:
+        change_description:       Plain-English description of the change
+        affected_requirement_ids: List of requirementIDs implicated
+        affected_project_ids:     List of projectIDs implicated
+        risk_summary:             Plain-English risk assessment
+    """
+    report_id  = f"CIR-{datetime.now().strftime('%Y%m%d-%H%M%S')}"
+
+    with _driver.session() as s:
+        # Create the report node
+        s.run("""
+            CREATE (cir:ChangeImpactReport {
+                reportID:          $rid,
+                changeDescription: $desc,
+                riskSummary:       $risk,
+                createdAt:         datetime()
+            })
+        """, rid=report_id, desc=change_description, risk=risk_summary)
+
+        # Link to affected requirements
+        if affected_requirement_ids:
+            s.run("""
+                MATCH (cir:ChangeImpactReport {reportID: $rid})
+                UNWIND $req_ids AS req_id
+                MATCH (r:ExtractedEssentialRequirement {hasID: req_id})
+                MERGE (cir)-[:affects]->(r)
+            """, rid=report_id, req_ids=affected_requirement_ids)
+
+        # Link to affected projects
+        if affected_project_ids:
+            s.run("""
+                MATCH (cir:ChangeImpactReport {reportID: $rid})
+                UNWIND $proj_ids AS proj_id
+                MATCH (p:Project {projectID: proj_id})
+                MERGE (cir)-[:affects]->(p)
+            """, rid=report_id, proj_ids=affected_project_ids)
+
+    return json.dumps({
+        "written":                   True,
+        "reportID":                  report_id,
+        "change_description":        change_description,
+        "affected_requirements":     len(affected_requirement_ids),
+        "affected_projects":         len(affected_project_ids),
+        "risk_summary":              risk_summary,
+    }, indent=2)
+
+
+@mcp.tool()
+def get_change_impact_reports() -> str:
+    """
+    Return all ChangeImpactReport nodes stored in the graph, newest first.
+    Each report includes the change description, risk summary, creation
+    timestamp, and the list of affected requirement and project IDs.
+
+    Use this to review past impact analyses.
+
+    Call this tool when the user asks about the impact of a design change,
+    what needs re-testing, or what verification work a change creates.
+    """
+    cypher = """
+        MATCH (cir:ChangeImpactReport)
+        OPTIONAL MATCH (cir)-[:affects]->(r:ExtractedEssentialRequirement)
+        OPTIONAL MATCH (cir)-[:affects]->(p:Project)
+        RETURN
+            cir.reportID          AS reportID,
+            cir.changeDescription AS changeDescription,
+            cir.riskSummary       AS riskSummary,
+            cir.createdAt         AS createdAt,
+            collect(DISTINCT r.hasID)      AS affectedRequirements,
+            collect(DISTINCT p.projectID)  AS affectedProjects
+        ORDER BY cir.createdAt DESC
+    """
+
+    with _driver.session() as s:
+        rows = s.run(cypher).data()
+
+    for row in rows:
+        if row.get("createdAt") is not None:
+            row["createdAt"] = str(row["createdAt"])
+
+    return json.dumps({
+        "total_reports": len(rows),
+        "reports": rows,
+    }, indent=2)
+
+
+@mcp.tool()
 def query_graph(cypher: str) -> str:
     """
     Execute any Cypher query against the SR8 neo4j knowledge graph
@@ -871,7 +1184,12 @@ def main():
     print(f"              get_similar_assigned_requirements", file=sys.stderr)
     print(f"              write_inferred_project_link",    file=sys.stderr)
     print(f"              get_inferred_links",             file=sys.stderr)
-    print(f"              promote_inferred_link",          file=sys.stderr)
+    print(f"              promote_inferred_link",            file=sys.stderr)
+    print(f"              get_requirements_by_keyword",    file=sys.stderr)
+    print(f"              get_requirement_chain",          file=sys.stderr)
+    print(f"              get_reverification_scope",       file=sys.stderr)
+    print(f"              write_change_impact_report",     file=sys.stderr)
+    print(f"              get_change_impact_reports",      file=sys.stderr)
     print("─" * 50,                                        file=sys.stderr)
 
     mcp.run()

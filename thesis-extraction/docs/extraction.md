@@ -250,3 +250,127 @@ ls csv/
 
 ### Re-running is always safe
 All writes use `MERGE` — running the extraction twice never creates duplicates.
+
+---
+
+## Knowledge Extension
+
+After extraction, the graph can be queried and extended through an MCP (Model Context Protocol) server that exposes the knowledge graph as tools Claude can call autonomously. Claude acts as a recommender system over the graph.
+
+### Starting the MCP server
+
+```bash
+pip install -r requirements.txt   # first time only
+python3 scripts/mcp_server.py
+```
+
+The server connects to neo4j at `bolt://localhost:7687` by default and runs over stdio. Keep neo4j running before starting it.
+
+To connect to Claude Desktop, merge `docs/claude_desktop_config.json` into `~/Library/Application Support/Claude/claude_desktop_config.json` and restart Claude Desktop. See `docs/mcp_guide.md` for full connection instructions.
+
+---
+
+### Tool reference
+
+The MCP server exposes nineteen tools grouped into five areas:
+
+#### Graph exploration
+
+| Tool | What it does |
+|---|---|
+| `get_graph_schema` | Returns live node labels, relationship types, and property keys |
+| `query_graph(cypher)` | Executes any Cypher query and returns JSON results |
+
+**Example questions:**
+- *"What does the SR8 knowledge graph contain?"*
+- *"Run this Cypher query: MATCH (n) RETURN labels(n), count(n)"*
+
+---
+
+#### Compliance gap detection
+
+| Tool | What it does |
+|---|---|
+| `get_compliance_gaps(project_id, adr_id, assembly_id)` | Unverified applicable requirements, optionally filtered |
+| `get_verification_progress(project_id, assembly_id)` | Verified / unverified counts and completion percentage |
+| `get_highest_risk_gaps()` | Top 10 unverified requirements by number of projects affected |
+
+**Example questions:**
+- *"What are the compliance gaps for the steering assembly?"*
+- *"What is our overall verification progress?"*
+- *"Which unverified requirements are the highest risk?"*
+- *"How many requirements for ADR-43 are still open?"*
+
+---
+
+#### Interface risk analysis
+
+| Tool | What it does |
+|---|---|
+| `get_cross_assembly_requirements()` | Requirements that span more than one assembly |
+| `get_assembly_dependencies(assembly_id)` | All assemblies a given assembly shares requirements with |
+| `get_shared_requirements(project_id_1, project_id_2)` | Requirements two specific projects have in common |
+| `get_interface_risk_report()` | Full cross-assembly risk report with flagged items |
+
+**Example questions:**
+- *"Which requirements span more than one assembly?"*
+- *"What are the dependencies of the steering assembly?"*
+- *"What do projects SRP8-047 and SRP8-043 have in common regulatorily?"*
+- *"Give me a full interface risk report across all assemblies."*
+
+---
+
+#### Requirement propagation inference
+
+| Tool | What it does |
+|---|---|
+| `get_unassigned_requirements()` | Requirements with no project assignment |
+| `get_similar_assigned_requirements(requirement_id)` | 5 most similar requirements that do have assignments |
+| `write_inferred_project_link(requirement_id, project_id, confidence, reasoning)` | Writes a `suggestedProject` relationship (never `assignedToProject`) |
+| `get_inferred_links()` | All inferred links waiting for human review |
+| `promote_inferred_link(requirement_id, project_id)` | Converts an inferred link to a confirmed assignment |
+
+To run inference in bulk without Claude Desktop, use the standalone loop:
+
+```bash
+python3 scripts/run_inference.py              # dry run
+python3 scripts/run_inference.py --write      # write to neo4j
+python3 scripts/run_inference.py --write --min-confidence 0.6
+```
+
+**Example questions:**
+- *"Are there any requirements with no project assigned?"*
+- *"Which requirements are missing from the graph?"*
+- *"Infer a project for REQ-10-003 and write it to the graph."*
+- *"Show me all inferred links waiting for review."*
+
+---
+
+#### Change impact analysis
+
+| Tool | What it does |
+|---|---|
+| `get_requirements_by_keyword(keyword)` | Searches requirement names, descriptions, and clause text |
+| `get_requirement_chain(requirement_id)` | Full chain: ADR → requirement → projects → assemblies |
+| `get_reverification_scope(project_ids)` | Groups requirements into must-reverify / must-verify / not-affected |
+| `write_change_impact_report(...)` | Stores a `ChangeImpactReport` node linked to affected nodes |
+| `get_change_impact_reports()` | All past impact reports, newest first |
+
+**Example questions:**
+- *"Which requirements are related to steering geometry?"*
+- *"Show me the full regulatory chain for REQ-43-007."*
+- *"If projects SRP8-047 and SRP8-048 change, what needs re-verification?"*
+- *"Write a change impact report for the steering rack geometry change."*
+- *"What change impact reports have been recorded?"*
+
+---
+
+### Smoke-testing all tools
+
+Run the test script directly against neo4j (no MCP protocol):
+
+```bash
+python3 scripts/test_tools.py
+```
+
+This calls every tool with representative arguments and prints results. Use it to verify the graph is populated and queries return sensible data before opening Claude Desktop.

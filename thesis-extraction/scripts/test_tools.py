@@ -287,6 +287,117 @@ def run_tests(driver):
     else:
         _banner("promote_inferred_link() — SKIPPED (no test link was written)")
 
+    # ── get_requirements_by_keyword ───────────────────────────────────
+    for kw in ["steering", "brake", "wheel"]:
+        _banner(f"get_requirements_by_keyword('{kw}')")
+        result = mcp_server.get_requirements_by_keyword(kw)
+        data = json.loads(result)
+        req_count    = data["requirement_matches"]["count"]
+        clause_count = data["clause_matches"]["count"]
+        print(f"  requirement matches : {req_count}")
+        print(f"  clause matches      : {clause_count}")
+        for req in data["requirement_matches"]["results"][:3]:
+            name = (req.get("requirementName") or "")[:50]
+            print(f"    {req['requirementID']:<14} {req['adrID']:<8} {name}")
+        if req_count == 0 and clause_count == 0:
+            print(f"  (no matches — keyword '{kw}' not found in graph)")
+
+    # ── get_requirement_chain ─────────────────────────────────────────
+    # Fetch a real requirement ID to test with
+    chain_test_id = None
+    with driver.session() as s:
+        row = s.run("""
+            MATCH (r:ExtractedEssentialRequirement)-[:assignedToProject]->()
+            RETURN r.hasID AS rid LIMIT 1
+        """).single()
+        if row:
+            chain_test_id = row["rid"]
+
+    if chain_test_id:
+        _banner(f"get_requirement_chain('{chain_test_id}')")
+        result = mcp_server.get_requirement_chain(chain_test_id)
+        data = json.loads(result)
+        chain = data["chain"]
+        print(f"  ADR        : {chain['adr']['adrID']} — {chain['adr']['adrName']}")
+        print(f"  Requirement: {chain['requirement']['requirementID']}")
+        print(f"               {(chain['requirement']['requirementName'] or '')[:60]}")
+        print(f"  Projects   : {[p['projectID'] for p in chain['projects_and_assemblies'] if p.get('projectID')]}")
+        print(f"  Assemblies : {list({p['assemblyID'] for p in chain['projects_and_assemblies'] if p.get('assemblyID')})}")
+        print(f"  ADR clauses for context: {data['adr_clauses_for_context']['count']}")
+    else:
+        _banner("get_requirement_chain() — SKIPPED (no assigned requirements found)")
+
+    _banner("get_requirement_chain() — missing requirement (error handling)")
+    result = mcp_server.get_requirement_chain("REQ-99-999")
+    data = json.loads(result)
+    print(f"  error returned : {'error' in data}")
+    print(f"  message        : {data.get('error', '')[:80]}")
+
+    # ── get_reverification_scope ──────────────────────────────────────
+    # Test with projects from the front axle assembly
+    test_project_ids = ["SRP8-043", "SRP8-045", "SRP8-050", "SRP8-088"]
+    _banner(f"get_reverification_scope({test_project_ids})")
+    result = mcp_server.get_reverification_scope(test_project_ids)
+    data = json.loads(result)
+    summary = data["summary"]
+    print(f"  total requirements in scope : {summary['total']}")
+    print(f"  must re-verify              : {summary['must_reverify_count']}")
+    print(f"  must verify                 : {summary['must_verify_count']}")
+    print(f"  not affected                : {summary['not_affected_count']}")
+    for req in data["must_reverify"][:3]:
+        print(f"    RE-VERIFY  {req['requirementID']:<14} {req['adrID']:<8} {(req.get('requirementName') or '')[:40]}")
+    for req in data["must_verify"][:3]:
+        print(f"    VERIFY     {req['requirementID']:<14} {req['adrID']:<8} {(req.get('requirementName') or '')[:40]}")
+
+    _banner("get_reverification_scope([]) — empty list")
+    result = mcp_server.get_reverification_scope([])
+    data = json.loads(result)
+    print(f"  total : {data['summary']['total']} (expect 0)")
+
+    # ── write_change_impact_report ────────────────────────────────────
+    _banner("write_change_impact_report()")
+    # Use real requirement and project IDs from the graph
+    test_req_ids  = [r["requirementID"] for r in
+                     json.loads(mcp_server.get_compliance_gaps(
+                         assembly_id="ASM-STEERING"))["by_project"][:1]
+                     ] if True else []
+    # Simpler: just use a couple of known project IDs for the test
+    test_cir_proj = ["SRP8-047", "SRP8-048"]
+    test_cir_reqs = []
+    with driver.session() as s:
+        rows = s.run("""
+            MATCH (r:ExtractedEssentialRequirement)-[:assignedToProject]->(p:Project)
+            WHERE p.projectID IN $pids
+            RETURN r.hasID AS rid LIMIT 3
+        """, pids=test_cir_proj).data()
+        test_cir_reqs = [r["rid"] for r in rows]
+
+    result = mcp_server.write_change_impact_report(
+        change_description="Test: steering rack geometry change — increased toe angle by 2°",
+        affected_requirement_ids=test_cir_reqs,
+        affected_project_ids=test_cir_proj,
+        risk_summary="Test report: ADR-43 braking requirements may need re-verification.",
+    )
+    cir_data = json.loads(result)
+    print(f"  written        : {cir_data.get('written')}")
+    print(f"  reportID       : {cir_data.get('reportID')}")
+    print(f"  affected reqs  : {cir_data.get('affected_requirements')}")
+    print(f"  affected proj  : {cir_data.get('affected_projects')}")
+    test_report_id = cir_data.get("reportID")
+
+    # ── get_change_impact_reports ─────────────────────────────────────
+    _banner("get_change_impact_reports()")
+    result = mcp_server.get_change_impact_reports()
+    data = json.loads(result)
+    print(f"  total reports : {data['total_reports']}")
+    for rpt in data["reports"][:3]:
+        desc = (rpt.get("changeDescription") or "")[:55]
+        print(f"    {rpt['reportID']}  reqs={len(rpt['affectedRequirements'])}"
+              f"  proj={len(rpt['affectedProjects'])}  {desc}")
+    # Verify our test report appears
+    ids = [r["reportID"] for r in data["reports"]]
+    print(f"  test report present : {test_report_id in ids} (expect True)")
+
     _banner("All tests complete")
 
 
