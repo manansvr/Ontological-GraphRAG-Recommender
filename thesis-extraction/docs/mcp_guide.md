@@ -123,7 +123,7 @@ Quit Claude Desktop completely and reopen it. The `sr8-knowledge-graph` server w
 
 ## Available tools
 
-The recommender system currently has access to five tools:
+The recommender system currently has access to nine tools:
 
 ### `get_graph_schema`
 
@@ -281,6 +281,51 @@ The test script calls every tool with representative arguments and prints result
 
 ---
 
+---
+
+## Interface risk analysis tools
+
+### `get_cross_assembly_requirements`
+
+Finds all `ExtractedEssentialRequirement` nodes assigned to projects in more than one assembly. These are the regulatory couplings between engineering teams — obligations that cross assembly boundaries and require active coordination.
+
+For each requirement returns: ADR source, requirement name, verification status, and per-assembly breakdown (assembly ID, name, and the specific projects within it that carry the requirement).
+
+**No arguments.** Results ordered by number of assemblies affected, descending.
+
+---
+
+### `get_assembly_dependencies`
+
+For a given assembly, returns all other assemblies it shares requirements with. For each dependency, lists the specific requirements that create the coupling, which ADR they come from, and which projects on each side are involved. This is the interface risk landscape for a single assembly.
+
+**Arguments:**
+- `assembly_id` (string) — e.g. `"ASM-STEERING"`, `"ASM-FRONT-AXLE"`, `"ASM-REAR-AXLE"`
+
+---
+
+### `get_shared_requirements`
+
+Given two project IDs, finds all requirements they both need to satisfy. Returns requirement names, ADR sources, verification status, and which assembly each project belongs to. Use this to understand what two projects have in common regulatorily.
+
+**Arguments:**
+- `project_id_1` (string) — e.g. `"SRP8-048"`
+- `project_id_2` (string) — e.g. `"SRP8-043"`
+
+---
+
+### `get_interface_risk_report`
+
+Produces a full interface risk report across all three assemblies. For each assembly pair that shares at least one requirement: lists all shared requirements with their ADR source, verification status, and which projects on each side are involved. Flags any unverified cross-assembly requirement as a risk item — an unverified obligation that spans two teams demands active coordination.
+
+**No arguments.** Returns results grouped by assembly pair with a separate `risk_items` list for each pair.
+
+---
+
+All four interface risk tools respond to: *"call this tool when the user asks about interfaces, dependencies, coordination between teams, or risks between assemblies."*
+
+---
+
 ## Talking to the recommender system
 
 Once Claude Desktop is connected to the MCP server, start a conversation and describe what you need in plain English. The recommender system will call the tools automatically.
@@ -337,6 +382,27 @@ Which unverified requirements are the highest risk?
 
 ```
 Show me verification progress for the front axle assembly.
+```
+
+**Interface risk analysis:**
+```
+Which requirements span more than one assembly?
+```
+
+```
+What are the dependencies of the steering assembly?
+```
+
+```
+What do projects SRP8-047 and SRP8-043 have in common regulatorily?
+```
+
+```
+Give me a full interface risk report across all assemblies.
+```
+
+```
+Which cross-assembly requirements are unverified?
 ```
 
 **Custom Cypher (power user):**

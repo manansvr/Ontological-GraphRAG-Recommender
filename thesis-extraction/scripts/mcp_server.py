@@ -280,6 +280,246 @@ def get_highest_risk_gaps() -> str:
 
 
 @mcp.tool()
+def get_cross_assembly_requirements() -> str:
+    """
+    Find all ExtractedEssentialRequirement nodes that are assigned to
+    projects in more than one assembly. These are the regulatory couplings
+    between engineering teams — requirements that cross assembly boundaries
+    and therefore demand coordination.
+
+    For each cross-assembly requirement returns: ADR source, requirement
+    name, and for each affected assembly the assembly ID, name, and the
+    list of projects within it that carry the requirement.
+
+    Results are ordered by number of assemblies affected (descending),
+    then by ADR.
+
+    Call this tool when the user asks about interfaces, dependencies,
+    coordination between teams, or risks between assemblies.
+    """
+    cypher = """
+        MATCH (a:AustralianDesignRule)
+              -[:hasExternalEssentialRequirement]->(r:ExtractedEssentialRequirement)
+              -[:assignedToProject]->(p:Project)
+              -[:belongsToAssembly]->(asm:Assembly)
+        WITH r, a, asm.hasID AS asmID, asm.hasName AS asmName,
+             collect(DISTINCT p.projectID) AS projectsInAssembly
+        WITH r, a,
+             collect({
+                 assemblyID:   asmID,
+                 assemblyName: asmName,
+                 projects:     projectsInAssembly,
+                 projectCount: size(projectsInAssembly)
+             }) AS assemblyCoverage,
+             count(DISTINCT asmID) AS assemblyCount
+        WHERE assemblyCount > 1
+        RETURN
+            r.hasID           AS requirementID,
+            r.requirementName AS requirementName,
+            r.isVerified      AS isVerified,
+            a.hasID           AS adrID,
+            a.hasName         AS adrName,
+            assemblyCoverage,
+            assemblyCount
+        ORDER BY assemblyCount DESC, a.hasID
+    """
+
+    with _driver.session() as s:
+        rows = s.run(cypher).data()
+
+    return json.dumps({
+        "total_cross_assembly_requirements": len(rows),
+        "requirements": _serialise(rows),
+    }, indent=2)
+
+
+@mcp.tool()
+def get_assembly_dependencies(assembly_id: str) -> str:
+    """
+    For a given assembly, return all other assemblies it shares
+    requirements with. For each dependency, lists the specific
+    requirements that create the coupling and which ADR they come from.
+    This maps the full interface risk landscape for a single assembly.
+
+    Args:
+        assembly_id: The assembly to analyse, e.g. "ASM-STEERING",
+                     "ASM-FRONT-AXLE", or "ASM-REAR-AXLE".
+
+    Call this tool when the user asks about interfaces, dependencies,
+    coordination between teams, or risks between assemblies.
+    """
+    cypher = """
+        MATCH (target:Assembly {hasID: $aid})
+              <-[:belongsToAssembly]-(p1:Project)
+              <-[:assignedToProject]-(r:ExtractedEssentialRequirement)
+              -[:assignedToProject]->(p2:Project)
+              -[:belongsToAssembly]->(other:Assembly)
+        WHERE other.hasID <> $aid
+        MATCH (a:AustralianDesignRule)-[:hasExternalEssentialRequirement]->(r)
+        WITH other, r, a,
+             collect(DISTINCT p1.projectID) AS selfProjects,
+             collect(DISTINCT p2.projectID) AS otherProjects
+        RETURN
+            other.hasID   AS dependencyID,
+            other.hasName AS dependencyName,
+            count(DISTINCT r) AS sharedCount,
+            collect({
+                requirementID:   r.hasID,
+                requirementName: r.requirementName,
+                adrID:           a.hasID,
+                adrName:         a.hasName,
+                isVerified:      r.isVerified,
+                selfProjects:    selfProjects,
+                otherProjects:   otherProjects
+            }) AS couplings
+        ORDER BY sharedCount DESC
+    """
+
+    with _driver.session() as s:
+        rows = s.run(cypher, aid=assembly_id).data()
+
+    return json.dumps({
+        "assembly": assembly_id,
+        "dependency_count": len(rows),
+        "dependencies": _serialise(rows),
+    }, indent=2)
+
+
+@mcp.tool()
+def get_shared_requirements(project_id_1: str, project_id_2: str) -> str:
+    """
+    Given two project IDs, find all requirements they both need to
+    satisfy. Returns requirement names, ADR sources, verification status,
+    and which assembly each project belongs to.
+
+    Use this to understand what two projects have in common regulatorily
+    and whether their shared obligations are being tracked consistently.
+
+    Args:
+        project_id_1: First project ID, e.g. "SRP8-048"
+        project_id_2: Second project ID, e.g. "SRP8-043"
+
+    Call this tool when the user asks about interfaces, dependencies,
+    coordination between teams, or risks between assemblies.
+    """
+    cypher = """
+        MATCH (p1:Project {projectID: $pid1})
+              <-[:assignedToProject]-(r:ExtractedEssentialRequirement)
+              -[:assignedToProject]->(p2:Project {projectID: $pid2})
+        MATCH (a:AustralianDesignRule)-[:hasExternalEssentialRequirement]->(r)
+        OPTIONAL MATCH (p1)-[:belongsToAssembly]->(asm1:Assembly)
+        OPTIONAL MATCH (p2)-[:belongsToAssembly]->(asm2:Assembly)
+        RETURN
+            r.hasID           AS requirementID,
+            r.requirementName AS requirementName,
+            r.isApplicable    AS isApplicable,
+            r.isVerified      AS isVerified,
+            a.hasID           AS adrID,
+            a.hasName         AS adrName,
+            asm1.hasID        AS project1Assembly,
+            asm2.hasID        AS project2Assembly
+        ORDER BY a.hasID, r.hasID
+    """
+
+    with _driver.session() as s:
+        rows = s.run(cypher, pid1=project_id_1, pid2=project_id_2).data()
+
+    return json.dumps({
+        "project_1": project_id_1,
+        "project_2": project_id_2,
+        "shared_requirement_count": len(rows),
+        "shared_requirements": _serialise(rows),
+    }, indent=2)
+
+
+@mcp.tool()
+def get_interface_risk_report() -> str:
+    """
+    Produce a full interface risk report across all assembly pairs.
+
+    For each pair of assemblies that share at least one requirement:
+    - Lists every shared requirement and the ADR it comes from
+    - Reports verification status
+    - Flags any unverified cross-assembly requirement as a risk, because
+      an unverified obligation that spans two engineering teams requires
+      active coordination to close
+
+    Results are grouped by assembly pair. Risk items are surfaced
+    separately for easy scanning.
+
+    Call this tool when the user asks about interfaces, dependencies,
+    coordination between teams, or risks between assemblies.
+    """
+    cypher = """
+        MATCH (asm1:Assembly)<-[:belongsToAssembly]-(p1:Project)
+              <-[:assignedToProject]-(r:ExtractedEssentialRequirement)
+              -[:assignedToProject]->(p2:Project)
+              -[:belongsToAssembly]->(asm2:Assembly)
+        WHERE asm1.hasID < asm2.hasID
+        MATCH (a:AustralianDesignRule)-[:hasExternalEssentialRequirement]->(r)
+        RETURN
+            asm1.hasID        AS asm1ID,
+            asm1.hasName      AS asm1Name,
+            asm2.hasID        AS asm2ID,
+            asm2.hasName      AS asm2Name,
+            r.hasID           AS requirementID,
+            r.requirementName AS requirementName,
+            r.isVerified      AS isVerified,
+            a.hasID           AS adrID,
+            a.hasName         AS adrName,
+            collect(DISTINCT p1.projectID) AS asm1Projects,
+            collect(DISTINCT p2.projectID) AS asm2Projects
+        ORDER BY asm1.hasID, asm2.hasID, a.hasID
+    """
+
+    with _driver.session() as s:
+        rows = s.run(cypher).data()
+
+    # Group by assembly pair in Python
+    pairs: dict = {}
+    for row in rows:
+        key = (row["asm1ID"], row["asm2ID"])
+        if key not in pairs:
+            pairs[key] = {
+                "assembly_1":       row["asm1ID"],
+                "assembly_1_name":  row["asm1Name"],
+                "assembly_2":       row["asm2ID"],
+                "assembly_2_name":  row["asm2Name"],
+                "shared_requirements": [],
+                "risk_items":          [],
+            }
+        is_verified = row["isVerified"]
+        is_risk     = (is_verified is False) or (is_verified is None)
+        entry = {
+            "requirementID":   row["requirementID"],
+            "requirementName": row["requirementName"],
+            "adrID":           row["adrID"],
+            "adrName":         row["adrName"],
+            "isVerified":      is_verified,
+            "asm1Projects":    row["asm1Projects"],
+            "asm2Projects":    row["asm2Projects"],
+            "isRisk":          is_risk,
+        }
+        pairs[key]["shared_requirements"].append(entry)
+        if is_risk:
+            pairs[key]["risk_items"].append(entry)
+
+    report = []
+    total_risks = 0
+    for pair in pairs.values():
+        pair["shared_count"] = len(pair["shared_requirements"])
+        pair["risk_count"]   = len(pair["risk_items"])
+        total_risks += pair["risk_count"]
+        report.append(pair)
+
+    return json.dumps({
+        "total_assembly_pairs_with_shared_requirements": len(report),
+        "total_risk_items": total_risks,
+        "pairs": report,
+    }, indent=2)
+
+
+@mcp.tool()
 def query_graph(cypher: str) -> str:
     """
     Execute any Cypher query against the SR8 neo4j knowledge graph
@@ -336,8 +576,12 @@ def main():
     print(f"              query_graph",              file=sys.stderr)
     print(f"              get_compliance_gaps",      file=sys.stderr)
     print(f"              get_verification_progress", file=sys.stderr)
-    print(f"              get_highest_risk_gaps",    file=sys.stderr)
-    print("─" * 50,                                  file=sys.stderr)
+    print(f"              get_highest_risk_gaps",            file=sys.stderr)
+    print(f"              get_cross_assembly_requirements", file=sys.stderr)
+    print(f"              get_assembly_dependencies",       file=sys.stderr)
+    print(f"              get_shared_requirements",         file=sys.stderr)
+    print(f"              get_interface_risk_report",       file=sys.stderr)
+    print("─" * 50,                                        file=sys.stderr)
 
     mcp.run()
 

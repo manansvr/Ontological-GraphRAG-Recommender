@@ -124,6 +124,60 @@ def run_tests(driver):
         name = (row.get("requirementName") or "")[:50]
         print(f"  {i:<5} {row['adrID']:<8} {row['projectCount']:<9} {name}")
 
+    # ── get_cross_assembly_requirements ──────────────────────────────
+    _banner("get_cross_assembly_requirements()")
+    result = mcp_server.get_cross_assembly_requirements()
+    data = json.loads(result)
+    print(f"  cross-assembly requirements : {data['total_cross_assembly_requirements']}")
+    for req in data["requirements"][:5]:
+        assemblies = [c["assemblyID"] for c in req["assemblyCoverage"]]
+        name = (req.get("requirementName") or "")[:45]
+        print(f"    {req['adrID']:<8} spans {req['assemblyCount']} assemblies"
+              f"  {assemblies}  {name}")
+
+    # ── get_assembly_dependencies ─────────────────────────────────────
+    for asm in ["ASM-STEERING", "ASM-FRONT-AXLE", "ASM-REAR-AXLE"]:
+        _banner(f"get_assembly_dependencies('{asm}')")
+        result = mcp_server.get_assembly_dependencies(asm)
+        data = json.loads(result)
+        print(f"  dependencies found : {data['dependency_count']}")
+        for dep in data["dependencies"]:
+            print(f"    → {dep['dependencyID']:<20s} {dep['sharedCount']} shared requirements")
+            for c in dep["couplings"][:3]:
+                name = (c.get("requirementName") or "")[:50]
+                print(f"        {c['adrID']:<8} {name}")
+
+    # ── get_shared_requirements ───────────────────────────────────────
+    # Use two projects that are likely to share ADR-43 requirements
+    _banner("get_shared_requirements('SRP8-047', 'SRP8-043')")
+    result = mcp_server.get_shared_requirements("SRP8-047", "SRP8-043")
+    data = json.loads(result)
+    print(f"  shared requirements : {data['shared_requirement_count']}")
+    for req in data["shared_requirements"][:5]:
+        name = (req.get("requirementName") or "")[:50]
+        print(f"    {req['adrID']:<8} verified={req['isVerified']}  {name}")
+
+    _banner("get_shared_requirements('SRP8-048', 'SRP8-050') — same assembly")
+    result = mcp_server.get_shared_requirements("SRP8-048", "SRP8-050")
+    data = json.loads(result)
+    print(f"  shared requirements : {data['shared_requirement_count']}")
+    for req in data["shared_requirements"][:3]:
+        name = (req.get("requirementName") or "")[:50]
+        print(f"    {req['adrID']:<8} {name}")
+
+    # ── get_interface_risk_report ─────────────────────────────────────
+    _banner("get_interface_risk_report()")
+    result = mcp_server.get_interface_risk_report()
+    data = json.loads(result)
+    print(f"  assembly pairs with shared requirements : {data['total_assembly_pairs_with_shared_requirements']}")
+    print(f"  total risk items                        : {data['total_risk_items']}")
+    for pair in data["pairs"]:
+        print(f"\n    {pair['assembly_1']} ↔ {pair['assembly_2']}")
+        print(f"      shared: {pair['shared_count']}  risks: {pair['risk_count']}")
+        for item in pair["risk_items"][:3]:
+            name = (item.get("requirementName") or "")[:45]
+            print(f"      ⚠  {item['adrID']:<8} {name}")
+
     _banner("All tests complete")
 
 
