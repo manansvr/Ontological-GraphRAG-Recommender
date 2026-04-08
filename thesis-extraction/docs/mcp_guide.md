@@ -123,7 +123,7 @@ Quit Claude Desktop completely and reopen it. The `sr8-knowledge-graph` server w
 
 ## Available tools
 
-The recommender system currently has access to nine tools:
+The recommender system currently has access to fourteen tools:
 
 ### `get_graph_schema`
 
@@ -261,6 +261,98 @@ MATCH (a:AustralianDesignRule)-[:hasExternalEssentialRequirement]->(r)
 WHERE asm.hasID = "ASM-STEERING"
 RETURN DISTINCT a.hasID, a.hasName
 ```
+
+---
+
+---
+
+## Requirement propagation inference tools
+
+This component finds requirements with no project assignment and uses
+similarity reasoning to infer which project they likely apply to. All
+inferred links use a `suggestedProject` relationship type that is
+permanently distinguishable from confirmed `assignedToProject` links.
+
+### `get_unassigned_requirements`
+
+Returns all `ExtractedEssentialRequirement` nodes with no `assignedToProject` relationship — the gaps in the current graph. Includes requirement name, description, and ADR source for each.
+
+**No arguments.** The recommender system calls this proactively when you ask about gaps, missing assignments, or extending the knowledge base.
+
+---
+
+### `get_similar_assigned_requirements`
+
+Given an unassigned requirement ID, finds the 5 most similar requirements that do have project assignments. Similarity is scored by: same ADR (+0.4 bonus) and Jaccard word overlap on `requirementName`. Returns the similar requirements and their assigned projects — these serve as examples for inference.
+
+**Arguments:**
+- `requirement_id` (string) — e.g. `"REQ-10-003"`
+
+---
+
+### `write_inferred_project_link`
+
+Writes an inferred project assignment to neo4j as a `suggestedProject` relationship. Never writes `assignedToProject` — inferred links are always distinguishable from confirmed extracted links.
+
+Stores `confidence`, `reasoning`, `inferredBy: "Claude-MCP"`, and `inferredAt: datetime()` on the relationship for full audit trail.
+
+**Arguments:**
+- `requirement_id` (string)
+- `project_id` (string)
+- `confidence` (float, 0.0–1.0)
+- `reasoning` (string) — stored in the graph for human review
+
+---
+
+### `get_inferred_links`
+
+Returns all `suggestedProject` relationships currently in the graph, with confidence score, reasoning, and timestamp. Use this to review inferred assignments before promoting them.
+
+**No arguments.**
+
+---
+
+### `promote_inferred_link`
+
+Converts a `suggestedProject` relationship to a confirmed `assignedToProject` relationship after human review. Deletes the inferred link and creates the confirmed one with `promotedAt`, `promotedBy: "human-review"`, and the original confidence and reasoning preserved for audit.
+
+**Arguments:**
+- `requirement_id` (string)
+- `project_id` (string)
+
+---
+
+## Running the inference loop
+
+The inference loop runs outside the MCP server — it calls the tool functions directly against neo4j:
+
+```bash
+# Dry run — see what would be inferred, write nothing
+python3 scripts/run_inference.py
+
+# Write inferences to neo4j as suggestedProject relationships
+python3 scripts/run_inference.py --write
+
+# Only write high-confidence inferences
+python3 scripts/run_inference.py --write --min-confidence 0.6
+```
+
+The inference algorithm:
+1. Fetches all unassigned requirements
+2. For each, finds similar assigned requirements (same ADR + word overlap)
+3. Votes across similar requirements' project assignments, weighted by similarity score
+4. Confidence = winning project's vote share × top similarity score
+
+The dry-run report shows a ranked table with `✓` for inferences that would be written at the current threshold and `·` for those below it.
+
+After running with `--write`, review inferred links in neo4j Browser:
+```cypher
+MATCH (r)-[rel:suggestedProject]->(p)
+RETURN r.hasID, r.requirementName, p.projectID, rel.confidence, rel.reasoning
+ORDER BY rel.confidence DESC
+```
+
+Then use `promote_inferred_link` (or the recommender system) to confirm correct inferences.
 
 ---
 
@@ -403,6 +495,27 @@ Give me a full interface risk report across all assemblies.
 
 ```
 Which cross-assembly requirements are unverified?
+```
+
+**Requirement propagation:**
+```
+Are there any requirements with no project assigned?
+```
+
+```
+Which requirements are missing from the graph?
+```
+
+```
+Find requirements similar to REQ-10-003 that already have projects.
+```
+
+```
+Infer a project for REQ-10-003 and write it to the graph.
+```
+
+```
+Show me all inferred links waiting for review.
 ```
 
 **Custom Cypher (power user):**

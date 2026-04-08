@@ -178,6 +178,115 @@ def run_tests(driver):
             name = (item.get("requirementName") or "")[:45]
             print(f"      ⚠  {item['adrID']:<8} {name}")
 
+    # ── get_unassigned_requirements ───────────────────────────────────
+    _banner("get_unassigned_requirements()")
+    result = mcp_server.get_unassigned_requirements()
+    data = json.loads(result)
+    print(f"  total unassigned : {data['total_unassigned']}")
+    for req in data["requirements"][:5]:
+        name = (req.get("requirementName") or "")[:50]
+        print(f"    {req['requirementID']:<14} {req['adrID']:<8} {name}")
+    if data["total_unassigned"] > 5:
+        print(f"    ... ({data['total_unassigned'] - 5} more)")
+
+    # ── get_similar_assigned_requirements ─────────────────────────────
+    unassigned_reqs = data["requirements"]
+    if unassigned_reqs:
+        test_req_id = unassigned_reqs[0]["requirementID"]
+        _banner(f"get_similar_assigned_requirements('{test_req_id}')")
+        result = mcp_server.get_similar_assigned_requirements(test_req_id)
+        sim_data = json.loads(result)
+        target = sim_data.get("target_requirement", {})
+        print(f"  target : {target.get('requirementID')} — {target.get('requirementName', '')[:50]}")
+        print(f"  similar requirements found: {len(sim_data.get('similar_requirements', []))}")
+        for s in sim_data.get("similar_requirements", []):
+            projects = [p["projectID"] for p in s.get("assignedProjects", []) if p.get("projectID")]
+            name = (s.get("requirementName") or "")[:45]
+            print(f"    score={s['similarityScore']:.3f}  {s['requirementID']:<14}  "
+                  f"projects={projects}  {name}")
+    else:
+        _banner("get_similar_assigned_requirements() — SKIPPED (no unassigned reqs)")
+        print("  All requirements are assigned — nothing to find similarities for.")
+        test_req_id = None
+
+    # ── write_inferred_project_link ───────────────────────────────────
+    # Write a test inference if we have an unassigned req and similar reqs with projects
+    wrote_test_link = False
+    test_write_rid  = None
+    test_write_pid  = None
+
+    if test_req_id and sim_data.get("similar_requirements"):
+        # Pick the first project from the most similar requirement
+        top_sim   = sim_data["similar_requirements"][0]
+        projects  = [p for p in top_sim.get("assignedProjects", []) if p.get("projectID")]
+        if projects:
+            test_write_rid = test_req_id
+            test_write_pid = projects[0]["projectID"]
+            _banner(f"write_inferred_project_link('{test_write_rid}', '{test_write_pid}', ...)")
+            result = mcp_server.write_inferred_project_link(
+                requirement_id=test_write_rid,
+                project_id=test_write_pid,
+                confidence=top_sim["similarityScore"],
+                reasoning=f"Test inference: similar to {top_sim['requirementID']}",
+            )
+            write_data = json.loads(result)
+            wrote_test_link = write_data.get("written", False)
+            print(f"  written      : {write_data.get('written')}")
+            print(f"  requirementID: {write_data.get('requirementID')}")
+            print(f"  projectID    : {write_data.get('projectID')}")
+            print(f"  confidence   : {write_data.get('confidence')}")
+            print(f"  inferredAt   : {write_data.get('inferredAt')}")
+
+            # Test bad confidence value
+            _banner("write_inferred_project_link() — invalid confidence (error handling)")
+            bad_result = json.loads(mcp_server.write_inferred_project_link(
+                test_write_rid, test_write_pid, 1.5, "should fail"
+            ))
+            print(f"  error returned : {'error' in bad_result}")
+            print(f"  message        : {bad_result.get('error', '')}")
+        else:
+            _banner("write_inferred_project_link() — SKIPPED (no projects on similar reqs)")
+    else:
+        _banner("write_inferred_project_link() — SKIPPED (no unassigned reqs)")
+
+    # ── get_inferred_links ────────────────────────────────────────────
+    _banner("get_inferred_links()")
+    result = mcp_server.get_inferred_links()
+    inf_data = json.loads(result)
+    print(f"  total inferred links : {inf_data['total_inferred_links']}")
+    for link in inf_data["links"][:5]:
+        print(f"    {link['requirementID']:<14} → {link['projectID']:<12} "
+              f"conf={link['confidence']:.2f}  by={link['inferredBy']}")
+
+    # ── promote_inferred_link ─────────────────────────────────────────
+    # Only promote if we just wrote a test link
+    if wrote_test_link and test_write_rid and test_write_pid:
+        _banner(f"promote_inferred_link('{test_write_rid}', '{test_write_pid}')")
+        result = mcp_server.promote_inferred_link(test_write_rid, test_write_pid)
+        prom_data = json.loads(result)
+        print(f"  promoted           : {prom_data.get('promoted')}")
+        print(f"  requirementID      : {prom_data.get('requirementID')}")
+        print(f"  projectID          : {prom_data.get('projectID')}")
+        print(f"  promotedAt         : {prom_data.get('promotedAt')}")
+        print(f"  originalConfidence : {prom_data.get('originalConfidence')}")
+
+        # Verify it's gone from inferred links
+        after_raw  = mcp_server.get_inferred_links()
+        after_data = json.loads(after_raw)
+        still_inferred = any(
+            l["requirementID"] == test_write_rid and l["projectID"] == test_write_pid
+            for l in after_data["links"]
+        )
+        print(f"  still in suggestedProject after promote : {still_inferred} (expect False)")
+
+        # Test promoting something that doesn't exist
+        _banner("promote_inferred_link() — missing link (error handling)")
+        bad_result = json.loads(mcp_server.promote_inferred_link("REQ-99-999", "SRP8-999"))
+        print(f"  error returned : {'error' in bad_result}")
+        print(f"  message        : {bad_result.get('error', '')[:80]}")
+    else:
+        _banner("promote_inferred_link() — SKIPPED (no test link was written)")
+
     _banner("All tests complete")
 
 

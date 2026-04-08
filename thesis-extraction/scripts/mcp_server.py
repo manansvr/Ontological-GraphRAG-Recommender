@@ -520,6 +520,292 @@ def get_interface_risk_report() -> str:
 
 
 @mcp.tool()
+def get_unassigned_requirements() -> str:
+    """
+    Return all ExtractedEssentialRequirement nodes that have no
+    assignedToProject relationship. These are the gaps in the current
+    graph — requirements extracted from ADRs that have not yet been
+    mapped to a responsible project.
+
+    For each unassigned requirement returns: requirement ID, name,
+    description, ADR source, and applicability status.
+
+    Call this tool when the user asks about gaps in the graph, missing
+    assignments, or wants to extend the knowledge base.
+    """
+    cypher = """
+        MATCH (a:AustralianDesignRule)
+              -[:hasExternalEssentialRequirement]->(r:ExtractedEssentialRequirement)
+        WHERE NOT (r)-[:assignedToProject]->()
+        RETURN
+            r.hasID                  AS requirementID,
+            r.requirementName        AS requirementName,
+            r.requirementDescription AS requirementDescription,
+            r.isApplicable           AS isApplicable,
+            a.hasID                  AS adrID,
+            a.hasName                AS adrName
+        ORDER BY a.hasID, r.hasID
+    """
+
+    with _driver.session() as s:
+        rows = s.run(cypher).data()
+
+    return json.dumps({
+        "total_unassigned": len(rows),
+        "requirements": rows,
+    }, indent=2)
+
+
+def _word_overlap(a: str, b: str) -> float:
+    """Jaccard similarity on word sets — used for requirement name comparison."""
+    a_words = set((a or "").lower().split()) - {"the", "a", "an", "of", "and", "or", "to", "be", "is", "in", "that", "shall"}
+    b_words = set((b or "").lower().split()) - {"the", "a", "an", "of", "and", "or", "to", "be", "is", "in", "that", "shall"}
+    if not a_words or not b_words:
+        return 0.0
+    return len(a_words & b_words) / len(a_words | b_words)
+
+
+@mcp.tool()
+def get_similar_assigned_requirements(requirement_id: str) -> str:
+    """
+    Given an unassigned requirement ID, find the 5 most similar
+    requirements that DO have project assignments. Similarity is based
+    on: same ADR (strong signal), and word overlap in requirementName.
+
+    Returns the similar requirements with their assigned projects.
+    These serve as examples for inferring which project the unassigned
+    requirement should be mapped to.
+
+    Call this tool when the user asks about gaps in the graph, missing
+    assignments, or wants to extend the knowledge base.
+
+    Args:
+        requirement_id: The hasID of an unassigned requirement,
+                        e.g. "REQ-10-003"
+    """
+    # Fetch the target requirement and its ADR
+    with _driver.session() as s:
+        target_row = s.run("""
+            MATCH (a:AustralianDesignRule)
+                  -[:hasExternalEssentialRequirement]->(r:ExtractedEssentialRequirement {hasID: $rid})
+            RETURN r.requirementName AS name, a.hasID AS adrID
+        """, rid=requirement_id).single()
+
+        if not target_row:
+            return json.dumps({"error": f"Requirement {requirement_id!r} not found."}, indent=2)
+
+        target_name = target_row["name"] or ""
+        target_adr  = target_row["adrID"]
+
+        # Fetch all assigned requirements — same ADR first, then others
+        candidates = s.run("""
+            MATCH (a:AustralianDesignRule)
+                  -[:hasExternalEssentialRequirement]->(r:ExtractedEssentialRequirement)
+                  -[:assignedToProject]->(p:Project)
+            WHERE r.hasID <> $rid
+            OPTIONAL MATCH (p)-[:belongsToAssembly]->(asm:Assembly)
+            RETURN
+                r.hasID           AS requirementID,
+                r.requirementName AS requirementName,
+                a.hasID           AS adrID,
+                collect(DISTINCT {projectID: p.projectID, projectName: p.projectName,
+                                  assemblyID: asm.hasID}) AS assignedProjects,
+                (a.hasID = $adrID) AS sameADR
+            ORDER BY sameADR DESC, r.hasID
+        """, rid=requirement_id, adrID=target_adr).data()
+
+    # Score by: same ADR bonus + word overlap
+    scored = []
+    for c in candidates:
+        overlap    = _word_overlap(target_name, c["requirementName"] or "")
+        adr_bonus  = 0.4 if c["sameADR"] else 0.0
+        score      = round(min(overlap + adr_bonus, 1.0), 3)
+        scored.append({**c, "similarityScore": score})
+
+    scored.sort(key=lambda x: x["similarityScore"], reverse=True)
+    top5 = scored[:5]
+
+    return json.dumps({
+        "target_requirement": {
+            "requirementID":   requirement_id,
+            "requirementName": target_name,
+            "adrID":           target_adr,
+        },
+        "similar_requirements": _serialise(top5),
+    }, indent=2)
+
+
+@mcp.tool()
+def write_inferred_project_link(
+    requirement_id: str,
+    project_id: str,
+    confidence: float,
+    reasoning: str,
+) -> str:
+    """
+    Write an inferred project assignment to neo4j as a suggestedProject
+    relationship — never as assignedToProject.
+
+    Creates:
+      (ExtractedEssentialRequirement)-[:suggestedProject {
+          confidence, reasoning, inferredBy, inferredAt
+      }]->(Project)
+
+    The suggestedProject relationship type is permanently distinguishable
+    from confirmed assignedToProject relationships. Use promote_inferred_link
+    to confirm an inference after human review.
+
+    Args:
+        requirement_id: hasID of the requirement, e.g. "REQ-10-003"
+        project_id:     projectID of the suggested project, e.g. "SRP8-048"
+        confidence:     float between 0.0 and 1.0
+        reasoning:      human-readable explanation of why this inference
+                        was made — stored in the graph for audit trail
+
+    Call this tool when the user asks about gaps in the graph, missing
+    assignments, or wants to extend the knowledge base.
+    """
+    if not 0.0 <= confidence <= 1.0:
+        return json.dumps(
+            {"error": f"confidence must be between 0.0 and 1.0, got {confidence}"},
+            indent=2,
+        )
+
+    with _driver.session() as s:
+        result = s.run("""
+            MATCH (r:ExtractedEssentialRequirement {hasID: $rid})
+            MATCH (p:Project {projectID: $pid})
+            MERGE (r)-[rel:suggestedProject]->(p)
+            SET rel.confidence  = $confidence,
+                rel.reasoning   = $reasoning,
+                rel.inferredBy  = "Claude-MCP",
+                rel.inferredAt  = datetime()
+            RETURN r.hasID AS requirementID, p.projectID AS projectID,
+                   rel.confidence AS confidence, rel.inferredAt AS inferredAt
+        """, rid=requirement_id, pid=project_id,
+             confidence=confidence, reasoning=reasoning).single()
+
+    if not result:
+        return json.dumps({
+            "error": f"Could not find requirement {requirement_id!r} or project {project_id!r}."
+        }, indent=2)
+
+    return json.dumps({
+        "written": True,
+        "requirementID": result["requirementID"],
+        "projectID":     result["projectID"],
+        "confidence":    result["confidence"],
+        "inferredAt":    str(result["inferredAt"]),
+    }, indent=2)
+
+
+@mcp.tool()
+def get_inferred_links() -> str:
+    """
+    Return all suggestedProject relationships currently in the graph,
+    including confidence score, reasoning, who inferred it, and when.
+
+    Use this for human review of inferred project assignments before
+    deciding which to promote to confirmed assignedToProject links.
+
+    Call this tool when the user asks about gaps in the graph, missing
+    assignments, or wants to extend the knowledge base.
+    """
+    cypher = """
+        MATCH (r:ExtractedEssentialRequirement)-[rel:suggestedProject]->(p:Project)
+        MATCH (a:AustralianDesignRule)-[:hasExternalEssentialRequirement]->(r)
+        OPTIONAL MATCH (p)-[:belongsToAssembly]->(asm:Assembly)
+        RETURN
+            r.hasID           AS requirementID,
+            r.requirementName AS requirementName,
+            a.hasID           AS adrID,
+            p.projectID       AS projectID,
+            p.projectName     AS projectName,
+            asm.hasID         AS assemblyID,
+            rel.confidence    AS confidence,
+            rel.reasoning     AS reasoning,
+            rel.inferredBy    AS inferredBy,
+            rel.inferredAt    AS inferredAt
+        ORDER BY rel.confidence DESC
+    """
+
+    with _driver.session() as s:
+        rows = s.run(cypher).data()
+
+    # Convert neo4j datetime to string
+    for row in rows:
+        if row.get("inferredAt") is not None:
+            row["inferredAt"] = str(row["inferredAt"])
+
+    return json.dumps({
+        "total_inferred_links": len(rows),
+        "links": rows,
+    }, indent=2)
+
+
+@mcp.tool()
+def promote_inferred_link(requirement_id: str, project_id: str) -> str:
+    """
+    Promote a suggestedProject relationship to a confirmed assignedToProject
+    relationship. Call this when an engineer has reviewed an inferred link
+    and confirmed it is correct.
+
+    The original suggestedProject relationship is deleted. A new
+    assignedToProject relationship is created with promotedAt and
+    promotedBy properties for audit trail. The original confidence and
+    reasoning are preserved on the confirmed relationship.
+
+    Args:
+        requirement_id: hasID of the requirement, e.g. "REQ-10-003"
+        project_id:     projectID of the project to confirm, e.g. "SRP8-048"
+
+    Call this tool when the user asks about gaps in the graph, missing
+    assignments, or wants to extend the knowledge base.
+    """
+    with _driver.session() as s:
+        # Read the inferred link properties before deleting
+        inferred = s.run("""
+            MATCH (r:ExtractedEssentialRequirement {hasID: $rid})
+                  -[rel:suggestedProject]->(p:Project {projectID: $pid})
+            RETURN rel.confidence AS confidence, rel.reasoning AS reasoning
+        """, rid=requirement_id, pid=project_id).single()
+
+        if not inferred:
+            return json.dumps({
+                "error": f"No suggestedProject link found between "
+                         f"{requirement_id!r} and {project_id!r}."
+            }, indent=2)
+
+        saved_confidence = inferred["confidence"]
+        saved_reasoning  = inferred["reasoning"]
+
+        # Delete the inferred link and write the confirmed one
+        result = s.run("""
+            MATCH (r:ExtractedEssentialRequirement {hasID: $rid})
+                  -[rel:suggestedProject]->(p:Project {projectID: $pid})
+            DELETE rel
+            WITH r, p
+            MERGE (r)-[confirmed:assignedToProject]->(p)
+            SET confirmed.promotedAt          = datetime(),
+                confirmed.promotedBy          = "human-review",
+                confirmed.originalConfidence  = $confidence,
+                confirmed.originalReasoning   = $reasoning
+            RETURN r.hasID AS requirementID, p.projectID AS projectID,
+                   confirmed.promotedAt AS promotedAt
+        """, rid=requirement_id, pid=project_id,
+             confidence=saved_confidence, reasoning=saved_reasoning).single()
+
+    return json.dumps({
+        "promoted": True,
+        "requirementID":      result["requirementID"],
+        "projectID":          result["projectID"],
+        "promotedAt":         str(result["promotedAt"]),
+        "originalConfidence": saved_confidence,
+        "originalReasoning":  saved_reasoning,
+    }, indent=2)
+
+
+@mcp.tool()
 def query_graph(cypher: str) -> str:
     """
     Execute any Cypher query against the SR8 neo4j knowledge graph
@@ -581,6 +867,11 @@ def main():
     print(f"              get_assembly_dependencies",       file=sys.stderr)
     print(f"              get_shared_requirements",         file=sys.stderr)
     print(f"              get_interface_risk_report",       file=sys.stderr)
+    print(f"              get_unassigned_requirements",    file=sys.stderr)
+    print(f"              get_similar_assigned_requirements", file=sys.stderr)
+    print(f"              write_inferred_project_link",    file=sys.stderr)
+    print(f"              get_inferred_links",             file=sys.stderr)
+    print(f"              promote_inferred_link",          file=sys.stderr)
     print("─" * 50,                                        file=sys.stderr)
 
     mcp.run()
