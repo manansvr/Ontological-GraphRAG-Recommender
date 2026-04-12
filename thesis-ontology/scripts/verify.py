@@ -8,6 +8,7 @@ class OntologyVerifier:
         try:
             self.driver = GraphDatabase.driver(uri, auth=(user, password))
             print(f"✓ Connected To neo4j @ {uri}")
+
         except Exception as e:
             print(f"✗ Failed To Connect To neo4j: {e}")
             sys.exit(1)
@@ -26,6 +27,7 @@ class OntologyVerifier:
 
             if count == 66:
                 print(f"✓ All 66 Node Labels Imported Correctly")
+
             else:
                 print(f"✗ Expected 66 Node Labels, Found {count}")
                 return False
@@ -56,6 +58,7 @@ class OntologyVerifier:
 
             if sorted(parents) == sorted(expected_parents):
                 print(f"\n✓ Clause Has Correct 4 Parent Classes")
+
             else:
                 print(f"\n✗ Clause Parents In-Correct:")
                 print(f"  Expected: {expected_parents}")
@@ -75,6 +78,7 @@ class OntologyVerifier:
 
             if count == 49:
                 print(f"✓ All 49 Relationship Types Imported Correctly")
+
             else:
                 print(f"✗ Expected 49 Relationships, Found {count}")
                 return False
@@ -101,8 +105,10 @@ class OntologyVerifier:
 
             if sorted(found) == sorted(key_relationships):
                 print(f"\n✓ All Key Relationships Present:")
+
                 for rel in sorted(found):
                     print(f"    • {rel}")
+
             else:
                 missing = set(key_relationships) - set(found)
                 print(f"\n✗ Missing Relationships: {missing}")
@@ -128,6 +134,7 @@ class OntologyVerifier:
                     """,
                     'expected': 3
                 },
+
                 {
                     'name': 'System hierarchy linkage',
                     'query': """
@@ -136,6 +143,7 @@ class OntologyVerifier:
                     """,
                     'expected': 1
                 },
+
                 {
                     'name': 'Requirement ownership trio',
                     'query': """
@@ -147,6 +155,7 @@ class OntologyVerifier:
                     """,
                     'expected': 3
                 },
+
                 {
                     'name': 'Component placement trio',
                     'query': """
@@ -158,6 +167,7 @@ class OntologyVerifier:
                     """,
                     'expected': 3
                 },
+
                 {
                     'name': 'ADR external requirement links',
                     'query': """
@@ -168,6 +178,7 @@ class OntologyVerifier:
                     """,
                     'expected': 2
                 },
+
                 {
                     'name': 'Validation relationship chain',
                     'query': """
@@ -186,8 +197,10 @@ class OntologyVerifier:
             for check in checks:
                 result = session.run(check['query'])
                 found = result.single()['count']
+
                 if found == check['expected']:
                     print(f"✓ {check['name']}")
+
                 else:
                     print(f"✗ {check['name']} (expected {check['expected']}, found {found})")
                     all_passed = False
@@ -205,6 +218,7 @@ class OntologyVerifier:
 
             if count == 43:
                 print(f"✓ All 43 Properties Imported Correctly")
+
             else:
                 print(f"✗ Expected 43 Properties, Found {count}")
                 return False
@@ -216,6 +230,7 @@ class OntologyVerifier:
             """)
 
             print("\n  Properties By Data Type:")
+
             for record in result:
                 print(f"    • {record['type']}: {record['count']}")
 
@@ -252,8 +267,10 @@ class OntologyVerifier:
 
             if sorted(found) == sorted(key_properties):
                 print(f"\n✓ All Key Properties Present:")
+
                 for prop in sorted(found):
                     print(f"    • {prop}")
+
             else:
                 missing = set(key_properties) - set(found)
                 print(f"\n✗ Missing Properties: {missing}")
@@ -290,8 +307,10 @@ class OntologyVerifier:
 
             if sorted(top_level) == sorted(expected_top):
                 print(f"\n✓ All Top-Level Classes Present:")
+
                 for cls in sorted(top_level):
                     print(f"    • {cls}")
+
             else:
                 print(f"\n✗ Top-level Classes Incorrect:")
                 print(f"  Expected: {expected_top}")
@@ -308,9 +327,11 @@ class OntologyVerifier:
             """)
 
             orphaned = result.single()['count']
+
             if orphaned > 0:
                 print(f"\n✗ Found {orphaned} Orphaned Nodes")
                 return False
+
             else:
                 print(f"\n✓ No Orphaned Nodes")
 
@@ -337,12 +358,15 @@ class OntologyVerifier:
         for check, passed in results.items():
             status = "✓ PASS" if passed else "✗ FAIL"
             print(f"  {check}: {status}")
+
             if not passed:
                 all_passed = False
 
         print("\n" + "="*60)
+
         if all_passed:
             print("✓ ALL VERIFICATIONS PASSED!")
+
         else:
             print("✗ SOME VERIFICATIONS FAILED")
         print("="*60)
@@ -364,11 +388,13 @@ def main():
     try:
         success = verifier.run_all_verifications()
         sys.exit(0 if success else 1)
+
     except Exception as e:
         print(f"\n✗ Verification failed with error: {e}")
         import traceback
         traceback.print_exc()
         sys.exit(1)
+
     finally:
         verifier.close()
 

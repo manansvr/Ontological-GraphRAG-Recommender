@@ -32,6 +32,7 @@ class SR8OntologyImporter:
                 try:
                     session.run(constraint)
                     print(f"✓ Created: {constraint.split()[1]}")
+
                 except Exception as e:
                     print(f"  (Already exists or error: {constraint.split()[1]})")
 
@@ -178,6 +179,7 @@ class SR8OntologyImporter:
 
             top_level = [record['name'] for record in result]
             print(f"\n  Top-Level Categories ({len(top_level)}):")
+
             for name in top_level:
                 print(f"    ✓ {name}")
 
@@ -194,6 +196,7 @@ class SR8OntologyImporter:
             orphaned = result.single()['count']
             if orphaned > 0:
                 print(f"\n  ⚠️  Warning: {orphaned} Orphaned Labels Found")
+
             else:
                 print(f"\n  ✓ No Orphaned Labels")
 

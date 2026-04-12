@@ -32,9 +32,11 @@ def analyze_ontology():
     print(f"\n🌳 TOP-LEVEL CLASSES:")
     for cls in classes:
         about = cls.get('{http://www.w3.org/1999/02/22-rdf-syntax-ns#}about')
+
         if about and '#' in about:
             class_name = about.split('#')[1]
             subclass = cls.find('rdfs:subClassOf', ns)
+
             if subclass is None:
                 label = cls.find('rdfs:label', ns)
                 label_text = label.text if label is not None else class_name
@@ -44,11 +46,14 @@ def analyze_ontology():
     print(f"\n🎯 KEY INDIVIDUALS:")
     for ind in individuals:
         about = ind.get('{http://www.w3.org/1999/02/22-rdf-syntax-ns#}about')
+
         if about and '#' in about:
             ind_name = about.split('#')[1]
             ind_type = ind.find('rdf:type', ns)
+
             if ind_type is not None:
                 type_res = ind_type.get('{http://www.w3.org/1999/02/22-rdf-syntax-ns#}resource')
+
                 if type_res and '#' in type_res:
                     type_name = type_res.split('#')[1]
                     print(f"   • {ind_name:<30} ({type_name})")
@@ -57,11 +62,13 @@ def analyze_ontology():
     print(f"\n🔗 KEY OBJECT PROPERTIES (Sample):")
     for i, prop in enumerate(obj_props[:10]):
         about = prop.get('{http://www.w3.org/1999/02/22-rdf-syntax-ns#}about')
+
         if about and '#' in about:
             prop_name = about.split('#')[1]
             label = prop.find('rdfs:label', ns)
             label_text = label.text if label is not None else prop_name
             print(f"   • {label_text}")
+
     if len(obj_props) > 10:
         print(f"   ... and {len(obj_props) - 10} more")
 
