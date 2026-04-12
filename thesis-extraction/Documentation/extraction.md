@@ -6,8 +6,8 @@ Two scripts, two sources, one neo4j graph.
 
 | Script | Source | What it writes |
 |---|---|---|
-| `extract.py` | `csv/*.csv` (7 ADR files) | AustralianDesignRule, Clause, ExtractedEssentialRequirement, Project (stub), Department |
-| `run_extraction.py` | orchestrates both | runs extract.py first, then extract_projects.py |
+| `extract-ADR.py` | `csv/*.csv` (7 ADR files) | AustralianDesignRule, Clause, ExtractedEssentialRequirement, Project (stub), Department |
+| `run-extraction.py` | orchestrates both | runs extract-ADR.py first, then extract_projects.py |
 
 ---
 
@@ -38,9 +38,9 @@ thesis-ontology/
 │   └── ADR92-Requirements.csv
 ├── data/
 │   └── project-tracking-system.csv   ← export from xlsx when ready
-├── scripts/
-│   ├── extract.py                ← renamed from extract_adrs.py
-│   └── run_extraction.py         ← master orchestrator
+├── Scripts/
+│   ├── extract-ADR.py            ← renamed from extract_adrs.py
+│   └── run-extraction.py         ← master orchestrator
 ```
 
 ---
@@ -62,7 +62,7 @@ Then in neo4j Browser run each block from `docs/one-shot-cypher.md` in order (bl
 
 ### Dry run first (preview — nothing written to neo4j)
 ```bash
-python3 scripts/run_extraction.py --only adrs --dry-run
+python3 Scripts/run-extraction.py --only adrs --dry-run
 ```
 
 Check the output:
@@ -72,7 +72,7 @@ Check the output:
 
 ### Live run
 ```bash
-python3 scripts/run_extraction.py --only adrs
+python3 Scripts/run-extraction.py --only adrs
 ```
 
 ### Expected output
@@ -99,8 +99,8 @@ python3 scripts/run_extraction.py --only adrs
 
 ### Run a single ADR file only
 ```bash
-python3 scripts/extract.py --file csv/ADR10-Requirements.csv --dry-run
-python3 scripts/extract.py --file csv/ADR10-Requirements.csv
+python3 Scripts/extract-ADR.py --file csv/ADR10-Requirements.csv --dry-run
+python3 Scripts/extract-ADR.py --file csv/ADR10-Requirements.csv
 ```
 
 ---
@@ -113,8 +113,8 @@ Export `project-tracing-system.xlsx` as CSV:
 
 Then run:
 ```bash
-python3 scripts/run_extraction.py --only projects --dry-run
-python3 scripts/run_extraction.py --only projects
+python3 Scripts/run-extraction.py --only projects --dry-run
+python3 Scripts/run-extraction.py --only projects
 ```
 
 ---
@@ -216,8 +216,8 @@ MATCH (n) DETACH DELETE n
 
 ### 3. In terminal — re-run extraction
 ```bash
-python3 scripts/run_extraction.py --only adrs
-python3 scripts/run_extraction.py --only projects
+python3 Scripts/run-extraction.py --only adrs
+python3 Scripts/run-extraction.py --only projects
 ```
 
 ### 4. In neo4j Browser — re-add assemblies
@@ -239,7 +239,7 @@ neo4j stopped. Start it and wait 10 seconds before running the script again.
 ### Wrong password
 Open http://localhost:7474, log in to confirm your password, then pass it:
 ```bash
-python3 scripts/run_extraction.py --only adrs --password yourpassword
+python3 Scripts/run-extraction.py --only adrs --password yourpassword
 ```
 
 ### ADR folder not found

@@ -1,25 +1,36 @@
 #!/usr/bin/env python3
 """
-run_extraction.py
-==================
+run-extraction.py
+=================
 Master script — runs extractors in dependency order.
 
 Usage:
-  python3 scripts/run_extraction.py --only adrs --dry-run
-  python3 scripts/run_extraction.py --only adrs
-  python3 scripts/run_extraction.py --dry-run
-  python3 scripts/run_extraction.py
+    python3 Scripts/run-extraction.py --only adrs --dry-run
+    python3 Scripts/run-extraction.py --only adrs
+    python3 Scripts/run-extraction.py --dry-run
+    python3 Scripts/run-extraction.py
 """
 
 import argparse
+import importlib.util
 import os
 import sys
 
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
 
-# Only import what exists right now — projects and parts loaded lazily below
 from neo4j import GraphDatabase
-from extract import extract_adrs
+
+
+def load_extract_adrs_function():
+    # Load the ADR extractor from file because the script name contains a hyphen.
+    script_dir = os.path.dirname(os.path.abspath(__file__))
+    module_path = os.path.join(script_dir, "extract-ADR.py")
+    spec = importlib.util.spec_from_file_location("extract_adr_module", module_path)
+    if spec is None or spec.loader is None:
+        raise ImportError(f"Could not load module from {module_path}")
+    module = importlib.util.module_from_spec(spec)
+    spec.loader.exec_module(module)
+    return module.extract_adrs
 
 DEFAULTS = {
     "adrs_folder":   "csv",
@@ -29,6 +40,8 @@ DEFAULTS = {
 
 
 def main():
+    extract_adrs = load_extract_adrs_function()
+
     parser = argparse.ArgumentParser(description="SR8 Extraction Pipeline")
     parser.add_argument("--uri",           default="bolt://localhost:7687")
     parser.add_argument("--user",          default="neo4j")

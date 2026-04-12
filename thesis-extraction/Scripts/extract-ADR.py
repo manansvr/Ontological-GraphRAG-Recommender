@@ -1,8 +1,8 @@
 #!/usr/bin/env python3
 """
-extract_adrs.py
-================
-Extracts from per-ADR CSV files stored in data/adrs/.
+extract-ADR.py
+==============
+Extracts from per-ADR CSV files stored in csv/.
 
 3-level hierarchy:
   AustralianDesignRule
@@ -15,10 +15,10 @@ Also written:
   AustralianDesignRule -[:assignedToDepartment]-> Department
 
 Usage:
-  python3 scripts/extract_adrs.py --folder data/adrs/ --dry-run
-  python3 scripts/extract_adrs.py --folder data/adrs/
-  python3 scripts/extract_adrs.py --file data/adrs/ADR10-Requirements.csv --dry-run
-  python3 scripts/extract_adrs.py --file data/adrs/ADR10-Requirements.csv
+    python3 Scripts/extract-ADR.py --folder csv --dry-run
+    python3 Scripts/extract-ADR.py --folder csv
+    python3 Scripts/extract-ADR.py --file csv/ADR10-Requirements.csv --dry-run
+    python3 Scripts/extract-ADR.py --file csv/ADR10-Requirements.csv
 """
 
 import csv
