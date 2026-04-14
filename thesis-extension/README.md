@@ -107,6 +107,9 @@ Special behavior:
   the client calls `get_adr_requirements` directly and returns:
   - total count, and
   - a full requirement list for that ADR/SRP ID.
+- If you ask a question like `find references to ADR-43` (or SRP equivalent),
+  the client calls `get_adr_requirements` + `search_local_documents` directly and returns
+  file-level references with row/line pointers.
 
 Type /exit to quit.
 

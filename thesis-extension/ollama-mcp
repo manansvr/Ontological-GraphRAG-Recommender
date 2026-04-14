@@ -92,6 +92,11 @@ def _is_count_requirements_question(text: str) -> bool:
     return "how many" in t and "requir" in t
 
 
+def _is_reference_question(text: str) -> bool:
+    t = text.lower()
+    return "reference" in t and _extract_rule_id_from_question(text) is not None
+
+
 def _format_requirements_listing(payload: dict[str, Any]) -> str:
     adr_id = payload.get("adr_id", "")
     count = payload.get("count", 0)
@@ -121,6 +126,42 @@ def _format_requirements_listing(payload: dict[str, Any]) -> str:
     if evidence_refs:
         lines.append("")
         lines.append(f"Evidence: {evidence_refs[0]}")
+
+    return "\n".join(lines)
+
+
+def _format_reference_listing(rule_id: str, req_payload: dict[str, Any], doc_payload: dict[str, Any]) -> str:
+    adr_id = req_payload.get("adr_id", rule_id)
+    req_count = req_payload.get("count", 0)
+    refs = req_payload.get("evidence_refs", [])
+    matches = doc_payload.get("matches", []) if isinstance(doc_payload, dict) else []
+
+    lines = [f"References found for {adr_id}."]
+    lines.append(f"Requirements linked: {req_count}")
+
+    if matches:
+        lines.append("Document references:")
+        for i, m in enumerate(matches[:10], start=1):
+            path = m.get("path", "")
+            ptype = m.get("pointer_type", "")
+            hits = m.get("hits", [])
+            pointer = ""
+            if hits:
+                first = hits[0]
+                if ptype == "row" and "row" in first:
+                    pointer = f"row {first['row']}"
+                elif ptype == "line" and "line" in first:
+                    pointer = f"line {first['line']}"
+            if path and pointer:
+                lines.append(f"{i}. {path} | {pointer}")
+            elif path:
+                lines.append(f"{i}. {path}")
+    else:
+        lines.append("No document references were returned from local search.")
+
+    if refs:
+        lines.append("")
+        lines.append(f"Evidence: {refs[0]}")
 
     return "\n".join(lines)
 
@@ -205,6 +246,50 @@ async def run_chat(model: str, server_command: str, server_args: list[str]) -> N
                             payload = {"adr_id": rule_id, "count": 0, "requirements": [], "evidence_refs": []}
 
                         content = _format_requirements_listing(payload)
+                        print(f"\nAssistant: {content}")
+                        messages.append({"role": "user", "content": user_input})
+                        messages.append({"role": "assistant", "content": content})
+                        continue
+
+                # Deterministic path for reference queries by ADR/SRP ID.
+                if _is_reference_question(user_input):
+                    rule_id = _extract_rule_id_from_question(user_input)
+                    if rule_id:
+                        print(f"\n[tool] get_adr_requirements({{'adr_id': '{rule_id}', 'limit': 1000}})")
+                        req_result = await session.call_tool("get_adr_requirements", {"adr_id": rule_id, "limit": 1000})
+
+                        req_text_parts: list[str] = []
+                        for part in req_result.content:
+                            text = getattr(part, "text", None)
+                            if text:
+                                req_text_parts.append(text)
+                        req_text = "\n".join(req_text_parts) if req_text_parts else "{}"
+
+                        try:
+                            req_payload = json.loads(req_text)
+                        except Exception:
+                            req_payload = {"adr_id": rule_id, "count": 0, "evidence_refs": []}
+
+                        normalized_rule = req_payload.get("adr_id", rule_id)
+                        print(f"\n[tool] search_local_documents({{'query': '{normalized_rule}', 'max_files': 10, 'max_hits_per_file': 3}})")
+                        doc_result = await session.call_tool(
+                            "search_local_documents",
+                            {"query": normalized_rule, "max_files": 10, "max_hits_per_file": 3},
+                        )
+
+                        doc_text_parts: list[str] = []
+                        for part in doc_result.content:
+                            text = getattr(part, "text", None)
+                            if text:
+                                doc_text_parts.append(text)
+                        doc_text = "\n".join(doc_text_parts) if doc_text_parts else "{}"
+
+                        try:
+                            doc_payload = json.loads(doc_text)
+                        except Exception:
+                            doc_payload = {"matches": []}
+
+                        content = _format_reference_listing(rule_id, req_payload, doc_payload)
                         print(f"\nAssistant: {content}")
                         messages.append({"role": "user", "content": user_input})
                         messages.append({"role": "assistant", "content": content})
