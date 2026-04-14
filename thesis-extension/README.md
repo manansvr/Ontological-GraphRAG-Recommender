@@ -1,5 +1,7 @@
 # Ollama + MCP for SR8 Knowledge Graph and Local Docs
 
+**For Ollama installation and setup instructions, see [OLLAMA_SETUP.md](OLLAMA_SETUP.md).**
+
 This folder provides a terminal workflow where an Ollama model can call MCP tools to query:
 
 - your local Neo4j SR8 knowledge graph
