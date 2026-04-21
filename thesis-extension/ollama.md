@@ -116,7 +116,14 @@ Update [thesis-extension/.env](thesis-extension/.env) with your model choice:
 ```bash
 OLLAMA_BASE_URL=http://localhost:11434
 OLLAMA_MODEL=llama3.1:8b
+RL_ENABLED=true
+RL_MODEL_PATH=.rl-model.json
 ```
+
+Notes:
+
+- `RL_ENABLED=true` enables adaptive SR8 retrieval strategy selection in the chat client.
+- `RL_MODEL_PATH` is the persisted Q-learning model file used by `ollama-mcp`.
 
 ## 7. Run the Chat System
 
@@ -125,7 +132,14 @@ Now that Ollama is running and configured, start the SR8 chat client:
 ```bash
 cd /Users/manan/Desktop/Honours/thesis-extension
 source .venv/bin/activate
-python3 ollama-mcp --model llama3.1:8b
+.venv/bin/python ollama-mcp --model llama3.1:8b
+```
+
+Optional RL self-test before chat:
+
+```bash
+cd /Users/manan/Desktop/Honours/thesis-extension
+.venv/bin/python reinforcemnt-learning.py --self-test
 ```
 
 ## Troubleshooting
@@ -184,6 +198,22 @@ Then update `.env` to use it:
 OLLAMA_MODEL=mistral:latest
 ```
 
+### RL bridge did not initialize
+
+If startup shows RL disabled, verify all of the following:
+
+```bash
+cd /Users/manan/Desktop/Honours/thesis-extension
+ls -l reinforcemnt-learning.py
+test -f .rl-model.json && echo "model file exists" || echo "model file will be created on first RL update"
+```
+
+Then run the self-test:
+
+```bash
+.venv/bin/python reinforcemnt-learning.py --self-test
+```
+
 ## Next Steps
 
 Once Ollama is set up and running:
@@ -196,7 +226,7 @@ Once Ollama is set up and running:
 
 2. Run the chat system:
    ```bash
-   python3 ollama-mcp --model llama3.1:8b
+   .venv/bin/python ollama-mcp --model llama3.1:8b
    ```
 
 3. Ask questions like:

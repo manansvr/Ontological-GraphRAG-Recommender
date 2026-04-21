@@ -1,6 +1,6 @@
 # Ollama + MCP for SR8 Knowledge Graph and Local Docs
 
-**For Ollama installation and setup instructions, see [OLLAMA_SETUP.md](OLLAMA_SETUP.md).**
+**For Ollama installation and setup instructions, see [ollama.md](ollama.md).**
 
 This folder provides a terminal workflow where an Ollama model can call MCP tools to query:
 
@@ -46,6 +46,11 @@ cp .env.example .env
 # edit .env with your actual Neo4j password/model if needed
 ```
 
+Reinforcement-learning integration settings:
+
+- `RL_ENABLED=true` enables adaptive retrieval strategy selection in `ollama-mcp`.
+- `RL_MODEL_PATH=.rl-model.json` controls where learned Q-values are saved/loaded.
+
 Context-only safety mode:
 
 - `STRICT_CONTEXT_ONLY=true` makes the chat client answer only when MCP tool context was used in that turn.
@@ -76,7 +81,7 @@ ollama pull llama3.1:8b
 ```bash
 cd /Users/manan/Desktop/Honours/thesis-extension
 source .venv/bin/activate
-python3 ollama-mcp --model llama3.1:8b
+.venv/bin/python ollama-mcp --model llama3.1:8b
 ```
 
 ## 6. Run MCP server directly
@@ -86,7 +91,7 @@ If you want to run only the MCP server process from terminal:
 ```bash
 cd /Users/manan/Desktop/Honours/thesis-extension
 source .venv/bin/activate
-python3 sr8-mcp
+.venv/bin/python sr8-mcp
 ```
 
 The server uses stdio transport, so it is intended to be launched by an MCP client.
@@ -97,7 +102,7 @@ To run chat + server together (recommended):
 ```bash
 cd /Users/manan/Desktop/Honours/thesis-extension
 source .venv/bin/activate
-python3 ollama-mcp --model llama3.1:8b
+.venv/bin/python ollama-mcp --model llama3.1:8b
 ```
 
 Then ask things like:
@@ -144,3 +149,38 @@ Type /exit to quit.
 - Extraction can be run from chat via `run_extraction_for_requirements`.
 - Set `STRICT_CONTEXT_ONLY=false` if you want to allow non-contextual model responses.
 - Set `REQUIRE_EXPLICIT_CITATIONS=false` if you do not want mandatory file citations in each answer.
+
+## Reinforcement Learning Module
+
+A new standalone module is available at `reinforcemnt-learning.py`.
+
+It provides a small tabular Q-learning agent that can be used to learn strategy
+selection from user feedback, for example:
+
+- choosing between `graph_first`, `documents_first`, or `hybrid` retrieval
+- adapting prompt strategy per question type
+- storing learned Q-values in a JSON file for reuse between sessions
+
+Quick run:
+
+```bash
+cd /Users/manan/Desktop/Honours/thesis-extension
+.venv/bin/python reinforcemnt-learning.py
+```
+
+Run built-in RL tests:
+
+```bash
+cd /Users/manan/Desktop/Honours/thesis-extension
+.venv/bin/python reinforcemnt-learning.py --self-test
+```
+
+Live integration with Ollama + SR8 is enabled in `ollama-mcp`:
+
+- `RL_ENABLED=true` enables adaptive retrieval strategy selection.
+- `RL_MODEL_PATH=.rl-model.json` controls where learned Q-values are stored.
+- For ADR/SRP queries, the agent chooses `graph_first`, `documents_first`, or `hybrid` and updates rewards per turn.
+
+## Test Question Bank
+
+A curated prompt list for validating model behavior is available in `test.md`.
