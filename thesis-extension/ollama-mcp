@@ -97,6 +97,43 @@ def _is_reference_question(text: str) -> bool:
     return "reference" in t and _extract_rule_id_from_question(text) is not None
 
 
+def _is_design_guidance_question(text: str) -> bool:
+    t = text.lower()
+    return any(
+        keyword in t
+        for keyword in [
+            "design",
+            "manufactur",
+            "fabricat",
+            "assembly",
+            "build",
+            "prototype",
+            "conceptual",
+            "preliminary",
+            "detailed",
+            "procure",
+            "quality control",
+        ]
+    )
+
+
+def _design_guidance_redirect(text: str) -> dict[str, str] | None:
+    t = text.lower()
+    if any(keyword in t for keyword in ["manufactur", "fabricat", "assembly", "procure", "quality control", "build"]):
+        return {
+            "query": "Manufacturing Section",
+            "redirect": "For the detailed manufacturing checklist, see [Manufacturing Section.pdf](/Users/manan/Desktop/Honours/thesis-extraction/Design-Documentation/Manufacturing%20Section.pdf#L1) (Manufacturing).",
+        }
+
+    if _is_design_guidance_question(text):
+        return {
+            "query": "The Design Process",
+            "redirect": "For the broader design workflow, see [Design Manual.pdf](/Users/manan/Desktop/Honours/thesis-extraction/Design-Documentation/Design%20Manual.pdf#L111) (The Design Process).",
+        }
+
+    return None
+
+
 def _format_requirements_listing(payload: dict[str, Any]) -> str:
     adr_id = payload.get("adr_id", "")
     count = payload.get("count", 0)
@@ -208,7 +245,8 @@ async def run_chat(model: str, server_command: str, server_args: list[str]) -> N
                 "You must answer only from MCP tool context returned in this chat session. "
                 "If the context is missing, insufficient, or ambiguous, do not guess. "
                 "Instead say: 'I do not have enough context in the indexed sources to answer that.' "
-                "For factual questions, call tools first and cite concrete file evidence."
+                "For factual questions, call tools first and cite concrete file evidence. "
+                "If the user asks about design or manufacturing, answer from the indexed documents and then append the relevant redirect to the Design Manual or Manufacturing Section."
             )
 
             messages: list[dict[str, Any]] = [{"role": "system", "content": system_prompt}]
@@ -294,6 +332,96 @@ async def run_chat(model: str, server_command: str, server_args: list[str]) -> N
                         messages.append({"role": "user", "content": user_input})
                         messages.append({"role": "assistant", "content": content})
                         continue
+
+                design_guidance = _design_guidance_redirect(user_input)
+                if design_guidance:
+                    print(
+                        f"\n[tool] search_local_documents({{'query': '{design_guidance['query']}', 'max_files': 5, 'max_hits_per_file': 3}})"
+                    )
+                    design_result = await session.call_tool(
+                        "search_local_documents",
+                        {"query": design_guidance["query"], "max_files": 5, "max_hits_per_file": 3},
+                    )
+
+                    design_text_parts: list[str] = []
+                    for part in design_result.content:
+                        text = getattr(part, "text", None)
+                        if text:
+                            design_text_parts.append(text)
+                    design_text = "\n".join(design_text_parts) if design_text_parts else "{}"
+
+                    messages.append({"role": "user", "content": user_input})
+                    messages.append({"role": "tool", "name": "search_local_documents", "content": design_text})
+                    tool_used_this_turn = True
+                    evidence_refs_this_turn = _extract_evidence_refs(design_text)
+
+                    for _ in range(6):
+                        result = _post_chat(model=model, messages=messages, tools=tools)
+                        assistant_message = result.get("message", {})
+                        tool_calls = assistant_message.get("tool_calls", [])
+
+                        if not tool_calls:
+                            content = assistant_message.get("content", "")
+                            if _strict_context_only() and not tool_used_this_turn:
+                                content = "I do not have enough context in the indexed sources to answer that."
+                            elif _strict_context_only() and _require_explicit_citations():
+                                if not _has_explicit_citation(content):
+                                    if evidence_refs_this_turn:
+                                        refs_text = "; ".join(evidence_refs_this_turn[:3])
+                                        content = f"{content.strip()}\n\nEvidence: {refs_text}"
+                                    else:
+                                        content = "I do not have enough context in the indexed sources to answer that."
+
+                            if design_guidance["redirect"] not in content:
+                                content = f"{content.strip()}\n\n{design_guidance['redirect']}"
+
+                            print(f"\nAssistant: {content}")
+                            messages.append({"role": "assistant", "content": content})
+                            break
+
+                        messages.append(
+                            {
+                                "role": "assistant",
+                                "content": assistant_message.get("content", ""),
+                                "tool_calls": tool_calls,
+                            }
+                        )
+
+                        for call in tool_calls:
+                            fn = call.get("function", {})
+                            tool_name = fn.get("name")
+                            args = fn.get("arguments", {})
+
+                            if isinstance(args, str):
+                                try:
+                                    args = json.loads(args)
+                                except Exception:
+                                    args = {}
+
+                            print(f"\n[tool] {tool_name}({args})")
+                            tool_result = await session.call_tool(tool_name, args)
+                            tool_used_this_turn = True
+
+                            tool_text_parts: list[str] = []
+                            for part in tool_result.content:
+                                text = getattr(part, "text", None)
+                                if text:
+                                    tool_text_parts.append(text)
+                            tool_text = "\n".join(tool_text_parts) if tool_text_parts else str(tool_result)
+                            refs = _extract_evidence_refs(tool_text)
+                            if refs:
+                                evidence_refs_this_turn.extend(refs)
+
+                            messages.append(
+                                {
+                                    "role": "tool",
+                                    "name": tool_name,
+                                    "content": tool_text,
+                                }
+                            )
+                    else:
+                        print("\nAssistant: I hit the tool-call loop limit. Please rephrase and try again.")
+                    continue
 
                 messages.append({"role": "user", "content": user_input})
                 tool_used_this_turn = False

@@ -13,14 +13,21 @@ This folder provides a terminal workflow where an Ollama model can call MCP tool
 - Python 3.10+
 - Ollama running locally
 - Neo4j running locally with your extracted graph data
-- Optional OCR dependencies for scanned PDFs:
-	- `tesseract` (OCR engine)
-	- `poppler` (PDF rendering used by `pdf2image`)
+Optional OCR dependencies for scanned PDFs:
+    - `tesseract` (OCR engine)
+    - `poppler` (provides `pdftoppm`, the PDF renderer used by `pdf2image`)
 
 Install optional OCR system dependencies on macOS:
 
 ```bash
 brew install tesseract poppler
+```
+
+If you are troubleshooting OCR, verify both binaries are available:
+
+```bash
+command -v tesseract
+command -v pdftoppm
 ```
 
 ## 2. Install dependencies
@@ -110,6 +117,10 @@ Special behavior:
 - If you ask a question like `find references to ADR-43` (or SRP equivalent),
   the client calls `get_adr_requirements` + `search_local_documents` directly and returns
   file-level references with row/line pointers.
+- If you ask a design or manufacturing question, the client answers from the indexed
+    documents and then adds a redirect to the relevant section:
+    - Design questions point to the Design Manual's `The Design Process` section.
+    - Manufacturing questions point to the Manufacturing Section's `Manufacturing` section.
 
 Type /exit to quit.
 

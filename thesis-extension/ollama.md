@@ -148,6 +148,23 @@ lsof -i :11434
 
 Models are large (2GB–20GB depending on the model). Use a wired connection or ensure stable WiFi.
 
+### PDF OCR fallback is not working
+
+OCR for scanned PDFs requires both `tesseract` and Poppler's `pdftoppm` binary.
+
+On macOS, install them with:
+
+```bash
+brew install tesseract poppler
+```
+
+Then verify the tools are on your PATH:
+
+```bash
+command -v tesseract
+command -v pdftoppm
+```
+
 ### "Connection refused" error
 
 Ensure `ollama serve` is running in a separate terminal. You should see:
@@ -186,5 +203,10 @@ Once Ollama is set up and running:
    - "How many requirements are there for SRP-043?"
    - "Find references to ADR-31 in local docs."
    - "Get essential requirements for ADR-25 from the graph."
+
+4. For design or manufacturing questions, the chat client answers from the indexed
+   documents and then appends a redirect to the relevant section:
+   - Design questions point to the Design Manual's `The Design Process` section.
+   - Manufacturing questions point to the Manufacturing Section's `Manufacturing` section.
 
 For more help, see [README.md](README.md).
