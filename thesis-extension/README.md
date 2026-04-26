@@ -42,7 +42,6 @@ pip install -r requirements.txt
 ## 3. Configure environment
 
 ```bash
-cp .env.example .env
 # edit .env with your actual Neo4j password/model if needed
 ```
 
@@ -149,6 +148,24 @@ Type /exit to quit.
 - Extraction can be run from chat via `run_extraction_for_requirements`.
 - Set `STRICT_CONTEXT_ONLY=false` if you want to allow non-contextual model responses.
 - Set `REQUIRE_EXPLICIT_CITATIONS=false` if you do not want mandatory file citations in each answer.
+
+## ADR Mapping Outputs (Imported From Extraction)
+
+The extension mapping outputs are now generated directly from extracted ADR CSV files in:
+
+- `/Users/manan/Desktop/Honours/thesis-extraction/CSV`
+
+To refresh mapping outputs after running extraction:
+
+```bash
+cd /Users/manan/Desktop/Honours/thesis-extension
+python3 sync-ADR-mapping.py
+```
+
+This regenerates:
+
+- `ADR-mapping.csv`
+- `ADR-mapping.json`
 
 ## Reinforcement Learning Module
 

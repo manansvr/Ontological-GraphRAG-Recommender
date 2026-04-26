@@ -64,4 +64,4 @@ TestEvidence,TestingEvidence,Evidence Obtained Through Physical Or Functional Te
 AnalysisEvidence,TestingEvidence,Evidence Obtained Through Simulations And Calculations,Derived,Artifact
 ADRAnnexEvidence,TestingEvidence,Evidence Obtained Through ADR Annex Procedures,Derived,Artifact
 ADRTestingProcedureEvidence,TestingEvidence,Evidence Obtained Through Official ADR Testing Procedures,Derived,Artifact
-Clause,InternalEssentialRequirement|InternalRecommendedRequirement|ExtractedEssentialRequirement|ExtractedRecommendedRequirement,Specific Clause Within An ADR (Each Clause Is A New Node Connected To 1 ADR),Derived,Artifact
+Clause,Requirement,Specific Clause Within An ADR (Each Clause Is A New Node Connected To 1 ADR),Derived,Artifact

@@ -384,10 +384,7 @@
     </owl:Class>
 
     <owl:Class rdf:about="#Clause">
-        <rdfs:subClassOf rdf:resource="#InternalEssentialRequirement"/>
-        <rdfs:subClassOf rdf:resource="#InternalRecommendedRequirement"/>
-        <rdfs:subClassOf rdf:resource="#ExtractedEssentialRequirement"/>
-        <rdfs:subClassOf rdf:resource="#ExtractedRecommendedRequirement"/>
+        <rdfs:subClassOf rdf:resource="#Requirement"/>
         <rdfs:label>Clause</rdfs:label>
         <rdfs:comment>Specific Clause Within An ADR (Each Clause Is A New Node Connected To 1 ADR)</rdfs:comment>
     </owl:Class>
@@ -607,10 +604,10 @@
 
     <!-- ADR Verification Relationships -->
     <owl:ObjectProperty rdf:about="#assignedToProject">
-        <rdfs:domain rdf:resource="#AustralianDesignRule"/>
+        <rdfs:domain rdf:resource="#ExtractedEssentialRequirement"/>
         <rdfs:range rdf:resource="#Project"/>
         <rdfs:label>assigned to project</rdfs:label>
-        <rdfs:comment>Links An ADR To One Or More Projects Responsible For Compliance</rdfs:comment>
+        <rdfs:comment>Links An Extracted Essential Requirement To The Responsible Project</rdfs:comment>
     </owl:ObjectProperty>
 
     <owl:ObjectProperty rdf:about="#hasVerificationProcedure">

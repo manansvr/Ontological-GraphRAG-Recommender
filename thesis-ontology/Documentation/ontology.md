@@ -7,9 +7,9 @@ This ontology formally represents the knowledge domain of the Sunswift Racing SR
 **Authors**: Manan Rathi, Ilina Sharma
 
 **Ontology Statistics:**
-- **Classes**: 66 (Node Labels)
-- **Object Properties**: 49 (Relationships)
-- **Data Properties**: 50 (Attributes)
+- **Classes**: 65 (Node Labels)
+- **Object Properties**: 48 (Relationships)
+- **Data Properties**: 49 (Attributes)
 - **Total Elements**: 200+
 
 ---
@@ -62,7 +62,7 @@ The SR8 ontology integrates three main management systems:
 └─────────────────────────┘         └──────────────────────┘
     │                                      │
     │ hasExternalEssentialRequirement      │ componentInSubsystem
-    │ hasExternalRecommendedRequirement    │ componentInSystem
+    │ assignedToProject (via requirement)  │ componentInSystem
     │ verifiedBy / supportedByEvidence     │ componentInProject
     └──────────────────────────────────────┘
 ```
@@ -191,7 +191,7 @@ Technical departments:
 
 **Relationships**:
 - `hasClause` → Clause
-- `assignedToProject` → Project
+- `assignedToProject` → Project (from `ExtractedEssentialRequirement`)
 - `assignedToDepartment` → Department
 - `hasRelevantProject` → Project
 - `hasRelevantDepartment` → Department
@@ -275,14 +275,11 @@ Document
 Requirement
 │   ├── InternalRequirement
 │   │   ├── InternalEssentialRequirement
-│   │   │   └── Clause
 │   │   └── InternalRecommendedRequirement
-│   │       └── Clause
 │   ├── ExtractedRequirement
 │   │   ├── ExtractedEssentialRequirement
-│   │   │   └── Clause
 │   │   └── ExtractedRecommendedRequirement
-│   │       └── Clause
+│   ├── Clause
 │   ├── ValidationScenario
 │   │   └── AcceptanceCriterion
 │   ├── ValidationResult
@@ -335,7 +332,7 @@ PartsManagement
 - `documentedIn` - All → Document
 
 ### ADR Verification Relationships
-- `assignedToProject` - AustralianDesignRule → Project
+- `assignedToProject` - ExtractedEssentialRequirement → Project
 - `assignedToDepartment` - AustralianDesignRule → Department
 - `hasRelevantProject` - AustralianDesignRule → Project
 - `hasRelevantDepartment` - AustralianDesignRule → Department
@@ -610,6 +607,7 @@ graph TD
 
     ADR -.hasExternalEssentialRequirement.-> EER
     ADR -.hasExternalRecommendedRequirement.-> ERR
+    EER -.assignedToProject.-> PROJ
     ADR -.hasVerificationProcedure.-> VP
     VP -.hasVerificationMethod.-> VM
     VP -.supportedByEvidence.-> TEV
@@ -659,6 +657,7 @@ graph LR
 
     ADR -->|hasExternalEssentialRequirement| EER
     ADR -->|hasExternalRecommendedRequirement| ERR
+    EER -->|assignedToProject| PROJ
     ADR -->|hasVerificationProcedure| VP
     VP -->|hasVerificationMethod| VM
     VP -->|supportedByEvidence| TEV

@@ -9,9 +9,9 @@ the browser `LOAD CSV` command can only read files from neo4j's import directory
 on homebrew neo4j (macos), run this in terminal from repo root:
 
 ```bash
-cp csv/node-labels.csv /opt/homebrew/var/neo4j/import/
-cp csv/relationships.csv /opt/homebrew/var/neo4j/import/
-cp csv/node-properties.csv /opt/homebrew/var/neo4j/import/
+cp CSV/node-labels.csv /opt/homebrew/var/neo4j/import/
+cp CSV/relationships.csv /opt/homebrew/var/neo4j/import/
+cp CSV/node-properties.csv /opt/homebrew/var/neo4j/import/
 ```
 
 then use these exact urls in cypher:
@@ -150,8 +150,25 @@ In neo4j Browser, run:
 Then Add & Save:
 
 ```css
+node.SchemaLabel {
+  caption: "{name}";
+  color: #dceffb;
+  border-color: #dceffb;
+  text-color-internal: #1f2933;
+}
+
 node.SchemaRelationship {
   caption: "{name}";
+  color: #dceffb;
+  border-color: #dceffb;
+  text-color-internal: #1f2933;
+}
+
+node.SchemaProperty {
+  caption: "{name}";
+  color: #dceffb;
+  border-color: #dceffb;
+  text-color-internal: #1f2933;
 }
 
 relationship.SOURCE_OF {

@@ -25,11 +25,11 @@ class OntologyVerifier:
             result = session.run("MATCH (n:SchemaLabel) RETURN count(n) as count")
             count = result.single()['count']
 
-            if count == 66:
-                print(f"✓ All 66 Node Labels Imported Correctly")
+            if count == 65:
+                print(f"✓ All 65 Node Labels Imported Correctly")
 
             else:
-                print(f"✗ Expected 66 Node Labels, Found {count}")
+                print(f"✗ Expected 65 Node Labels, Found {count}")
                 return False
 
             result = session.run("""
@@ -50,14 +50,11 @@ class OntologyVerifier:
 
             parents = [r['parent'] for r in result]
             expected_parents = [
-                'ExtractedEssentialRequirement',
-                'ExtractedRecommendedRequirement',
-                'InternalEssentialRequirement',
-                'InternalRecommendedRequirement'
+                'Requirement'
             ]
 
             if sorted(parents) == sorted(expected_parents):
-                print(f"\n✓ Clause Has Correct 4 Parent Classes")
+                print(f"\n✓ Clause Has Correct Parent Class")
 
             else:
                 print(f"\n✗ Clause Parents In-Correct:")
@@ -76,11 +73,11 @@ class OntologyVerifier:
             result = session.run("MATCH (r:SchemaRelationship) RETURN count(r) as count")
             count = result.single()['count']
 
-            if count == 49:
-                print(f"✓ All 49 Relationship Types Imported Correctly")
+            if count == 48:
+                print(f"✓ All 48 Relationship Types Imported Correctly")
 
             else:
-                print(f"✗ Expected 49 Relationships, Found {count}")
+                print(f"✗ Expected 48 Relationships, Found {count}")
                 return False
 
             key_relationships = [
@@ -169,14 +166,15 @@ class OntologyVerifier:
                 },
 
                 {
-                    'name': 'ADR external requirement links',
+                    'name': 'ADR extraction assignment chain',
                     'query': """
                         MATCH (r:SchemaRelationship)
                         WHERE (r.name = 'hasExternalEssentialRequirement' AND r.sourceLabel = 'AustralianDesignRule' AND r.targetLabel = 'ExtractedEssentialRequirement')
                            OR (r.name = 'hasExternalRecommendedRequirement' AND r.sourceLabel = 'AustralianDesignRule' AND r.targetLabel = 'ExtractedRecommendedRequirement')
+                           OR (r.name = 'assignedToProject' AND r.sourceLabel = 'ExtractedEssentialRequirement' AND r.targetLabel = 'Project')
                         RETURN count(r) as count
                     """,
-                    'expected': 2
+                    'expected': 3
                 },
 
                 {
@@ -216,11 +214,11 @@ class OntologyVerifier:
             result = session.run("MATCH (p:SchemaProperty) RETURN count(p) as count")
             count = result.single()['count']
 
-            if count == 43:
-                print(f"✓ All 43 Properties Imported Correctly")
+            if count == 49:
+                print(f"✓ All 49 Properties Imported Correctly")
 
             else:
-                print(f"✗ Expected 43 Properties, Found {count}")
+                print(f"✗ Expected 49 Properties, Found {count}")
                 return False
 
             result = session.run("""

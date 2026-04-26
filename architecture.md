@@ -6,15 +6,16 @@ flowchart LR
     C --> RL[Reinforcement Learning Module]
     RL --> RLM[(RL Model File)]
     M --> N[(Neo4j Graph DB)]
-    M --> DROOTS[Document Roots from env]
+    M --> DROOTS[Document Roots from .env]
 
     subgraph EXT[thesis-extension]
-        ENV[env and env example]
-        REQ[requirements txt]
-        REP[ADR mapping reports]
-        TESTQ[test md]
-        OMD[ollama md]
-        RMD[README md]
+        ENV[.env]
+        REQ[requirements.txt]
+        SYNC[sync-ADR-mapping.py]
+        MAP[ADR-mapping.csv/json]
+        TESTQ[test.md]
+        OMD[ollama.md]
+        RMD[README.md]
     end
 
     C -. uses config .-> ENV
@@ -23,6 +24,7 @@ flowchart LR
     C -. setup guide .-> OMD
     C -. test prompts .-> TESTQ
     RL -. saves model .-> RLM
+    SYNC --> MAP
 
     subgraph EXTR[thesis-extraction]
         EXCSV[CSV ADR files]
@@ -49,8 +51,8 @@ flowchart LR
     OCSV --> OSCR
     OWL --> OSCR
     ODOC --> C
-    EXSCR --> REP
-    EXCSV --> REP
+    EXCSV --> SYNC
+    EXSCR --> MAP
     C -->|tool calls| M
     M -->|results and citations| C
     C -->|answers| U

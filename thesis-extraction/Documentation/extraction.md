@@ -6,7 +6,7 @@ Two scripts, two sources, one neo4j graph.
 
 | Script | Source | What it writes |
 |---|---|---|
-| `extract-ADR.py` | `csv/*.csv` (8 ADR files) | AustralianDesignRule, Clause, ExtractedEssentialRequirement, Project (stub), Department |
+| `extract-ADR.py` | `CSV/*.csv` (8 ADR files) | AustralianDesignRule, Clause, ExtractedEssentialRequirement, Project (stub), Department |
 | `run-extraction.py` | orchestrates both | runs extract-ADR.py first, then extract_projects.py |
 
 ---
@@ -27,8 +27,8 @@ Open the browser at: http://localhost:7474
 
 ### Check your folder structure
 ```
-thesis-ontology/
-├── csv/                          ← ADR CSV files go here
+thesis-extraction/
+├── CSV/                          ← ADR CSV files go here
 │   ├── ADR10-Requirements.csv
 │   ├── ADR23-Requirements.csv
 │   ├── ADR25-Requirements.csv
@@ -37,12 +37,12 @@ thesis-ontology/
 │   ├── ADR43-Requirements.csv
 │   ├── ADR92-Requirements.csv
 │   └── ADR95-Requirements.csv
-├── data/
-│   └── project-tracking-system.csv   ← export from xlsx when ready
 ├── Scripts/
 │   ├── extract-ADR.py            ← renamed from extract_adrs.py
 │   └── run-extraction.py         ← master orchestrator
 ```
+
+The ontology schema CSV files live in `../thesis-ontology/CSV/`.
 
 ---
 
@@ -50,12 +50,12 @@ thesis-ontology/
 
 Copy CSV files to neo4j import folder:
 ```bash
-cp csv/node-labels.csv /opt/homebrew/Cellar/neo4j/2026.02.3/libexec/import/
-cp csv/relationships.csv /opt/homebrew/Cellar/neo4j/2026.02.3/libexec/import/
-cp csv/node-properties.csv /opt/homebrew/Cellar/neo4j/2026.02.3/libexec/import/
+cp CSV/node-labels.csv /opt/homebrew/var/neo4j/import/
+cp CSV/relationships.csv /opt/homebrew/var/neo4j/import/
+cp CSV/node-properties.csv /opt/homebrew/var/neo4j/import/
 ```
 
-Then in neo4j Browser run each block from `docs/one-shot-cypher.md` in order (blocks 1–5).
+Then in neo4j Browser run each block from `thesis-ontology/Documentation/one-shot-cypher.md` in order (blocks 1–5).
 
 ---
 
@@ -101,15 +101,15 @@ python3 Scripts/run-extraction.py --only adrs --uri bolt://localhost:7687 --user
 
 ### Run a single ADR file only
 ```bash
-python3 Scripts/extract-ADR.py --file csv/ADR10-Requirements.csv --dry-run --uri bolt://localhost:7687 --user neo4j --password password123
-python3 Scripts/extract-ADR.py --file csv/ADR10-Requirements.csv --uri bolt://localhost:7687 --user neo4j --password password123
+python3 Scripts/extract-ADR.py --file CSV/ADR10-Requirements.csv --dry-run --uri bolt://localhost:7687 --user neo4j --password password123
+python3 Scripts/extract-ADR.py --file CSV/ADR10-Requirements.csv --uri bolt://localhost:7687 --user neo4j --password password123
 ```
 
 ---
 
 ## Step 2 — Extract Projects (when xlsx is exported)
 
-Export `project-tracing-system.xlsx` as CSV:
+Export `project-tracking-system.xlsx` as CSV:
 - Google Sheets: `File → Download → Comma Separated Values`
 - Place the file at `data/project-tracking-system.csv`
 
@@ -214,7 +214,7 @@ RETURN path1, path2
 MATCH (n) DETACH DELETE n
 ```
 
-### 2. Reload schema (in neo4j Browser — blocks from one-shot-cypher.md)
+### 2. Reload schema (in neo4j Browser — blocks from thesis-ontology/Documentation/one-shot-cypher.md)
 
 ### 3. In terminal — re-run extraction
 ```bash
@@ -245,9 +245,9 @@ python3 Scripts/run-extraction.py --only adrs --uri bolt://localhost:7687 --user
 ```
 
 ### ADR folder not found
-The script looks for `csv/` by default. Confirm your CSVs are there:
+The script looks for `CSV/` by default. Confirm your CSVs are there:
 ```bash
-ls csv/
+ls CSV/
 ```
 
 ### Re-running is always safe

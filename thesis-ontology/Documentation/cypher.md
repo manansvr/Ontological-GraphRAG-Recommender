@@ -47,7 +47,7 @@ CREATE INDEX subsys_name IF NOT EXISTS
 FOR (s:Subsystem) ON (s.hasName);
 
 CREATE INDEX node_label_name IF NOT EXISTS 
-FOR (n:NodeLabel) ON (n.name);
+FOR (n:SchemaLabel) ON (n.name);
 ```
 
 ---
@@ -544,7 +544,7 @@ RETURN adr.hasID AS ADR_ID,
 ORDER BY adr.hasID;
 
 // Verification Completion By Project
-MATCH (p:Project)<-[:assignedToProject]-(adr:AustralianDesignRule)
+MATCH (p:Project)<-[:assignedToProject]-(:ExtractedEssentialRequirement)<-[:hasExternalEssentialRequirement]-(adr:AustralianDesignRule)
 WITH p,
      SUM(CASE WHEN adr.isVerified = true THEN 1 ELSE 0 END) AS verified,
      COUNT(adr) AS total
@@ -603,7 +603,7 @@ RETURN adr.hasID AS ADR,
 
 // Comprehensive ADR Verification Checklist
 MATCH (adr:AustralianDesignRule)
-OPTIONAL MATCH (adr)-[:assignedToProject]->(p:Project)
+OPTIONAL MATCH (adr)-[:hasExternalEssentialRequirement]->(req:ExtractedEssentialRequirement)-[:assignedToProject]->(p:Project)
 OPTIONAL MATCH (adr)-[:assignedToDepartment]->(d:Department)
 OPTIONAL MATCH (adr)-[:hasVerificationProcedure]->(proc:VerificationProcedure)
 OPTIONAL MATCH (proc)-[:hasVerificationMethod]->(method:VerificationMethod)
@@ -612,6 +612,7 @@ OPTIONAL MATCH (adr)-[:hasClause]->(clause:Clause)
 OPTIONAL MATCH (adr)-[:hasRequirementName]->(reqName:RequirementName)
 RETURN clause.hasName AS Clause,
        reqName.hasName AS Requirement_Name,
+    req.hasID AS Requirement_ID,
        p.projectID AS Project_ID,
        p.hasName AS Project,
        d.hasName AS Department,
@@ -711,7 +712,7 @@ ORDER BY adr.hasID;
 MATCH path = (c:Component)-[:usedInProject]->(p:Project),
              (c)-[:generatesEvidence]->(ev:TestingEvidence),
              (ev)<-[:verifiedBy]-(adr:AustralianDesignRule),
-             (adr)-[:assignedToProject]->(p)
+             (adr)-[:hasExternalEssentialRequirement]->(:ExtractedEssentialRequirement)-[:assignedToProject]->(p)
 RETURN c.partNumber AS Component,
        p.hasName AS Project,
        labels(ev)[0] AS Evidence_Type,
@@ -726,7 +727,7 @@ ORDER BY adr.hasID;
 // Project Readiness Dashboard
 MATCH (p:Project)
 OPTIONAL MATCH (p)<-[:usedInProject]-(c:Component)
-OPTIONAL MATCH (p)<-[:assignedToProject]-(adr:AustralianDesignRule)
+OPTIONAL MATCH (p)<-[:assignedToProject]-(:ExtractedEssentialRequirement)<-[:hasExternalEssentialRequirement]-(adr:AustralianDesignRule)
 RETURN p.projectID,
        p.projectName,
        count(DISTINCT c) AS ComponentCount,
@@ -763,8 +764,8 @@ RETURN r.hasID, r.hasName, r.hasProvenance;
 
 ```cypher
 // Load Node Labels
-LOAD CSV WITH HEADERS FROM 'file:///neo4j-node-labels.csv' AS row
-CREATE (n:NodeLabel {
+LOAD CSV WITH HEADERS FROM 'file:///node-labels.csv' AS row
+CREATE (n:SchemaLabel {
     name: row.Label,
     parent: row.ParentLabel,
     description: row.Description,
@@ -777,15 +778,15 @@ CREATE (n:NodeLabel {
 
 ```cypher
 // Import Node Labels
-LOAD CSV WITH HEADERS FROM 'file:///neo4j-node-labels.csv' AS row
+LOAD CSV WITH HEADERS FROM 'file:///node-labels.csv' AS row
 MERGE (n:SchemaLabel {name: row.Label})
-SET n.parent = row.ParentLabel,
+SET n.parent = CASE WHEN row.ParentLabel = '' THEN null ELSE row.ParentLabel END,
     n.description = row.Description,
     n.type = row.Type,
     n.category = row.Category;
 
 // Import Relationships
-LOAD CSV WITH HEADERS FROM 'file:///neo4j-relationships.csv' AS row
+LOAD CSV WITH HEADERS FROM 'file:///relationships.csv' AS row
 MERGE (r:SchemaRelationship {name: row.RelationshipType})
 SET r.sourceLabel = row.SourceLabel,
     r.targetLabel = row.TargetLabel,
@@ -793,7 +794,7 @@ SET r.sourceLabel = row.SourceLabel,
     r.properties = row.Properties;
 
 // Import Properties
-LOAD CSV WITH HEADERS FROM 'file:///neo4j-node-properties.csv' AS row
+LOAD CSV WITH HEADERS FROM 'file:///node-properties.csv' AS row
 MERGE (p:SchemaProperty {name: row.PropertyName})
 SET p.applicableLabels = row.ApplicableLabels,
     p.dataType = row.DataType,
@@ -818,8 +819,8 @@ MATCH (r:SchemaRelationship)
 RETURN r.name, r.sourceLabel, r.targetLabel;
 
 // Find Hierarchical Depth
-MATCH path = (n:SchemaLabel)-[:hasParent*]->(root:SchemaLabel)
-WHERE NOT (root)-[:hasParent]->()
+MATCH path = (n:SchemaLabel)-[:SUBCLASS_OF*]->(root:SchemaLabel)
+WHERE NOT (root)-[:SUBCLASS_OF]->()
 RETURN n.name, length(path) as depth
 ORDER BY depth DESC;
 

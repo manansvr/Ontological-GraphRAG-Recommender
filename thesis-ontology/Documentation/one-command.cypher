@@ -64,6 +64,13 @@ LIMIT 500;
 // neo4j browser style (copy/paste these in browser)
 // :style
 //
+// node.SchemaLabel {
+//   caption: "{name}";
+//   color: #dceffb;
+//   border-color: #dceffb;
+//   text-color-internal: #1f2933;
+// }
+//
 // relationship.SCHEMA_REL {
 //   caption: "{connector}";
 // }
