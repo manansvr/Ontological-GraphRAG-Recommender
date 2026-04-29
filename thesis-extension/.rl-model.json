@@ -13,6 +13,11 @@
       "graph_first": 6.510298848887862,
       "documents_first": 6.739669255143375,
       "hybrid": 7.113964526792602
+    },
+    "adr_lookup": {
+      "graph_first": 0.0,
+      "documents_first": 0.0,
+      "hybrid": 0.2
     }
   },
   "episode_rewards": [
