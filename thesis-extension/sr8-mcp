@@ -232,6 +232,44 @@ def _extraction_root() -> Path:
     return Path("/Users/manan/Desktop/Honours/thesis-extraction")
 
 
+def _load_adr_mapping() -> tuple[dict[str, Any], dict[str, list[dict]]]:
+    """Load ADR mapping from JSON (primary) and CSV (fallback/comprehensive).
+    
+    Returns (mapping_json, csv_rows_by_adr) where:
+    - mapping_json is the full ADR-mapping.json payload
+    - csv_rows_by_adr maps adr_id -> list of rows from CSV
+    """
+    base_dir = Path(__file__).resolve().parent
+    mapping_json: dict[str, Any] = {}
+    csv_by_adr: dict[str, list[dict]] = {}
+
+    # Try JSON first
+    json_path = base_dir / "ADR-mapping.json"
+    if json_path.exists():
+        try:
+            with json_path.open("r", encoding="utf-8") as f:
+                mapping_json = json.load(f)
+        except Exception:
+            pass
+
+    # Also load CSV for comprehensive coverage
+    csv_path = base_dir / "ADR-mapping.csv"
+    if csv_path.exists():
+        try:
+            with csv_path.open("r", encoding="utf-8", errors="ignore", newline="") as f:
+                reader = csv.DictReader(f)
+                for row in reader:
+                    adr = row.get("adr_id", "").strip()
+                    if adr:
+                        if adr not in csv_by_adr:
+                            csv_by_adr[adr] = []
+                        csv_by_adr[adr].append(row)
+        except Exception:
+            pass
+
+    return mapping_json, csv_by_adr
+
+
 @mcp.tool()
 def list_documents(limit: int = 200) -> str:
     """List indexed local documents available to the model."""
@@ -467,31 +505,40 @@ def get_adr_requirements(adr_id: str, limit: int = 30) -> str:
     except Exception as exc:
         return json.dumps({"error": str(exc)}, indent=2)
 
-    # Provide explicit evidence refs so strict citation mode can always cite source paths.
-    evidence_refs: list[str] = []
-    for row in rows[:5]:
-        req = (row.get("requirement") or "").strip()
-        if not req:
-            continue
-        try:
-            suggestion = json.loads(suggest_requirement_sources(req, max_files=1, max_hits_per_file=1))
-            matches = suggestion.get("matches", [])
-            if not matches:
-                continue
-            top = matches[0]
-            hits = top.get("hits", [])
-            if not hits:
-                continue
-            first_hit = hits[0]
-            if top.get("pointer_type") == "row" and "row" in first_hit:
-                evidence_refs.append(f"{top.get('path', '')} | row {first_hit['row']}")
-            elif top.get("pointer_type") == "line" and "line" in first_hit:
-                evidence_refs.append(f"{top.get('path', '')} | line {first_hit['line']}")
-        except Exception:
-            continue
+    # Build an explicit, evidence-linked requirements list so callers
+    # (and the chat client) can present all requirements rather than a
+    # single example reference.
+    requirements_export: list[dict] = []
+    for idx, row in enumerate(rows, start=1):
+        req_text = (row.get("requirement") or "").strip()
+        entry: dict = {
+            "index": idx,
+            "requirement": req_text,
+            "labels": row.get("requirement_labels"),
+            "clauses": row.get("clauses"),
+            "evidence": None,
+        }
+        if req_text:
+            try:
+                suggestion = json.loads(
+                    suggest_requirement_sources(req_text, max_files=1, max_hits_per_file=1)
+                )
+                matches = suggestion.get("matches", [])
+                if matches:
+                    top = matches[0]
+                    hits = top.get("hits", [])
+                    if hits:
+                        first_hit = hits[0]
+                        if top.get("pointer_type") == "row" and "row" in first_hit:
+                            entry["evidence"] = f"{top.get('path','')} | row {first_hit['row']}"
+                        elif top.get("pointer_type") == "line" and "line" in first_hit:
+                            entry["evidence"] = f"{top.get('path','')} | line {first_hit['line']}"
+            except Exception:
+                entry["evidence"] = None
 
-    evidence_refs = list(dict.fromkeys(evidence_refs))
+        requirements_export.append(entry)
 
+    # Try to locate the source CSV and count rows for a nicer summary.
     csv_count = None
     csv_file = None
     m = re.match(r"^ADR-(\d+)$", normalized_id)
@@ -502,14 +549,80 @@ def get_adr_requirements(adr_id: str, limit: int = 30) -> str:
             try:
                 with csv_path.open("r", encoding="utf-8", errors="ignore", newline="") as f:
                     csv_count = sum(1 for _ in csv.DictReader(f))
-                if csv_count and csv_count > 0:
-                    evidence_refs.append(f"{csv_file} | row 2")
             except Exception:
                 csv_count = None
 
-    evidence_refs = list(dict.fromkeys(evidence_refs))
     graph_count = len(rows)
     preferred_count = csv_count if csv_count is not None else graph_count
+
+    # Also return a human-friendly plaintext list for quick display by clients.
+    requirements_plain: list[str] = []
+    for e in requirements_export:
+        ev = f" (evidence: {e['evidence']})" if e.get("evidence") else ""
+        requirements_plain.append(f"{e['index']}. {e['requirement']}{ev}")
+    # If the graph returned no usable rows, fall back to ADR-mapping (JSON and CSV)
+    # (regenerated by sync-ADR-mapping.py) so the client can still list
+    # requirements directly from extraction outputs.
+    if graph_count == 0:
+        try:
+            mapping_json, csv_by_adr = _load_adr_mapping()
+            fallback_export: list[dict] = []
+            fallback_source = None
+            fallback_sources: list[str] = []
+            
+            # Try JSON first
+            if mapping_json:
+                mapped_rows = mapping_json.get("rows", [])
+                for idx, mr in enumerate(mapped_rows, start=1):
+                    mid = mr.get("adr_id", "")
+                    if mid in adr_id_variants:
+                        fallback_export.append(
+                            {
+                                "index": idx,
+                                "requirement": mr.get("requirement_text", "").strip(),
+                                "labels": [],
+                                "clauses": mr.get("clause_ids"),
+                                "evidence": f"{mr.get('source_file','')} | row {mr.get('source_pointer','')}" if mr.get("source_file") and mr.get("source_pointer") else None,
+                            }
+                        )
+                if fallback_export:
+                    fallback_source = str(Path(__file__).resolve().parent / "ADR-mapping.json")
+                    fallback_sources.append(fallback_source)
+            
+            # Also check CSV if JSON was empty
+            if not fallback_export and csv_by_adr:
+                idx = 0
+                for adr_var in adr_id_variants:
+                    for mr in csv_by_adr.get(adr_var, []):
+                        idx += 1
+                        fallback_export.append(
+                            {
+                                "index": idx,
+                                "requirement": mr.get("requirement_text", "").strip(),
+                                "labels": [],
+                                "clauses": mr.get("clause_ids"),
+                                "evidence": f"{mr.get('source_file','')} | row {mr.get('source_pointer','')}" if mr.get("source_file") and mr.get("source_pointer") else None,
+                            }
+                        )
+                if fallback_export:
+                    fallback_source = str(Path(__file__).resolve().parent / "ADR-mapping.csv")
+                    fallback_sources.append(fallback_source)
+
+            if fallback_export:
+                requirements_export = fallback_export
+                requirements_plain = [f"{e['index']}. {e['requirement']} (evidence: {e['evidence']})" if e.get("evidence") else f"{e['index']}. {e['requirement']}" for e in requirements_export]
+                csv_file = fallback_source
+                csv_count = len(requirements_export)
+                preferred_count = csv_count
+                # Populate evidence_refs so the client can satisfy strict citation
+                # policies when the graph is missing but mapping provides sources.
+                evidence_refs = []
+                for e in requirements_export:
+                    if e.get("evidence"):
+                        evidence_refs.append(e["evidence"])
+                evidence_refs = list(dict.fromkeys(evidence_refs))
+        except Exception:
+            pass
 
     return json.dumps(
         {
@@ -520,10 +633,185 @@ def get_adr_requirements(adr_id: str, limit: int = 30) -> str:
             "csv_count": csv_count,
             "csv_file": csv_file,
             "requirements": rows,
-            "evidence_refs": evidence_refs,
+            "requirements_export": requirements_export,
+            "requirements_plain": requirements_plain,
         },
         indent=2,
     )
+
+
+@mcp.tool()
+def adr_mapping_stats(top_n: int = 10, adr_id: str | None = None) -> str:
+    """Return statistics from ADR-mapping.json and CSV:
+    - total_requirements, total_adrs
+    - counts_by_adr (truncated to top_n)
+    - rows for a specific adr_id from both JSON and CSV if provided
+    """
+    mapping_json, csv_by_adr = _load_adr_mapping()
+    
+    if not mapping_json and not csv_by_adr:
+        return json.dumps({"error": "No mapping files found (ADR-mapping.json or ADR-mapping.csv)"}, indent=2)
+
+    counts_by_adr = mapping_json.get("counts_by_adr", {})
+    # Convert keys to sorted list by count desc
+    sorted_counts = sorted(counts_by_adr.items(), key=lambda kv: kv[1], reverse=True)
+    top = sorted_counts[: max(0, min(top_n, len(sorted_counts)))]
+
+    result = {
+        "total_requirements": mapping_json.get("total_requirements", sum(len(v) for v in csv_by_adr.values())),
+        "total_adrs": mapping_json.get("total_adrs", len(csv_by_adr)),
+        "top_adrs": [{"adr": k, "count": v} for k, v in top],
+        "counts_by_adr": dict(sorted_counts[:100]),
+        "sources": [s for s in ["ADR-mapping.json" if mapping_json else None, "ADR-mapping.csv" if csv_by_adr else None] if s],
+    }
+
+    if adr_id:
+        # normalize adr_id to ADR-N form
+        norm, variants = _normalize_rule_id(adr_id)
+        json_rows = [r for r in mapping_json.get("rows", []) if r.get("adr_id") in variants]
+        csv_rows = []
+        for v in variants:
+            csv_rows.extend(csv_by_adr.get(v, []))
+        
+        result["adr_rows_json"] = json_rows
+        result["adr_rows_csv"] = csv_rows
+        result["adr_count_json"] = len(json_rows)
+        result["adr_count_csv"] = len(csv_rows)
+        result["adr_count_total"] = len(json_rows) + len(csv_rows)
+
+    return json.dumps(result, indent=2)
+
+
+@mcp.tool()
+def summarize_document(path: str, start_line: int = 1, end_line: int = 200) -> str:
+    """Read a document using existing readers and return an extractive summary.
+
+    This is intentionally simple: it returns the requested lines plus a short
+    character-count summary and the detected length. OCR fallback is used for PDFs.
+    """
+    target = Path(path).expanduser()
+    if not target.exists() or not target.is_file():
+        return json.dumps({"error": f"file not found: {target}"}, indent=2)
+
+    roots_ok = any(str(target).startswith(str(r)) for r in _doc_roots())
+    if not roots_ok:
+        return json.dumps({"error": "path is outside DOC_ROOTS"}, indent=2)
+
+    text = _read_text_content(target)
+    if not text:
+        return json.dumps({"error": "failed to read file or empty content"}, indent=2)
+
+    lines = text.splitlines()
+    start_line = max(1, start_line)
+    end_line = max(start_line, end_line)
+    chunk = lines[start_line - 1 : end_line]
+    content = "\n".join(chunk)
+
+    # Simple extractive "summary": first 3 non-empty sentences from the chunk.
+    import re as _re
+
+    sentences = _re.split(r'(?<=[.!?])\s+', content)
+    summary_sentences = [s.strip() for s in sentences if s.strip()][:3]
+    summary = " ".join(summary_sentences)[:1000]
+
+    payload = {
+        "path": str(target),
+        "start_line": start_line,
+        "end_line": end_line,
+        "content": content,
+        "summary": summary,
+        "char_count": len(content),
+    }
+    return json.dumps(payload, indent=2)
+
+
+@mcp.tool()
+def extraction_report(dry_run: bool = False, timeout: int = 600) -> str:
+    """Run the extraction pipeline (wrapper) and return a parsed summary.
+
+    Calls `run_extraction_for_requirements` and parses its stdout/stderr to
+    provide a compact report: exit_code, ok, processed_files (from stdout),
+    and any stderr excerpts.
+    """
+    try:
+        raw = run_extraction_for_requirements(dry_run=dry_run)
+        result = json.loads(raw)
+    except Exception as exc:
+        return json.dumps({"error": str(exc)}, indent=2)
+
+    summary = {
+        "command": result.get("command"),
+        "cwd": result.get("cwd"),
+        "exit_code": result.get("exit_code"),
+        "ok": result.get("ok", False),
+        "stderr_tail": (result.get("stderr") or "")[-2000:],
+        "stdout_tail": (result.get("stdout") or "")[-2000:],
+        "processed_files": [],
+    }
+
+    # Heuristically extract processed CSV filenames mentioned in stdout.
+    stdout = result.get("stdout") or ""
+    files = []
+    for line in stdout.splitlines():
+        line = line.strip()
+        # lines like: "📁 Found 8 CSV file(s) in csv" or file headings "📄 ADR10-Requirements.csv"
+        if line.startswith("📄"):
+            parts = line.split()
+            if len(parts) >= 2:
+                fname = parts[1]
+                files.append(fname)
+        # fallback: look for filenames ending with -Requirements.csv
+        if "-Requirements.csv" in line:
+            m = re.search(r"[\w\-]+-Requirements\.csv", line)
+            if m:
+                files.append(m.group(0))
+
+    summary["processed_files"] = files
+    return json.dumps(summary, indent=2)
+
+
+@mcp.tool()
+def search_keywords(keywords: list[str], max_files: int = 50, max_hits_per_file: int = 10) -> str:
+    """Search local documents for a list of keywords and aggregate results.
+
+    Returns mapping keyword -> matches (as returned by search_local_documents).
+    """
+    if not isinstance(keywords, list):
+        return json.dumps({"error": "keywords must be a list of strings"}, indent=2)
+
+    aggregated: dict[str, Any] = {"keywords": {}, "total_matches": 0}
+    for kw in keywords:
+        try:
+            resp = search_local_documents(kw, max_files=max_files, max_hits_per_file=max_hits_per_file)
+            payload = json.loads(resp)
+            matches = payload.get("matches", []) if isinstance(payload, dict) else []
+            aggregated["keywords"][kw] = {"match_count": len(matches), "matches": matches}
+            aggregated["total_matches"] += len(matches)
+        except Exception:
+            aggregated["keywords"][kw] = {"match_count": 0, "matches": []}
+
+    return json.dumps(aggregated, indent=2)
+
+
+@mcp.tool()
+def search_braking(max_files: int = 50, max_hits_per_file: int = 10) -> str:
+    """Search for braking-related terms across indexed documents."""
+    keywords = ["brake", "braking", "stopping distance", "anti-lock", "ABS"]
+    return search_keywords(keywords, max_files=max_files, max_hits_per_file=max_hits_per_file)
+
+
+@mcp.tool()
+def search_tyre(max_files: int = 50, max_hits_per_file: int = 10) -> str:
+    """Search for tyre-related terms across indexed documents."""
+    keywords = ["tyre", "tire", "wheel", "rim", "tyres"]
+    return search_keywords(keywords, max_files=max_files, max_hits_per_file=max_hits_per_file)
+
+
+@mcp.tool()
+def search_manufacturing(max_files: int = 50, max_hits_per_file: int = 10) -> str:
+    """Search for manufacturing checklist and related terms."""
+    keywords = ["manufactur", "manufacturing", "assembly", "quality control", "procure"]
+    return search_keywords(keywords, max_files=max_files, max_hits_per_file=max_hits_per_file)
 
 
 if __name__ == "__main__":

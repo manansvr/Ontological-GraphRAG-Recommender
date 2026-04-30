@@ -15,9 +15,12 @@
       "hybrid": 7.113964526792602
     },
     "adr_lookup": {
-      "graph_first": 0.0,
-      "documents_first": 0.0,
-      "hybrid": 0.2
+      "graph_first": -0.27531072,
+      "documents_first": -0.24902034624000008,
+      "hybrid": -0.25579692864000003
+    },
+    "general_lookup": {
+      "documents_first": -0.6210547200000001
     }
   },
   "episode_rewards": [
