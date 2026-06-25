@@ -1,203 +1,153 @@
-# Ollama + MCP for SR8 Knowledge Graph and Local Docs
+# SR8 Compliance Knowledge Graph — Thesis Extension
 
-**For Ollama installation and setup instructions, see [ollama.md](ollama.md).**
+A Formula SAE SR8 compliance assistant built on Neo4j, Ollama, and the Model Context Protocol (MCP). The system extracts requirements from Australian Design Rules (ADRs), maps them to projects and assemblies in a knowledge graph, and exposes 33 tools for compliance analysis, interface risk detection, inference, and change impact tracking.
 
-This folder provides a terminal workflow where an Ollama model can call MCP tools to query:
+## Architecture
 
-- your local Neo4j SR8 knowledge graph
-- your local requirements CSV files first
-- your design documentation and PDF evidence for cross-checking
-
-## 1. Prerequisites
-
-- Python 3.10+
-- Ollama running locally
-- Neo4j running locally with your extracted graph data
-Optional OCR dependencies for scanned PDFs:
-    - `tesseract` (OCR engine)
-    - `poppler` (provides `pdftoppm`, the PDF renderer used by `pdf2image`)
-
-Install optional OCR system dependencies on macOS:
-
-```bash
-brew install tesseract poppler
+```
+ollama-mcp.py  ←→  sr8-mcp.py (MCP server, 33 tools)  ←→  Neo4j
+                         ↕
+               reinforcemnt-learning.py (Q-learning agent)
 ```
 
-If you are troubleshooting OCR, verify both binaries are available:
+**Graph hierarchy**
 
-```bash
-command -v tesseract
-command -v pdftoppm
+```
+AustralianDesignRule
+  └─[:hasExternalEssentialRequirement]→ ExtractedEssentialRequirement
+                                              └─[:assignedToProject]→ Project
+                                                                         └─[:partOfAssembly]→ Assembly
 ```
 
-## 2. Install dependencies
+## Prerequisites
+
+| Component | Version | Notes |
+|-----------|---------|-------|
+| Python | 3.11+ | |
+| Neo4j | 5.x | Running locally on bolt://localhost:7687 |
+| Ollama | latest | Running locally with `llama3.1:8b` pulled |
+| tesseract | any | System dependency for OCR (`brew install tesseract`) |
+| poppler | any | System dependency for pdf2image (`brew install poppler`) |
+
+## Setup
+
+### 1. Python dependencies
 
 ```bash
-cd /Users/manan/Desktop/Honours/thesis-extension
-python3 -m venv .venv
-source .venv/bin/activate
+cd thesis-extension
 pip install -r requirements.txt
 ```
 
-## 3. Configure environment
+### 2. Environment configuration
 
 ```bash
-# edit .env with your actual Neo4j password/model if needed
+cp .env.example .env
+# Edit .env — set NEO4J_PASSWORD and confirm OLLAMA_URL/OLLAMA_MODEL
 ```
 
-Reinforcement-learning integration settings:
+Key variables:
 
-- `RL_ENABLED=true` enables adaptive retrieval strategy selection in `ollama-mcp`.
-- `RL_MODEL_PATH=.rl-model.json` controls where learned Q-values are saved/loaded.
+| Variable | Default | Description |
+|----------|---------|-------------|
+| `NEO4J_URI` | `bolt://localhost:7687` | Neo4j Bolt URI |
+| `NEO4J_USER` | `neo4j` | Neo4j username |
+| `NEO4J_PASSWORD` | — | Neo4j password (required) |
+| `OLLAMA_URL` | `http://localhost:11434` | Ollama base URL |
+| `OLLAMA_MODEL` | `llama3.1:8b` | Model name |
+| `DOC_ROOTS` | *(empty — uses relative fallbacks)* | Comma-separated paths to local document directories |
+| `EXTRACTION_ROOT` | *(empty — uses relative fallback)* | Path to thesis-extraction directory |
 
-Context-only safety mode:
+Leave `DOC_ROOTS` and `EXTRACTION_ROOT` empty to use the default paths relative to this repository.
 
-- `STRICT_CONTEXT_ONLY=true` makes the chat client answer only when MCP tool context was used in that turn.
-- If no indexed context is available, it returns: `I do not have enough context in the indexed sources to answer that.`
-- `REQUIRE_EXPLICIT_CITATIONS=true` requires every answer to include at least one explicit evidence reference (`path | row N` or `path | line N`).
-
-## 4. Start services
-
-In separate terminals:
-
-```bash
-ollama serve
-```
-
-```bash
-# optional if not already running as service
-brew services start neo4j
-```
-
-Pull your preferred model once:
+### 3. Pull the Ollama model
 
 ```bash
 ollama pull llama3.1:8b
 ```
 
-## 5. Run terminal chat (Ollama + MCP)
+## Running the MCP server
 
 ```bash
-cd /Users/manan/Desktop/Honours/thesis-extension
-source .venv/bin/activate
-.venv/bin/python ollama-mcp --model llama3.1:8b
+python3 thesis-extension/sr8-mcp.py
 ```
 
-## 6. Run MCP server directly
+The server runs on `stdio` transport and is driven by `ollama-mcp.py`. Running it directly will appear idle, which is expected.
 
-If you want to run only the MCP server process from terminal:
+## Running the Ollama client
 
 ```bash
-cd /Users/manan/Desktop/Honours/thesis-extension
-source .venv/bin/activate
-.venv/bin/python sr8-mcp
+python3 thesis-extension/ollama-mcp.py
 ```
 
-The server uses stdio transport, so it is intended to be launched by an MCP client.
-If you just run it directly, it may appear idle (no interactive prompt), which is expected.
+This starts an interactive chat session. The client drives the MCP server as a child process, calls tools automatically, and maintains conversation context.
 
-To run chat + server together (recommended):
+**Do not modify `ollama-mcp.py`.**
+
+## Running the test script
 
 ```bash
-cd /Users/manan/Desktop/Honours/thesis-extension
-source .venv/bin/activate
-.venv/bin/python ollama-mcp --model llama3.1:8b
+python3 thesis-extension/test_recommender.py
 ```
 
-Then ask things like:
+Runs 5 pre-defined questions against the knowledge graph and Ollama, printing tool calls, answers, and a summary. Neo4j and Ollama must both be running.
 
-- "List all available ADR document files."
-- "Run extraction for requirements and summarize failures if any."
-- "Find references to ADR-43 in local docs."
-- "Get essential requirements for ADR-31 from the graph."
-- "Run a Cypher query to count AustralianDesignRule nodes."
+## Regenerating ADR mapping files
 
-Special behavior:
+```bash
+python3 thesis-extension/sync-ADR-mapping.py
+```
 
-- If you ask a question like `how many requirements are there for SRP-043` (or ADR equivalent),
-  the client calls `get_adr_requirements` directly and returns:
-  - total count, and
-  - a full requirement list for that ADR/SRP ID.
-- If you ask a question like `find references to ADR-43` (or SRP equivalent),
-  the client calls `get_adr_requirements` + `search_local_documents` directly and returns
-  file-level references with row/line pointers.
-- If you ask a design or manufacturing question, the client answers from the indexed
-    documents and then adds a redirect to the relevant section:
-    - Design questions point to the Design Manual's `The Design Process` section.
-    - Manufacturing questions point to the Manufacturing Section's `Manufacturing` section.
+Reads `thesis-extraction/csv/ADR*-Requirements.csv` and writes `ADR-mapping.csv` and `ADR-mapping.json` into this directory.
 
-Type /exit to quit.
+## Tool categories
 
-## Exposed MCP tools
+| Category | Tools |
+|----------|-------|
+| Document search | `list_documents`, `search_local_documents`, `suggest_requirement_sources`, `read_document`, `run_extraction_for_requirements` |
+| GraphRAG lookup | `get_project`, `get_adr`, `get_assembly`, `search_requirements`, `list_all_projects`, `list_all_adrs`, `get_adr_requirements` |
+| Cypher passthrough | `query_knowledge_graph` (read-only MATCH queries only) |
+| Compliance gaps | `get_compliance_gaps`, `get_verification_progress`, `get_highest_risk_gaps` |
+| Interface risk | `get_cross_assembly_requirements`, `get_assembly_dependencies`, `get_shared_requirements`, `get_interface_risk_report` |
+| Inference | `get_unassigned_requirements`, `get_similar_assigned_requirements`, `write_inferred_project_link`, `get_inferred_links`, `promote_inferred_link` |
+| Change impact | `get_requirements_by_keyword`, `get_requirement_chain`, `get_reverification_scope`, `write_change_impact_report`, `get_change_impact_reports` |
+| RL / feedback | `record_feedback`, `get_feedback_stats` |
 
-- list_documents
-- run_extraction_for_requirements
-- search_local_documents
-- suggest_requirement_sources
-- read_document
-- query_knowledge_graph
-- get_adr_requirements
+## Neo4j graph structure
+
+Node labels used by the MCP tools:
+
+- `AustralianDesignRule` — an ADR; `hasID`, `hasName`, `isVerified`
+- `ExtractedEssentialRequirement` — a requirement extracted from an ADR; `hasID`, `requirementName`, `requirementDescription`, `isApplicable`, `hasRiskLevel`
+- `Clause` — a clause within an ADR; `hasID`, `hasName`, `clauseText`
+- `Project` — an SR8 project area; `projectID`, `projectName`
+- `Assembly` (or any node with `assemblyID`) — e.g. `ASM-FRONT-AXLE`, `ASM-STEERING`, `ASM-REAR-AXLE`
+- `ChangeImpactReport` — written by `write_change_impact_report`; `hasID`, `changeDescription`, `riskSummary`, `createdAt`
+- `FeedbackEvent` — written by `record_feedback`; `hasID`, `action`, `reward`, `timestamp`
+
+Relationship types:
+
+- `hasExternalEssentialRequirement` — ADR → Requirement
+- `assignedToProject` — Requirement → Project (confirmed)
+- `suggestedProject` — Requirement → Project (inferred; promoted by `promote_inferred_link`)
+- `partOfAssembly` — Project → Assembly
+- `hasClause` — ADR → Clause
+- `affectsRequirement` / `affectsProject` — ChangeImpactReport → Requirement / Project
+- `recordedFor` — FeedbackEvent → Requirement / Project
+
+## Reinforcement learning
+
+The RL agent in `reinforcemnt-learning.py` learns from human feedback via `record_feedback`. The Q-table is saved to `.rl-model.json` and loaded automatically when `sr8-mcp.py` starts. It adjusts confidence scores on inferred project links (`write_inferred_project_link`) based on prior feedback signals.
+
+Run the built-in self-test:
+
+```bash
+python3 thesis-extension/reinforcemnt-learning.py --self-test
+```
 
 ## Notes
 
-- query_knowledge_graph only allows read-only Cypher (MATCH/RETURN style).
-- Document reads are restricted to paths under DOC_ROOTS in .env.
-- Search/suggestion results include exact file paths with line numbers (text/PDF/DOCX) or row numbers (CSV).
-- PDF files are parsed via `pypdf`; OCR fallback is used when no text is found.
-- OCR fallback can be toggled using `OCR_ENABLED` in `.env`.
-- Extraction can be run from chat via `run_extraction_for_requirements`.
-- Set `STRICT_CONTEXT_ONLY=false` if you want to allow non-contextual model responses.
-- Set `REQUIRE_EXPLICIT_CITATIONS=false` if you do not want mandatory file citations in each answer.
-
-## ADR Mapping Outputs (Imported From Extraction)
-
-The extension mapping outputs are now generated directly from extracted ADR CSV files in:
-
-- `/Users/manan/Desktop/Honours/thesis-extraction/CSV`
-
-To refresh mapping outputs after running extraction:
-
-```bash
-cd /Users/manan/Desktop/Honours/thesis-extension
-python3 sync-ADR-mapping.py
-```
-
-This regenerates:
-
-- `ADR-mapping.csv`
-- `ADR-mapping.json`
-
-## Reinforcement Learning Module
-
-A new standalone module is available at `reinforcemnt-learning.py`.
-
-It provides a small tabular Q-learning agent that can be used to learn strategy
-selection from user feedback, for example:
-
-- choosing between `graph_first`, `documents_first`, or `hybrid` retrieval
-- adapting prompt strategy per question type
-- storing learned Q-values in a JSON file for reuse between sessions
-
-Quick run:
-
-```bash
-cd /Users/manan/Desktop/Honours/thesis-extension
-.venv/bin/python reinforcemnt-learning.py
-```
-
-Run built-in RL tests:
-
-```bash
-cd /Users/manan/Desktop/Honours/thesis-extension
-.venv/bin/python reinforcemnt-learning.py --self-test
-```
-
-Live integration with Ollama + SR8 is enabled in `ollama-mcp`:
-
-- `RL_ENABLED=true` enables adaptive retrieval strategy selection.
-- `RL_MODEL_PATH=.rl-model.json` controls where learned Q-values are stored.
-- For ADR/SRP queries, the agent chooses `graph_first`, `documents_first`, or `hybrid` and updates rewards per turn.
-
-## Test Question Bank
-
-A curated prompt list for validating model behavior is available in `test.md`.
+- `query_knowledge_graph` accepts only MATCH-starting Cypher; write clauses are blocked.
+- Document reads are restricted to paths under `DOC_ROOTS`.
+- All Neo4j writes in the MCP tools use MERGE, never CREATE.
+- Set `STRICT_CONTEXT_ONLY=false` in `.env` to allow non-contextual model responses.
+- Set `OCR_ENABLED=false` to disable the tesseract OCR fallback for scanned PDFs.

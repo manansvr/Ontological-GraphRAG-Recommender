@@ -14,8 +14,8 @@ import re
 from collections import defaultdict
 from pathlib import Path
 
-EXTRACTION_CSV_DIR_DEFAULT = Path("/Users/manan/Desktop/Honours/thesis-extraction/CSV")
-OUTPUT_DIR_DEFAULT = Path("/Users/manan/Desktop/Honours/thesis-extension")
+EXTRACTION_CSV_DIR_DEFAULT = Path(__file__).resolve().parent.parent / "thesis-extraction" / "csv"
+OUTPUT_DIR_DEFAULT = Path(__file__).resolve().parent
 
 COLUMN_ALIASES = {
     "adr_id": ["ADR Number", "ADR ID", "ADRID", "ADR Id", "adr_id", "ADR"],
