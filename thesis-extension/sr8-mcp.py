@@ -1,4 +1,5 @@
 #!/usr/bin/env python3
+import fcntl
 import os
 import re
 import json
@@ -20,11 +21,10 @@ REWARD_CONFIRMED = 1.0
 REWARD_REJECTED = -1.0
 REWARD_MODIFIED = 0.5
 REWARD_IGNORED = -0.3
-PENALTY_OVERCONFIDENT = -2.0  # applied when confidence > 0.8 and recommendation was rejected
+PENALTY_OVERCONFIDENT = -2.0  # applied automatically when confidence > 0.8 and link was rejected
 
 mcp = FastMCP("sr8-knowledge-mcp")
 
-# Derive the project root from this file's location so fallback paths are portable.
 _PROJECT_ROOT = Path(__file__).resolve().parent.parent
 _RL_MODEL_PATH = Path(__file__).resolve().parent / ".rl-model.json"
 
@@ -42,6 +42,14 @@ WRITE_KEYWORDS = {
     " load csv",
 }
 
+# All 12 contextual inference states produced by _inference_state().
+_INFERENCE_STATES = [
+    f"inference_{ev}_{pop}_{cb}"
+    for ev in ("strong", "weak")
+    for pop in ("yes", "no")
+    for cb in ("high", "mid", "low")
+]
+
 
 # ── Path helpers ───────────────────────────────────────────────────────────────
 
@@ -55,7 +63,6 @@ def _doc_roots() -> list[Path]:
                 roots.append(p)
     if roots:
         return roots
-    # Relative fallbacks derived from this repository's layout.
     fallback = [
         _PROJECT_ROOT / "thesis-extraction" / "csv",
         _PROJECT_ROOT / "thesis-extraction" / "Design-Documentation",
@@ -81,7 +88,6 @@ def _normalize(text: str) -> str:
 
 def _normalize_rule_id(rule_id: str) -> tuple[str, list[str]]:
     raw = rule_id.strip().upper().replace(" ", "")
-    # Accept SRP-* aliases and normalise to ADR-* because extracted data uses ADR IDs.
     if raw.startswith("SRP"):
         raw = "ADR" + raw[3:]
     if raw.startswith("ADR") and not raw.startswith("ADR-"):
@@ -102,7 +108,6 @@ def _normalize_rule_id(rule_id: str) -> tuple[str, list[str]]:
 
 
 def _extract_text_from_pdf(path: Path) -> str:
-    # Try normal text extraction first.
     try:
         from pypdf import PdfReader
         reader = PdfReader(str(path))
@@ -115,7 +120,6 @@ def _extract_text_from_pdf(path: Path) -> str:
     except Exception:
         pass
 
-    # OCR fallback can be disabled in env if dependencies are unavailable.
     ocr_enabled = os.getenv("OCR_ENABLED", "true").lower() == "true"
     if not ocr_enabled:
         return ""
@@ -215,9 +219,6 @@ def _neo4j_driver():
 
 def _cypher_is_read_only(cypher: str) -> bool:
     normalized = f" {_normalize(cypher)} "
-    # Only MATCH-starting queries are permitted; dropping the WITH allowance
-    # prevents a WITH … CREATE bypass where the write keyword check would still
-    # catch CREATE but an attacker could craft edge cases with sub-clauses.
     if not normalized.strip().startswith("match"):
         return False
     return not any(keyword in normalized for keyword in WRITE_KEYWORDS)
@@ -237,10 +238,23 @@ def _extraction_root() -> Path:
 _rl_agent: Any = None
 _rl_agent_loaded: bool = False
 _rl_transition_cls: Any = None
+_rl_replay_buffer: Any = None  # FIX 4: module-level ReplayBuffer (capacity 500)
+
+
+# FIX 5: file-locked save to prevent concurrent write corruption between
+# sr8-mcp.py and ollama-mcp.py which share the same .rl-model.json.
+def _safe_agent_save(agent: Any, path: Path) -> None:
+    lock_path = str(path) + ".lock"
+    with open(lock_path, "w") as lock_file:
+        try:
+            fcntl.flock(lock_file, fcntl.LOCK_EX)
+            agent.save(path)
+        finally:
+            fcntl.flock(lock_file, fcntl.LOCK_UN)
 
 
 def _load_rl_agent() -> Any:
-    global _rl_agent, _rl_agent_loaded, _rl_transition_cls
+    global _rl_agent, _rl_agent_loaded, _rl_transition_cls, _rl_replay_buffer
     if _rl_agent_loaded:
         return _rl_agent
     _rl_agent_loaded = True
@@ -253,22 +267,48 @@ def _load_rl_agent() -> Any:
             return None
         module = _importlib_util.module_from_spec(spec)
         spec.loader.exec_module(module)
+
         _rl_transition_cls = getattr(module, "Transition")
         q_cls = getattr(module, "QLearningAgent")
+        replay_cls = getattr(module, "ReplayBuffer")
+
+        # FIX 4: initialise the live replay buffer (capacity 500).
+        _rl_replay_buffer = replay_cls(capacity=500)
+
         _rl_agent = q_cls.load(_RL_MODEL_PATH) if _RL_MODEL_PATH.exists() else q_cls()
+
+        # FIX 6: merge pre-trained inference priors if no inference states exist yet.
+        has_inference = any(s in _rl_agent.q_table for s in _INFERENCE_STATES)
+        if not has_inference:
+            train_inference_fn = getattr(module, "train_inference_agent")
+            pretrained = train_inference_fn()
+            for state, actions in pretrained.q_table.items():
+                if state.startswith("inference_"):
+                    _rl_agent.q_table[state] = dict(actions)
+            _safe_agent_save(_rl_agent, _RL_MODEL_PATH)
+
     except Exception:
         _rl_agent = None
     return _rl_agent
 
 
-def _rl_adjust_confidence(base: float) -> float:
-    """Nudge a confidence score using the Q-learning agent's current policy."""
+# FIX 1: helper that maps observable context to one of 12 state strings.
+def _inference_state(similar_count: int, adr_populated: bool, base_confidence: float) -> str:
+    evidence = "strong" if similar_count >= 3 else "weak"
+    populated = "yes" if adr_populated else "no"
+    conf_band = "high" if base_confidence > 0.7 else "mid" if base_confidence > 0.4 else "low"
+    return f"inference_{evidence}_{populated}_{conf_band}"
+
+
+# FIX 1: now accepts the contextual state instead of always using "inference".
+def _rl_adjust_confidence(base: float, state: str) -> float:
+    """Nudge a confidence score using the Q-learning agent's policy for the given contextual state."""
     agent = _load_rl_agent()
     if not agent:
         return base
     actions = ["increase_confidence", "keep_confidence", "decrease_confidence"]
     try:
-        action = agent.choose_action("inference", actions)
+        action = agent.choose_action(state, actions)
         if action == "increase_confidence":
             return min(1.0, base + 0.1)
         if action == "decrease_confidence":
@@ -278,8 +318,9 @@ def _rl_adjust_confidence(base: float) -> float:
     return base
 
 
-def _rl_update(feedback_action: str, reward: float) -> None:
-    """Update the RL agent from a human-feedback event and persist the model."""
+# FIX 1 + FIX 4 + FIX 5: accepts state, runs replay, uses locked save.
+def _rl_update(feedback_action: str, reward: float, state: str = "inference") -> None:
+    """Update the RL agent from a human-feedback event, run a replay batch, and persist."""
     agent = _load_rl_agent()
     if not agent or _rl_transition_cls is None:
         return
@@ -292,10 +333,17 @@ def _rl_update(feedback_action: str, reward: float) -> None:
             "ignored": "decrease_confidence",
         }
         rl_action = rl_map.get(feedback_action, "keep_confidence")
-        t = _rl_transition_cls("inference", rl_action, reward, "inference", actions)
+        t = _rl_transition_cls(state, rl_action, reward, state, actions)
         agent.update(t)
+
+        # FIX 4: accumulate in the live replay buffer; batch-update when full enough.
+        if _rl_replay_buffer is not None:
+            _rl_replay_buffer.push(t)
+            if len(_rl_replay_buffer) >= 32:
+                agent.replay(_rl_replay_buffer, batch_size=32)
+
         agent.decay_exploration()
-        agent.save(_RL_MODEL_PATH)
+        _safe_agent_save(agent, _RL_MODEL_PATH)  # FIX 5
     except Exception:
         pass
 
@@ -742,7 +790,6 @@ def list_all_projects() -> str:
     except Exception as exc:
         return json.dumps({"error": str(exc)}, indent=2)
 
-    # Group by assembly for convenience.
     grouped: dict[str, Any] = {}
     ungrouped: list[dict] = []
     for row in rows:
@@ -836,7 +883,6 @@ def get_compliance_gaps(
     except Exception as exc:
         return json.dumps({"error": str(exc)}, indent=2)
 
-    # Group by project for readability.
     by_project: dict[str, Any] = {}
     no_project: list[dict] = []
     for row in rows:
@@ -1106,6 +1152,8 @@ def get_unassigned_requirements() -> str:
     """Call when user asks about gaps, missing assignments, or extending the knowledge base.
 
     Returns all ExtractedEssentialRequirement nodes that have no assignedToProject relationship.
+    After calling this, call get_similar_assigned_requirements for each result,
+    then write_inferred_project_link. Only promote links where confidence >= 0.6.
     """
     query = """
     MATCH (r:ExtractedEssentialRequirement)
@@ -1187,23 +1235,50 @@ def write_inferred_project_link(
     """Write a suggestedProject relationship from an unassigned requirement to a project.
 
     NEVER creates assignedToProject — only suggestedProject. The confidence score is
-    nudged by the RL agent's current policy before being stored.
+    nudged by the RL agent's contextual policy before being stored. The computed
+    inference state is stored on the relationship so record_feedback can retrieve it.
     """
     if not requirement_id.strip() or not project_id.strip():
         return json.dumps({"error": "requirement_id and project_id must not be empty."}, indent=2)
     if not 0.0 <= confidence <= 1.0:
         return json.dumps({"error": "confidence must be between 0.0 and 1.0."}, indent=2)
 
-    adjusted_confidence = _rl_adjust_confidence(confidence)
+    # FIX 1: gather context to compute a richer state before calling the agent.
+    similar_count = 0
+    adr_populated = False
+    try:
+        with _neo4j_driver() as driver:
+            with driver.session() as session:
+                ctx = session.run("""
+                    MATCH (r:ExtractedEssentialRequirement {hasID: $req_id})
+                    OPTIONAL MATCH (a:AustralianDesignRule)-[:hasExternalEssentialRequirement]->(r)
+                    OPTIONAL MATCH (a)-[:hasExternalEssentialRequirement]->(sim:ExtractedEssentialRequirement)
+                    WHERE sim.hasID <> $req_id AND (sim)-[:assignedToProject]->()
+                    WITH a, count(DISTINCT sim) AS similar_count
+                    OPTIONAL MATCH (a)-[:hasExternalEssentialRequirement]
+                                   ->(any_r:ExtractedEssentialRequirement)
+                                   -[:assignedToProject]->(:Project)
+                    RETURN similar_count,
+                           CASE WHEN count(DISTINCT any_r) > 0 THEN true ELSE false END AS adr_populated
+                """, req_id=requirement_id).single()
+                if ctx:
+                    similar_count = ctx["similar_count"] or 0
+                    adr_populated = bool(ctx["adr_populated"])
+    except Exception:
+        pass
 
-    query = """
+    infer_state = _inference_state(similar_count, adr_populated, confidence)
+    adjusted_confidence = _rl_adjust_confidence(confidence, infer_state)
+
+    write_query = """
     MATCH (r:ExtractedEssentialRequirement {hasID: $req_id})
     MATCH (p:Project {projectID: $project_id})
     MERGE (r)-[rel:suggestedProject]->(p)
-    SET rel.confidence = $confidence,
-        rel.reasoning = $reasoning,
-        rel.inferredBy = 'Ollama-MCP',
-        rel.inferredAt = datetime()
+    SET rel.confidence     = $confidence,
+        rel.reasoning      = $reasoning,
+        rel.inferredBy     = 'Ollama-MCP',
+        rel.inferredAt     = datetime(),
+        rel.inferenceState = $inference_state
     RETURN r.hasID AS req_id, p.projectID AS project_id, rel.confidence AS stored_confidence
     """
 
@@ -1211,11 +1286,12 @@ def write_inferred_project_link(
         with _neo4j_driver() as driver:
             with driver.session() as session:
                 row = session.run(
-                    query,
+                    write_query,
                     req_id=requirement_id,
                     project_id=project_id,
                     confidence=adjusted_confidence,
                     reasoning=reasoning,
+                    inference_state=infer_state,
                 ).single()
                 if not row:
                     return json.dumps({"error": "Requirement or Project not found."}, indent=2)
@@ -1225,6 +1301,7 @@ def write_inferred_project_link(
                     "project_id": row["project_id"],
                     "original_confidence": confidence,
                     "adjusted_confidence": adjusted_confidence,
+                    "inference_state": infer_state,
                     "reasoning": reasoning,
                 }, indent=2)
     except Exception as exc:
@@ -1233,7 +1310,11 @@ def write_inferred_project_link(
 
 @mcp.tool()
 def get_inferred_links() -> str:
-    """Return all suggestedProject relationships with confidence, reasoning, and timestamp."""
+    """Return all suggestedProject relationships sorted by confidence (highest first).
+
+    Each entry includes a 'recommended' flag (true if confidence >= 0.6) and a
+    'warning' field for low-confidence suggestions that require careful review.
+    """
     query = """
     MATCH (r:ExtractedEssentialRequirement)-[rel:suggestedProject]->(p:Project)
     OPTIONAL MATCH (a:AustralianDesignRule)-[:hasExternalEssentialRequirement]->(r)
@@ -1245,6 +1326,7 @@ def get_inferred_links() -> str:
            rel.reasoning AS reasoning,
            rel.inferredBy AS inferred_by,
            toString(rel.inferredAt) AS inferred_at,
+           rel.inferenceState AS inference_state,
            a.hasID AS adr_id
     ORDER BY rel.confidence DESC
     """
@@ -1255,6 +1337,12 @@ def get_inferred_links() -> str:
                 rows = [record.data() for record in session.run(query)]
     except Exception as exc:
         return json.dumps({"error": str(exc)}, indent=2)
+
+    # FIX 2: annotate each link with operational guidance.
+    for row in rows:
+        conf = row.get("confidence") or 0.0
+        row["recommended"] = conf >= 0.6
+        row["warning"] = "low confidence — review carefully" if conf < 0.4 else None
 
     return json.dumps({"inferred_link_count": len(rows), "inferred_links": rows}, indent=2)
 
@@ -1535,11 +1623,39 @@ def record_feedback(
     action must be one of: confirmed, rejected, modified, ignored.
     Writes a FeedbackEvent node to Neo4j and updates the RL agent.
     Use the REWARD_* constants: confirmed=1.0, rejected=-1.0, modified=0.5, ignored=-0.3.
-    If confidence was >0.8 and the action is rejected, pass reward=-2.0 (PENALTY_OVERCONFIDENT).
+
+    When action is 'rejected' and the stored confidence was >0.8, the penalty
+    PENALTY_OVERCONFIDENT=-2.0 is applied automatically — do not pass it manually.
+    The FeedbackEvent node records overconfidencePenaltyApplied=true for audit.
     """
     valid_actions = {"confirmed", "rejected", "modified", "ignored"}
     if action not in valid_actions:
         return json.dumps({"error": f"action must be one of {sorted(valid_actions)}."}, indent=2)
+
+    # FIX 3: fetch stored confidence and inference state from the suggestedProject
+    # relationship so we can auto-apply the overconfidence penalty.
+    stored_confidence: float | None = None
+    inferred_state: str = "inference"
+    try:
+        with _neo4j_driver() as driver:
+            with driver.session() as session:
+                state_row = session.run("""
+                    MATCH (r:ExtractedEssentialRequirement {hasID: $req_id})
+                          -[rel:suggestedProject]->(p:Project {projectID: $proj_id})
+                    RETURN rel.confidence AS confidence,
+                           rel.inferenceState AS inference_state
+                """, req_id=requirement_id, proj_id=project_id).single()
+                if state_row:
+                    stored_confidence = state_row["confidence"]
+                    inferred_state = state_row["inference_state"] or "inference"
+    except Exception:
+        pass
+
+    actual_reward = reward
+    overconfidence_penalty_applied = False
+    if action == "rejected" and stored_confidence is not None and stored_confidence > 0.8:
+        actual_reward = PENALTY_OVERCONFIDENT
+        overconfidence_penalty_applied = True
 
     ts = datetime.utcnow().strftime("%Y%m%d%H%M%S%f")
     fe_id = f"FE-{ts}"
@@ -1553,8 +1669,18 @@ def record_feedback(
                         fe.projectID = $proj_id,
                         fe.action = $action,
                         fe.reward = $reward,
+                        fe.inferenceState = $inference_state,
+                        fe.overconfidencePenaltyApplied = $penalty_applied,
                         fe.timestamp = datetime()
-                """, feid=fe_id, req_id=requirement_id, proj_id=project_id, action=action, reward=reward)
+                """,
+                    feid=fe_id,
+                    req_id=requirement_id,
+                    proj_id=project_id,
+                    action=action,
+                    reward=actual_reward,
+                    inference_state=inferred_state,
+                    penalty_applied=overconfidence_penalty_applied,
+                )
 
                 session.run("""
                     MATCH (fe:FeedbackEvent {hasID: $feid})
@@ -1573,7 +1699,7 @@ def record_feedback(
     except Exception as exc:
         return json.dumps({"error": str(exc)}, indent=2)
 
-    _rl_update(action, reward)
+    _rl_update(action, actual_reward, state=inferred_state)
 
     return json.dumps({
         "status": "recorded",
@@ -1581,34 +1707,15 @@ def record_feedback(
         "requirement_id": requirement_id,
         "project_id": project_id,
         "action": action,
-        "reward": reward,
+        "reward_applied": actual_reward,
+        "overconfidence_penalty_applied": overconfidence_penalty_applied,
+        "inference_state": inferred_state,
     }, indent=2)
 
 
 @mcp.tool()
 def get_feedback_stats() -> str:
     """Return feedback statistics: total events, average reward, breakdown by action, and 5 most recent events."""
-    query = """
-    MATCH (fe:FeedbackEvent)
-    WITH count(fe) AS total,
-         avg(fe.reward) AS avg_reward,
-         collect({
-             id: fe.hasID,
-             req_id: fe.requirementID,
-             proj_id: fe.projectID,
-             action: fe.action,
-             reward: fe.reward,
-             timestamp: toString(fe.timestamp)
-         }) AS all_events
-    UNWIND all_events AS ev
-    WITH total, avg_reward, all_events,
-         ev.action AS action, count(ev) AS action_count, avg(ev.reward) AS action_avg_reward
-    RETURN total, avg_reward, all_events,
-           collect({action: action, count: action_count, avg_reward: action_avg_reward}) AS breakdown
-    LIMIT 1
-    """
-
-    # Simpler two-query approach to avoid Cypher aggregation complexity.
     summary_query = """
     MATCH (fe:FeedbackEvent)
     RETURN count(fe) AS total,
@@ -1628,6 +1735,8 @@ def get_feedback_stats() -> str:
            fe.projectID AS proj_id,
            fe.action AS action,
            fe.reward AS reward,
+           fe.inferenceState AS inference_state,
+           fe.overconfidencePenaltyApplied AS penalty_applied,
            toString(fe.timestamp) AS timestamp
     ORDER BY fe.timestamp DESC
     LIMIT 5
@@ -1648,6 +1757,76 @@ def get_feedback_stats() -> str:
         "breakdown_by_action": breakdown,
         "recent_events": recent,
     }, indent=2)
+
+
+# ── Phase 7: RL policy inspector ──────────────────────────────────────────────
+
+@mcp.tool()
+def get_rl_policy() -> str:
+    """Report the current RL agent policy for inference confidence-adjustment states.
+
+    Returns a human-readable summary covering:
+    - Current exploration rate (epsilon)
+    - Q-values and greedy action for each known inference state
+    - Total feedback events recorded and average reward
+    - Whether the agent has converged (epsilon <= 0.05)
+    """
+    agent = _load_rl_agent()
+
+    lines: list[str] = ["SR8 RL Policy Report", "=" * 48]
+
+    if agent is None:
+        lines.append("RL agent not available — reinforcemnt-learning.py not found.")
+        return "\n".join(lines)
+
+    epsilon = agent.config.exploration_rate
+    converged = epsilon <= 0.05
+    lines.append(f"Exploration rate (epsilon) : {epsilon:.4f}")
+    lines.append(f"Converged                  : {'Yes' if converged else 'No'} (threshold: 0.05)")
+    lines.append("")
+
+    # Report Q-values for each inference state that exists in the Q-table.
+    inference_keys = sorted(s for s in _INFERENCE_STATES if s in agent.q_table)
+    if not inference_keys:
+        lines.append("No inference states in Q-table yet.")
+    else:
+        actions = ["increase_confidence", "keep_confidence", "decrease_confidence"]
+        lines.append(f"{'State':<38}  {'Greedy action':<24}  Q-values (↑ keep ↓)")
+        lines.append("-" * 90)
+        for state in inference_keys:
+            q = agent.q_table[state]
+            q_inc  = q.get("increase_confidence", 0.0)
+            q_keep = q.get("keep_confidence", 0.0)
+            q_dec  = q.get("decrease_confidence", 0.0)
+            greedy = max(actions, key=lambda a: q.get(a, 0.0))
+            lines.append(
+                f"{state:<38}  {greedy:<24}  "
+                f"↑{q_inc:+.3f}  keep{q_keep:+.3f}  ↓{q_dec:+.3f}"
+            )
+
+    # Fetch feedback stats from Neo4j.
+    lines.append("")
+    try:
+        with _neo4j_driver() as driver:
+            with driver.session() as session:
+                row = session.run("""
+                    MATCH (fe:FeedbackEvent)
+                    RETURN count(fe) AS total, avg(fe.reward) AS avg_reward
+                """).single()
+                total = row["total"] if row else 0
+                avg_r = round(row["avg_reward"] or 0.0, 4) if row else 0.0
+        lines.append(f"Total feedback events      : {total}")
+        lines.append(f"Average reward             : {avg_r}")
+    except Exception as exc:
+        lines.append(f"Feedback stats unavailable : {exc}")
+
+    lines.append("")
+    lines.append(
+        "Recommendation: promote inferred links only when confidence >= 0.6 "
+        "and the greedy action is 'keep_confidence' or 'increase_confidence'."
+    )
+
+    return "\n".join(lines)
 
 
 if __name__ == "__main__":

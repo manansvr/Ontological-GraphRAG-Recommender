@@ -211,6 +211,86 @@ def train_agent(
     return agent
 
 
+def train_inference_agent(
+    episodes: int = 1000,
+    replay_batch_size: int = 16,
+    replay_every: int = 5,
+    seed: int = 99,
+) -> QLearningAgent:
+    """Pre-train a Q-learning agent on the 12 inference confidence-adjustment states.
+
+    Produces a sensible prior so the live system does not begin from uniform randomness.
+    The 12 states are: inference_{strong|weak}_{yes|no}_{high|mid|low}.
+
+    Reward model:
+    - Strong evidence (inference_strong_*):         increase=0.8, keep=0.6, decrease=-0.2
+    - Moderate evidence (inference_weak_yes_* or
+      inference_*_no_mid):                          increase=0.1, keep=0.5, decrease=-0.1
+    - Weak evidence (inference_weak_no_{high|low}): increase=-0.5, keep=0.3, decrease=0.6
+    """
+    random.seed(seed)
+
+    INFERENCE_STATES: List[State] = [
+        f"inference_{ev}_{pop}_{cb}"
+        for ev in ("strong", "weak")
+        for pop in ("yes", "no")
+        for cb in ("high", "mid", "low")
+    ]
+    INFERENCE_ACTIONS: List[Action] = [
+        "increase_confidence",
+        "keep_confidence",
+        "decrease_confidence",
+    ]
+
+    # Reward means and noise std for each (category, action) pair.
+    REWARD_MODELS: Dict[str, Dict[str, Tuple[float, float]]] = {
+        "strong": {
+            "increase_confidence": (0.8, 0.12),
+            "keep_confidence":     (0.6, 0.12),
+            "decrease_confidence": (-0.2, 0.08),
+        },
+        "moderate": {
+            "increase_confidence": (0.1, 0.10),
+            "keep_confidence":     (0.5, 0.12),
+            "decrease_confidence": (-0.1, 0.08),
+        },
+        "weak": {
+            "increase_confidence": (-0.5, 0.12),
+            "keep_confidence":     (0.3, 0.12),
+            "decrease_confidence": (0.6, 0.12),
+        },
+    }
+
+    def _category(state: State) -> str:
+        if state.startswith("inference_strong_"):
+            return "strong"
+        # Moderate: weak+yes or any state ending in _no_mid (but not already strong).
+        if "weak_yes" in state or state.endswith("_no_mid"):
+            return "moderate"
+        return "weak"
+
+    agent = QLearningAgent()
+    buffer = ReplayBuffer(capacity=2000)
+
+    for episode in range(1, episodes + 1):
+        state = random.choice(INFERENCE_STATES)
+        action = agent.choose_action(state, INFERENCE_ACTIONS)
+        mean, noise = REWARD_MODELS[_category(state)][action]
+        reward = max(-1.0, min(1.0, random.gauss(mean, noise)))
+
+        transition = Transition(state, action, reward, state, INFERENCE_ACTIONS)
+        buffer.push(transition)
+        agent.update(transition)
+
+        if episode % replay_every == 0:
+            agent.replay(buffer, replay_batch_size)
+
+        agent.episode_rewards.append(reward)
+        agent.decay_exploration()
+
+    return agent
+
+
 def evaluate_policy(agent: QLearningAgent, episodes: int = 200, seed: int = 7) -> Dict[str, float]:
     random.seed(seed)
     env = RetrievalBanditEnvironment()

@@ -110,7 +110,7 @@ Reads `thesis-extraction/csv/ADR*-Requirements.csv` and writes `ADR-mapping.csv`
 | Interface risk | `get_cross_assembly_requirements`, `get_assembly_dependencies`, `get_shared_requirements`, `get_interface_risk_report` |
 | Inference | `get_unassigned_requirements`, `get_similar_assigned_requirements`, `write_inferred_project_link`, `get_inferred_links`, `promote_inferred_link` |
 | Change impact | `get_requirements_by_keyword`, `get_requirement_chain`, `get_reverification_scope`, `write_change_impact_report`, `get_change_impact_reports` |
-| RL / feedback | `record_feedback`, `get_feedback_stats` |
+| RL / feedback | `record_feedback`, `get_feedback_stats`, `get_rl_policy` |
 
 ## Neo4j graph structure
 
