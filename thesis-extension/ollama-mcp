@@ -233,12 +233,32 @@ def _design_guidance_redirect(text: str) -> dict[str, str] | None:
     return None
 
 
+# Configurable limits for searching and graph queries. Increase these
+# if you want the client to scan more files and return more results.
+GRAPH_LIMIT = int(os.getenv("GRAPH_LIMIT", "2000"))
+DOC_MAX_FILES = int(os.getenv("DOC_MAX_FILES", "50"))
+DOC_MAX_HITS = int(os.getenv("DOC_MAX_HITS", "10"))
+SUGGEST_MAX_FILES = int(os.getenv("SUGGEST_MAX_FILES", "5"))
+SUGGEST_MAX_HITS = int(os.getenv("SUGGEST_MAX_HITS", "5"))
+
+
 def _format_requirements_listing(payload: dict[str, Any]) -> str:
     adr_id = payload.get("adr_id", "")
     count = payload.get("count", 0)
     req_rows = payload.get("requirements", [])
     evidence_refs = payload.get("evidence_refs", [])
+    # Prefer the pre-formatted plaintext list from the tool when available.
+    plain_list = payload.get("requirements_plain", [])
+    if isinstance(plain_list, list) and plain_list:
+        lines = [f"{adr_id} has {count} requirements.", "Requirements:"]
+        for item in plain_list:
+            lines.append(item)
+        if evidence_refs:
+            lines.append("")
+            lines.append(f"Evidence: {evidence_refs[0]}")
+        return "\n".join(lines)
 
+    # Fallback: derive unique requirements from graph rows.
     unique_reqs: list[str] = []
     seen: set[str] = set()
     for row in req_rows:
@@ -368,8 +388,8 @@ async def run_chat(model: str, server_command: str, server_args: list[str]) -> N
                 if _is_count_requirements_question(user_input):
                     rule_id = _extract_rule_id_from_question(user_input)
                     if rule_id:
-                        print(f"\n[tool] get_adr_requirements({{'adr_id': '{rule_id}', 'limit': 1000}})")
-                        tool_result = await session.call_tool("get_adr_requirements", {"adr_id": rule_id, "limit": 1000})
+                        print(f"\n[tool] get_adr_requirements({{'adr_id': '{rule_id}', 'limit': {GRAPH_LIMIT}}})")
+                        tool_result = await session.call_tool("get_adr_requirements", {"adr_id": rule_id, "limit": GRAPH_LIMIT})
 
                         tool_text_parts: list[str] = []
                         for part in tool_result.content:
@@ -393,8 +413,8 @@ async def run_chat(model: str, server_command: str, server_args: list[str]) -> N
                 if _is_reference_question(user_input):
                     rule_id = _extract_rule_id_from_question(user_input)
                     if rule_id:
-                        print(f"\n[tool] get_adr_requirements({{'adr_id': '{rule_id}', 'limit': 1000}})")
-                        req_result = await session.call_tool("get_adr_requirements", {"adr_id": rule_id, "limit": 1000})
+                        print(f"\n[tool] get_adr_requirements({{'adr_id': '{rule_id}', 'limit': {GRAPH_LIMIT}}})")
+                        req_result = await session.call_tool("get_adr_requirements", {"adr_id": rule_id, "limit": GRAPH_LIMIT})
 
                         req_text_parts: list[str] = []
                         for part in req_result.content:
@@ -409,10 +429,10 @@ async def run_chat(model: str, server_command: str, server_args: list[str]) -> N
                             req_payload = {"adr_id": rule_id, "count": 0, "evidence_refs": []}
 
                         normalized_rule = req_payload.get("adr_id", rule_id)
-                        print(f"\n[tool] search_local_documents({{'query': '{normalized_rule}', 'max_files': 10, 'max_hits_per_file': 3}})")
+                        print(f"\n[tool] search_local_documents({{'query': '{normalized_rule}', 'max_files': {DOC_MAX_FILES}, 'max_hits_per_file': {DOC_MAX_HITS}}})")
                         doc_result = await session.call_tool(
                             "search_local_documents",
-                            {"query": normalized_rule, "max_files": 10, "max_hits_per_file": 3},
+                            {"query": normalized_rule, "max_files": DOC_MAX_FILES, "max_hits_per_file": DOC_MAX_HITS},
                         )
 
                         doc_text_parts: list[str] = []
@@ -537,10 +557,10 @@ async def run_chat(model: str, server_command: str, server_args: list[str]) -> N
 
                 if rl_action in {"documents_first", "hybrid"}:
                     doc_query = rule_id or user_input
-                    print(f"\n[tool] search_local_documents({{'query': '{doc_query}', 'max_files': 5, 'max_hits_per_file': 3}})")
+                    print(f"\n[tool] search_local_documents({{'query': '{doc_query}', 'max_files': {DOC_MAX_FILES}, 'max_hits_per_file': {DOC_MAX_HITS}}})")
                     doc_result = await session.call_tool(
                         "search_local_documents",
-                        {"query": doc_query, "max_files": 5, "max_hits_per_file": 3},
+                        {"query": doc_query, "max_files": DOC_MAX_FILES, "max_hits_per_file": DOC_MAX_HITS},
                     )
                     doc_text_parts: list[str] = []
                     for part in doc_result.content:
@@ -555,10 +575,10 @@ async def run_chat(model: str, server_command: str, server_args: list[str]) -> N
                     tool_used_this_turn = True
 
                 if rl_action in {"graph_first", "hybrid"} and rule_id:
-                    print(f"\n[tool] get_adr_requirements({{'adr_id': '{rule_id}', 'limit': 400}})")
+                    print(f"\n[tool] get_adr_requirements({{'adr_id': '{rule_id}', 'limit': {GRAPH_LIMIT}}})")
                     graph_result = await session.call_tool(
                         "get_adr_requirements",
-                        {"adr_id": rule_id, "limit": 400},
+                        {"adr_id": rule_id, "limit": GRAPH_LIMIT},
                     )
                     graph_text_parts: list[str] = []
                     for part in graph_result.content:

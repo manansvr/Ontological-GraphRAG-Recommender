@@ -80,7 +80,7 @@ def main():
         # ── 2. Projects (export xlsx → csv first) ─────────────────────
         if not args.only or args.only == "projects":
             if os.path.exists(args.projects_file):
-                from extract_projects import extract_projects   # loaded lazily
+                from extract_projects import extract_projects   
                 extract_projects(
                     args.projects_file,
                     driver=driver,
@@ -93,7 +93,7 @@ def main():
         # ── 3. Parts (export xlsx → csv first) ────────────────────────
         if not args.only or args.only == "parts":
             if os.path.exists(args.parts_file):
-                from extract_parts import extract_parts         # loaded lazily
+                from extract_parts import extract_parts         
                 extract_parts(
                     args.parts_file,
                     driver=driver,

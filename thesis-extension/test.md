@@ -2,6 +2,10 @@
 
 Use these prompts in the chat client to validate what the model can answer from MCP tools and indexed sources.
 
+1. Return evidence for tyre-related requirements in ADR-23.
+2. How many requirements are there for ADR-43?
+3. What are the key quality-control steps in manufacturing?
+
 ## ADR Requirement Coverage
 
 1. How many requirements are there for ADR-43?
