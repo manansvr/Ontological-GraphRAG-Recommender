@@ -197,7 +197,8 @@ def write_clause(session, adr_id: str, clause_num: str,
 
 def write_requirement(session, adr_id: str, req_id: str,
                        req_name: str, text: str,
-                       is_applicable: bool, applicability_note: str):
+                       is_applicable: bool, applicability_note: str,
+                       is_verified: bool = False):
     """
     ExtractedEssentialRequirement — sits between ADR and Project.
     ADR -[:hasExternalEssentialRequirement]-> Requirement -[:assignedToProject]-> Project
@@ -213,15 +214,17 @@ def write_requirement(session, adr_id: str, req_id: str,
                       r.hasConfidenceScore     = 1.0,
                       r.hasProvenance          = 'CSV-Extracted',
                       r.isApplicable           = $applicable,
-                      r.applicabilityNote      = $note
+                      r.applicabilityNote      = $note,
+                      r.isVerified             = $verified
         ON MATCH  SET r.isApplicable      = $applicable,
-                      r.applicabilityNote = $note
+                      r.applicabilityNote = $note,
+                      r.isVerified        = $verified
         WITH r
         MATCH (a:AustralianDesignRule {hasID: $aid})
         MERGE (a)-[:hasExternalEssentialRequirement]->(r)
         MERGE (r)-[:derivedFrom]->(a)
     """, rid=req_id, name=req_name, text=text, aid=adr_id,
-         applicable=is_applicable, note=applicability_note)
+         applicable=is_applicable, note=applicability_note, verified=is_verified)
 
 
 def write_verification(session, adr_id: str, clause_num: str,
@@ -410,7 +413,7 @@ def extract_one_file(path: str, driver, dry_run: bool = False) -> dict:
                 req_counter += 1
                 current_req_id = f"REQ-{adr_id.replace('ADR-','')}-{req_counter:03d}"
                 write_requirement(s, adr_id, current_req_id, req_name, text,
-                                  is_applicable, applicability_note or "")
+                                  is_applicable, applicability_note or "", is_verified)
                 counts["requirements"] += 1
                 if not is_applicable:
                     counts["not_applicable"] += 1
