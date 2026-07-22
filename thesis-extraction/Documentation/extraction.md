@@ -107,6 +107,34 @@ python3 Scripts/extract-ADR.py --file CSV/ADR10-Requirements.csv --uri bolt://lo
 
 ---
 
+## Step 1b — Extract Failure Modes (FMEA)
+
+Source: `Brake_System_Failure_Mode_Data.xlsx` (sheets `Failure Mode Data` and `Requirement Mapping`).
+
+Writes:
+- `Component -[:hasFailureMode]-> FailureMode`
+- `FailureMode -[:causedBy]-> Cause`
+- `FailureMode -[:causes]-> Effect`
+- `FailureMode -[:mitigatedBy]-> ControlAction`
+- `Component -[:satisfiesRequirement]-> Requirement` (lightweight `Requirement` nodes keyed on `hasName`, not linked to `ExtractedEssentialRequirement` — link those manually in the Browser once matches are verified)
+
+`Component` nodes are MERGEd on `hasID` = the raw component name (e.g. `BrakeDiscs`), so this attaches to whatever `Component` nodes the parts/project extractors already created.
+
+```bash
+python3 Scripts/run-extraction.py --only failure-modes --dry-run --uri bolt://localhost:7687 --user neo4j --password password123
+python3 Scripts/run-extraction.py --only failure-modes --uri bolt://localhost:7687 --user neo4j --password password123
+```
+
+Or run it standalone:
+```bash
+python3 Scripts/extract_failure_modes.py --file Brake_System_Failure_Mode_Data.xlsx --dry-run
+python3 Scripts/extract_failure_modes.py --file Brake_System_Failure_Mode_Data.xlsx
+```
+
+Requires `openpyxl` (`pip3 install openpyxl`) in addition to the `neo4j` driver.
+
+---
+
 ## Step 2 — Extract Projects (when xlsx is exported)
 
 Export `project-tracking-system.xlsx` as CSV:

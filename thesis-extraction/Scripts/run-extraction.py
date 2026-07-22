@@ -36,6 +36,7 @@ DEFAULTS = {
     "adrs_folder":   "csv",
     "projects_file": "data/project-tracking-system.csv",
     "parts_file":    "data/parts-management.csv",
+    "failure_modes_file": "Brake_System_Failure_Mode_Data.xlsx",
 }
 
 
@@ -47,10 +48,11 @@ def main():
     parser.add_argument("--user",          default="neo4j")
     parser.add_argument("--password",      default="password")
     parser.add_argument("--dry-run",       action="store_true")
-    parser.add_argument("--only",          choices=["adrs", "projects", "parts"])
+    parser.add_argument("--only",          choices=["adrs", "projects", "parts", "failure-modes"])
     parser.add_argument("--adrs-folder",   default=DEFAULTS["adrs_folder"])
     parser.add_argument("--projects-file", default=DEFAULTS["projects_file"])
     parser.add_argument("--parts-file",    default=DEFAULTS["parts_file"])
+    parser.add_argument("--failure-modes-file", default=DEFAULTS["failure_modes_file"])
     args = parser.parse_args()
 
     print("=" * 60)
@@ -102,6 +104,18 @@ def main():
             else:
                 print(f"\n  ⚠️  Parts file not found: {args.parts_file}")
                 print(f"      Export parts-management.xlsx → CSV first")
+
+        # ── 4. Failure modes (FMEA data from xlsx) ─────────────────────
+        if not args.only or args.only == "failure-modes":
+            if os.path.exists(args.failure_modes_file):
+                from extract_failure_modes import extract_failure_modes
+                extract_failure_modes(
+                    args.failure_modes_file,
+                    driver=driver,
+                    dry_run=args.dry_run,
+                )
+            else:
+                print(f"\n  ⚠️  Failure mode file not found: {args.failure_modes_file}")
 
     finally:
         if driver:
