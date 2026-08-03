@@ -280,3 +280,96 @@ ls CSV/
 
 ### Re-running is always safe
 All writes use `MERGE` — running the extraction twice never creates duplicates.
+
+---
+
+## Failure Mode (FMEA) Extraction — Full Walkthrough
+
+End-to-end steps to extract `Brake_System_Failure_Mode_Data.xlsx` into neo4j and verify it, from a cold terminal.
+
+### 1. Start neo4j
+```bash
+brew services start neo4j
+neo4j status
+```
+Wait ~10 seconds after starting, then confirm the Browser loads at http://localhost:7474.
+
+### 2. Install python dependencies
+```bash
+cd thesis-extraction
+python3 -m pip install neo4j openpyxl
+```
+Use `python3 -m pip install`, not a bare `pip3 install` — it guarantees the packages land in the same interpreter that runs the script (matters if you have multiple Pythons, e.g. conda `base` alongside system Python).
+
+### 3. Dry run (preview only, nothing written)
+```bash
+python3 Scripts/run-extraction.py --only failure-modes --dry-run --uri bolt://localhost:7687 --user neo4j --password password123
+```
+Expected tail of output:
+```
+   ✓ Components: 15 | Failure modes: 22 | Requirement links: 23 | Skipped: 0
+```
+If `Skipped` is nonzero, or the counts don't match, something in the xlsx sheet layout changed — check the sheet names are still exactly `Failure Mode Data` and `Requirement Mapping`.
+
+### 4. Live run
+```bash
+python3 Scripts/run-extraction.py --only failure-modes --uri bolt://localhost:7687 --user neo4j --password password123
+```
+Same counts as the dry run, minus the `[DRY]` prefixes — this time it's actually written.
+
+### 5. Verify in neo4j Browser (http://localhost:7474)
+
+**Node counts by label:**
+```cypher
+MATCH (n)
+WHERE any(l IN labels(n) WHERE l IN ["Component","FailureMode","Cause","Effect","ControlAction","Requirement"])
+RETURN labels(n)[0] AS label, count(n) AS count
+ORDER BY count DESC
+```
+Expect: `Component` 15, `FailureMode` 22, `Requirement` ≤ 23 (some requirement text repeats across components and correctly merges into one node), `Cause`/`Effect`/`ControlAction` deduplicated wherever the same cause/effect/action recurs (e.g. `adjuster_mechanism_inadequate` is shared by `BrakeDiscs`, `BrakeDrums`, `BrakeLinings` and should be **one** `Cause` node, not three).
+
+**Full FMEA chain for one component** (same shape as the Aura screenshot query):
+```cypher
+MATCH (c:Component {hasID: "BrakeDiscs"})-[:hasFailureMode]->(fm)
+OPTIONAL MATCH (fm)-[:causedBy]->(cause)
+OPTIONAL MATCH (fm)-[:causes]->(effect)
+OPTIONAL MATCH (fm)-[:mitigatedBy]->(ca)
+RETURN c, fm, cause, effect, ca
+```
+
+**Requirement links:**
+```cypher
+MATCH (c:Component)-[:satisfiesRequirement]->(r:Requirement)
+RETURN c.hasID, r.hasName
+ORDER BY c.hasID
+```
+
+**Everything reachable from one component in one shot:**
+```cypher
+MATCH (c:Component {hasID: "ServiceBrakingSystem"})-[r]-(n)
+RETURN c, r, n
+```
+
+**Components with an unmitigated failure mode** (thesis-relevant query — the kind of cross-domain check this integration enables):
+```cypher
+MATCH (c:Component)-[:hasFailureMode]->(fm)
+WHERE NOT (fm)-[:mitigatedBy]->()
+RETURN c.hasID, fm.hasName
+```
+(Should return nothing against this dataset — every row has a `ControlAction` — which is itself a useful sanity check that nothing silently failed to link.)
+
+### 6. Idempotency check
+Re-run the live command from step 4 a **second time**, then re-run the count query from step 5. The counts must stay exactly the same — if any count increased, a `MERGE` key collided incorrectly and something is duplicating instead of matching.
+
+### 7. Cross-link check against other extractors
+If `Component` nodes already exist from the parts/project extractors, confirm the FMEA data attached to the *same* node rather than creating a duplicate:
+```cypher
+MATCH (c:Component {hasID: "BrakeDiscs"}) RETURN c, labels(c)
+```
+One node, one set of labels/properties — if you see two separate `BrakeDiscs` components, there's a naming/case mismatch between the xlsx and whatever created the other node.
+
+### Standalone (no orchestrator)
+```bash
+python3 Scripts/extract_failure_modes.py --file Brake_System_Failure_Mode_Data.xlsx --dry-run
+python3 Scripts/extract_failure_modes.py --file Brake_System_Failure_Mode_Data.xlsx --uri bolt://localhost:7687 --user neo4j --password password123
+```
