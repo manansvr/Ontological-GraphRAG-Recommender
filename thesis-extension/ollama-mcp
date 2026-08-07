@@ -22,7 +22,16 @@ def _rl_enabled() -> bool:
 
 
 def _rl_model_path() -> str:
-    return os.getenv("RL_MODEL_PATH", ".rl-model.json")
+    # Deliberately a different file from sr8-mcp's _RL_MODEL_PATH
+    # (thesis-extension/.rl-model.json). That file is the actual recommender's
+    # Q-table (12 inference_* states, updated by write_inferred_project_link /
+    # record_feedback). This client-side agent tracks a completely different,
+    # unrelated policy (retrieval strategy: adr_lookup/general_lookup states).
+    # They used to share a filename by accident: this process loads its
+    # snapshot once at startup and overwrites the file after every turn with
+    # no locking, so it was silently clobbering the recommender's saved
+    # policy with a stale copy that never had the inference_* states in it.
+    return os.getenv("RL_MODEL_PATH", ".rl-client-model.json")
 
 
 class _RLBridge:
@@ -133,7 +142,21 @@ def _has_explicit_citation(text: str) -> bool:
     return bool(re.search(r"(/[^\s]+\.(csv|md|txt|pdf|docx))(?:\s*\|\s*(row|line)\s*\d+)", text, flags=re.IGNORECASE))
 
 
-def _extract_evidence_refs(tool_text: str, max_refs: int = 3) -> list[str]:
+# Tools that produce their own document-based citations (or aren't graph
+# queries at all). Anything outside this set that returns real data from
+# Neo4j is treated as a valid, honestly-labelled evidence source below.
+_DOCUMENT_TOOLS = {
+    "search_local_documents",
+    "suggest_requirement_sources",
+    "read_document",
+    "summarize_document",
+    "list_documents",
+    "run_extraction_for_requirements",
+    "extraction_report",
+}
+
+
+def _extract_evidence_refs(tool_text: str, max_refs: int = 3, tool_name: str = "") -> list[str]:
     refs: list[str] = []
     try:
         obj = json.loads(tool_text)
@@ -176,6 +199,22 @@ def _extract_evidence_refs(tool_text: str, max_refs: int = 3) -> list[str]:
         if path and line:
             refs.append(f"{path} | line {line}")
 
+    if refs:
+        return refs
+
+    # Graph tools (list_all_projects, get_project, get_compliance_gaps, ...)
+    # return live Neo4j data with no file to cite. That's still grounded,
+    # real evidence — just not a document — so label it honestly rather
+    # than blocking the answer for lack of a page/line reference.
+    if (
+        tool_name
+        and tool_name not in _DOCUMENT_TOOLS
+        and isinstance(obj, dict)
+        and "error" not in obj
+        and any(v not in (None, "", [], {}) for v in obj.values())
+    ):
+        refs.append(f"Neo4j knowledge graph | {tool_name}()")
+
     return refs[:max_refs]
 
 
@@ -188,7 +227,14 @@ def _extract_rule_id_from_question(text: str) -> str | None:
 
 def _is_count_requirements_question(text: str) -> bool:
     t = text.lower()
-    return "how many" in t and "requir" in t
+    if "requir" not in t:
+        return False
+    # "how many requirements..." always qualifies; any other requirements
+    # question that names a rule ID ("what does ADR-43 require?", "list the
+    # requirements for ADR-43") also gets routed to the deterministic
+    # get_adr_requirements formatter below, rather than asking the model to
+    # read a ~30KB raw JSON dump and answer from it directly.
+    return "how many" in t or _extract_rule_id_from_question(text) is not None
 
 
 def _is_reference_question(text: str) -> bool:
@@ -216,7 +262,32 @@ def _is_design_guidance_question(text: str) -> bool:
     )
 
 
+def _looks_like_compliance_or_graph_question(text: str) -> bool:
+    # "assembly" is ambiguous in this domain: it names a manufacturing process
+    # AND a graph entity type (e.g. ASM-FRONT-AXLE). If the question is
+    # clearly asking about graph/compliance data, don't let a bare "assembly"
+    # keyword misroute it to the manufacturing-document redirect below.
+    if re.search(r"\bASM[-_]?[\w-]+\b", text, flags=re.IGNORECASE):
+        return True
+    t = text.lower()
+    return any(
+        kw in t
+        for kw in [
+            "compliance",
+            "gap",
+            "requirement",
+            "risk",
+            "verif",
+            "interface",
+            "unassigned",
+            "unverified",
+        ]
+    )
+
+
 def _design_guidance_redirect(text: str) -> dict[str, str] | None:
+    if _looks_like_compliance_or_graph_question(text):
+        return None
     t = text.lower()
     if any(keyword in t for keyword in ["manufactur", "fabricat", "assembly", "procure", "quality control", "build"]):
         return {
@@ -322,6 +393,306 @@ def _format_reference_listing(rule_id: str, req_payload: dict[str, Any], doc_pay
     return "\n".join(lines)
 
 
+def _extract_assembly_id_from_question(text: str) -> str | None:
+    m = re.search(r"\bASM[-_][\w-]+\b", text, flags=re.IGNORECASE)
+    return m.group(0).upper() if m else None
+
+
+def _is_compliance_gap_question(text: str) -> bool:
+    t = text.lower()
+    return "compliance" in t and "gap" in t
+
+
+def _format_compliance_gaps(payload: dict[str, Any]) -> str:
+    total = payload.get("total_gaps", 0)
+    filt = payload.get("filter", {})
+    scope_bits = [f"{k}={v}" for k, v in filt.items() if v]
+    scope = f" ({', '.join(scope_bits)})" if scope_bits else ""
+    lines = [f"{total} compliance gap(s) found{scope}."]
+
+    by_project = payload.get("by_project", {})
+    for pid, info in by_project.items():
+        lines.append(f"\n{pid} — {info.get('project_name', '')}:")
+        for gap in info.get("gaps", []):
+            lines.append(
+                f"- {gap.get('adr_id')} / {gap.get('req_id')}: {gap.get('req_name')} ({gap.get('risk_level')} risk)"
+            )
+
+    unassigned = payload.get("unassigned_gaps", [])
+    if unassigned:
+        lines.append("\nUnassigned:")
+        for gap in unassigned:
+            lines.append(
+                f"- {gap.get('adr_id')} / {gap.get('req_id')}: {gap.get('req_name')} ({gap.get('risk_level')} risk)"
+            )
+
+    lines.append("")
+    lines.append("Evidence: Neo4j knowledge graph | get_compliance_gaps()")
+    return "\n".join(lines)
+
+
+def _extract_requirement_id_from_question(text: str) -> str | None:
+    m = re.search(r"\bREQ-\d+-\d+\b", text, flags=re.IGNORECASE)
+    return m.group(0).upper() if m else None
+
+
+def _is_suggest_project_question(text: str) -> bool:
+    t = text.lower()
+    return "project" in t and any(
+        kw in t for kw in ["suggest", "most appropriate", "recommend", "belongs", "which project"]
+    )
+
+
+def _format_project_suggestion(
+    req_id: str,
+    project_id: str,
+    base_confidence: float,
+    reasoning: str,
+    write_payload: dict[str, Any],
+    vote_counts: dict[str, int],
+    total_n: int,
+) -> str:
+    lines = [f"Suggested project for {req_id}: {project_id}"]
+    lines.append(f"Reasoning: {reasoning}")
+    vote_str = ", ".join(f"{pid} ({n}/{total_n})" for pid, n in sorted(vote_counts.items(), key=lambda x: -x[1]))
+    lines.append(f"Vote breakdown across similar requirements: {vote_str}")
+    lines.append("")
+
+    if "error" in write_payload:
+        lines.append(f"Could not write the inferred link: {write_payload['error']}")
+    else:
+        original = write_payload.get("original_confidence", base_confidence)
+        adjusted = write_payload.get("adjusted_confidence")
+        state = write_payload.get("inference_state", "")
+        lines.append(f"Base confidence (from similarity vote): {original}")
+        if adjusted is not None:
+            lines.append(f"RL-adjusted confidence: {adjusted} (inference state: {state})")
+        lines.append(f"Written to the graph as a suggestedProject relationship ({req_id} -> {project_id}).")
+
+    lines.append("")
+    lines.append("Evidence: Neo4j knowledge graph | get_similar_assigned_requirements() + write_inferred_project_link()")
+    return "\n".join(lines)
+
+
+def _is_inferred_links_question(text: str) -> bool:
+    t = text.lower()
+    return "inferred" in t and "link" in t
+
+
+def _format_inferred_links(payload: dict[str, Any]) -> str:
+    count = payload.get("inferred_link_count", 0)
+    links = payload.get("inferred_links", [])
+    lines = [f"{count} inferred link(s) found."]
+    for link in links:
+        rec = "recommended" if link.get("recommended") else "not recommended"
+        warn = f" — {link.get('warning')}" if link.get("warning") else ""
+        lines.append(
+            f"- {link.get('req_id')} -> {link.get('project_id')} ({link.get('project_name')}): "
+            f"confidence {link.get('confidence')}, {rec}{warn}"
+        )
+        if link.get("reasoning"):
+            lines.append(f"    reasoning: {link.get('reasoning')}")
+    lines.append("")
+    lines.append("Evidence: Neo4j knowledge graph | get_inferred_links()")
+    return "\n".join(lines)
+
+
+def _extract_project_id_from_question(text: str) -> str | None:
+    m = re.search(r"\bSRP8-\d+\b", text, flags=re.IGNORECASE)
+    return m.group(0).upper() if m else None
+
+
+_FEEDBACK_ACTION_REWARDS = {"confirmed": 1.0, "rejected": -1.0, "modified": 0.5, "ignored": -0.3}
+
+
+def _extract_feedback_action(text: str) -> str | None:
+    t = text.lower()
+    if "reject" in t:
+        return "rejected"
+    if "confirm" in t or "accept" in t:
+        return "confirmed"
+    if "modify" in t or "modified" in t:
+        return "modified"
+    if "ignore" in t:
+        return "ignored"
+    return None
+
+
+def _is_feedback_action_question(text: str) -> bool:
+    if _extract_feedback_action(text) is None:
+        return False
+    t = text.lower()
+    return "suggestion" in t or "link" in t or "recommendation" in t or _extract_requirement_id_from_question(text) is not None
+
+
+def _format_feedback_result(payload: dict[str, Any]) -> str:
+    if "error" in payload:
+        return f"Could not record feedback: {payload['error']}\n\nEvidence: Neo4j knowledge graph | record_feedback()"
+    lines = [
+        f"Feedback recorded: {payload.get('action')} for {payload.get('requirement_id')} -> "
+        f"{payload.get('project_id')}.",
+        f"Reward applied: {payload.get('reward_applied')}",
+    ]
+    if payload.get("overconfidence_penalty_applied"):
+        lines.append(
+            "Overconfidence penalty applied automatically (stored confidence was > 0.8 and the "
+            "suggestion was rejected)."
+        )
+    lines.append(f"Inference state: {payload.get('inference_state')}")
+    lines.append("")
+    lines.append("Evidence: Neo4j knowledge graph | record_feedback()")
+    return "\n".join(lines)
+
+
+def _extract_project_ids_from_question(text: str) -> list[str]:
+    return [m.upper() for m in re.findall(r"\bSRP8-\d+\b", text, flags=re.IGNORECASE)]
+
+
+def _is_reverification_question(text: str) -> bool:
+    t = text.lower()
+    return "reverif" in t or "re-verif" in t or "re verif" in t
+
+
+def _format_reverification_scope(payload: dict[str, Any]) -> str:
+    lines = [f"Re-verification scope for {', '.join(payload.get('project_ids_in_scope', []))}:"]
+    lines.append(f"- Must re-verify (already verified, needs re-check): {payload.get('must_reverify_count', 0)}")
+    lines.append(f"- Must verify (not yet verified): {payload.get('must_verify_count', 0)}")
+    lines.append(f"- Not affected: {payload.get('not_affected_count', 0)}")
+
+    scope = payload.get("scope", {})
+    for cat_key, label in [("must_reverify", "Must re-verify"), ("must_verify", "Must verify")]:
+        items = scope.get(cat_key, [])
+        if items:
+            lines.append(f"\n{label}:")
+            for item in items[:15]:
+                lines.append(f"- {item.get('req_id')}: {item.get('req_name')} (ADR {item.get('adr_id')})")
+            if len(items) > 15:
+                lines.append(f"...and {len(items) - 15} more.")
+
+    lines.append("")
+    lines.append("Evidence: Neo4j knowledge graph | get_reverification_scope()")
+    return "\n".join(lines)
+
+
+def _is_rl_policy_question(text: str) -> bool:
+    t = text.lower()
+    return "rl polic" in t or ("policy" in t and ("rl" in t or "agent" in t or "reinforcement" in t)) or "q-value" in t
+
+
+def _is_feedback_stats_question(text: str) -> bool:
+    t = text.lower()
+    return "feedback stat" in t or ("feedback" in t and ("average reward" in t or "statistic" in t))
+
+
+def _format_feedback_stats(payload: dict[str, Any]) -> str:
+    lines = [
+        f"Total feedback events: {payload.get('total_events', 0)}",
+        f"Average reward: {payload.get('average_reward', 0.0)}",
+    ]
+    breakdown = payload.get("breakdown_by_action", [])
+    if breakdown:
+        lines.append("")
+        lines.append("Breakdown by action:")
+        for b in breakdown:
+            lines.append(f"- {b.get('action')}: {b.get('event_count')} events, avg reward {b.get('avg_reward')}")
+    recent = payload.get("recent_events", [])
+    if recent:
+        lines.append("")
+        lines.append("Most recent events:")
+        for e in recent:
+            lines.append(
+                f"- {e.get('req_id')} -> {e.get('proj_id')}: {e.get('action')} "
+                f"(reward {e.get('reward')}, state {e.get('inference_state')})"
+            )
+    lines.append("")
+    lines.append("Evidence: Neo4j knowledge graph | get_feedback_stats()")
+    return "\n".join(lines)
+
+
+def _is_unassigned_requirements_question(text: str) -> bool:
+    t = text.lower()
+    if "unassigned" in t:
+        return True
+    return "requir" in t and "assign" in t and any(
+        neg in t for neg in ["not been", "haven't", "hasn't", "have not", "has not", "no project", "without a project"]
+    )
+
+
+def _format_unassigned_requirements(payload: dict[str, Any], max_items: int = 20) -> str:
+    # get_unassigned_requirements() can return 100+ KB of JSON with full
+    # requirement descriptions -- multiples of the whole context window.
+    # Format a compact listing directly rather than asking the model to
+    # read the raw dump (it hallucinates unrelated content when it does).
+    count = payload.get("unassigned_count", 0)
+    reqs = payload.get("unassigned_requirements", [])
+    lines = [f"{count} requirement(s) have not been assigned to a project."]
+    shown = reqs[:max_items]
+    for r in shown:
+        desc = (r.get("req_description") or "").strip()
+        if len(desc) > 140:
+            desc = desc[:140].rstrip() + "..."
+        lines.append(f"- {r.get('req_id')}: {r.get('req_name')} — {desc}")
+    if len(reqs) > max_items:
+        lines.append(f"...and {len(reqs) - max_items} more (ask for a specific ID to see full detail).")
+    lines.append("")
+    lines.append("Evidence: Neo4j knowledge graph | get_unassigned_requirements()")
+    return "\n".join(lines)
+
+
+def _is_interface_risk_question(text: str) -> bool:
+    t = text.lower()
+    return any(
+        kw in t
+        for kw in [
+            "interface risk",
+            "span more than one assembly",
+            "spans more than one assembly",
+            "span multiple assemblies",
+            "spans multiple assemblies",
+            "cross-assembly",
+            "cross assembly",
+        ]
+    )
+
+
+def _format_cross_assembly_and_interface_risk(cross_payload: dict[str, Any], risk_payload: dict[str, Any]) -> str:
+    # get_cross_assembly_requirements() and get_interface_risk_report() both
+    # return moderately large nested JSON. Asking the model to read and
+    # summarise both at once (especially deep into a multi-turn conversation
+    # with several earlier large tool results still in context) is exactly
+    # the kind of synthesis task an 8B local model gets wrong -- it tends to
+    # reuse or garble numbers from a previous turn instead. Format directly
+    # from the real payload instead so every number here is exact.
+    cross = cross_payload.get("cross_assembly_adrs", [])
+    lines = [f"{len(cross)} ADR(s) have requirements spanning more than one assembly:"]
+    for item in cross:
+        assemblies = ", ".join(item.get("affected_assemblies", []))
+        lines.append(
+            f"- {item.get('adr_id')}: {item.get('total_requirements')} requirements across "
+            f"{item.get('assembly_count')} assemblies ({assemblies})"
+        )
+
+    interfaces = risk_payload.get("interfaces", [])
+    total_shared = sum(x.get("total_shared", 0) for x in interfaces)
+    total_unverified = sum(x.get("unverified_count", 0) for x in interfaces)
+
+    lines.append("")
+    lines.append(
+        f"Interface risk: {risk_payload.get('total_interface_pairs', len(interfaces))} assembly-pair "
+        f"interface(s), {risk_payload.get('risk_count', 0)} flagged at risk. "
+        f"{total_shared} shared requirements total, {total_unverified} unverified."
+    )
+    for x in interfaces:
+        lines.append(
+            f"- {x.get('assembly_a')} <-> {x.get('assembly_b')} ({x.get('adr_id')}): "
+            f"{x.get('total_shared')} shared, {x.get('unverified_count')} unverified — {x.get('risk_flag')}"
+        )
+
+    lines.append("")
+    lines.append("Evidence: Neo4j knowledge graph | get_cross_assembly_requirements() + get_interface_risk_report()")
+    return "\n".join(lines)
+
+
 def _tool_to_ollama_schema(tool: Any) -> dict[str, Any]:
     schema = tool.inputSchema if hasattr(tool, "inputSchema") else {}
     return {
@@ -334,6 +705,9 @@ def _tool_to_ollama_schema(tool: Any) -> dict[str, Any]:
     }
 
 
+OLLAMA_NUM_CTX = int(os.getenv("OLLAMA_NUM_CTX", "8192"))
+
+
 def _post_chat(model: str, messages: list[dict[str, Any]], tools: list[dict[str, Any]]) -> dict[str, Any]:
     response = requests.post(
         f"{_ollama_base_url().rstrip('/')}/api/chat",
@@ -342,7 +716,7 @@ def _post_chat(model: str, messages: list[dict[str, Any]], tools: list[dict[str,
             "messages": messages,
             "tools": tools,
             "stream": False,
-            "options": {"temperature": 0.2},
+            "options": {"temperature": 0.2, "num_ctx": OLLAMA_NUM_CTX},
         },
         timeout=180,
     )
@@ -364,12 +738,24 @@ async def run_chat(model: str, server_command: str, server_args: list[str]) -> N
                 "You must answer only from MCP tool context returned in this chat session. "
                 "If the context is missing, insufficient, or ambiguous, do not guess. "
                 "Instead say: 'I do not have enough context in the indexed sources to answer that.' "
-                "For factual questions, call tools first and cite concrete file evidence. "
+                "For factual questions, call tools first. "
+                "If a document search does not directly answer the question, do not give up — call the "
+                "relevant knowledge-graph tool instead (e.g. list_all_projects, list_all_adrs, get_project, "
+                "get_adr, get_assembly, get_compliance_gaps, get_unassigned_requirements, "
+                "get_interface_risk_report, get_inferred_links, promote_inferred_link, record_feedback, "
+                "get_feedback_stats, get_rl_policy). Pick the tool that actually matches the question rather "
+                "than defaulting to whichever example is most familiar. Live Neo4j graph data is valid "
+                "evidence, not just document text. "
                 "If the user asks about design or manufacturing, answer from the indexed documents and then append the relevant redirect to the Design Manual or Manufacturing Section."
             )
 
             messages: list[dict[str, Any]] = [{"role": "system", "content": system_prompt}]
             rl_bridge = _RLBridge()
+            # Tracks the most recent (requirement_id, project_id) written by the
+            # suggest-project path, so "reject/confirm that suggestion" can resolve
+            # the pronoun deterministically instead of asking the model to recall
+            # it from conversation history.
+            last_suggested_link: tuple[str, str] | None = None
 
             print("Connected. Type your prompt, or /exit to quit.")
             print(f"Model: {model}")
@@ -383,6 +769,38 @@ async def run_chat(model: str, server_command: str, server_args: list[str]) -> N
                     continue
                 if user_input.lower() in {"/exit", "exit", "quit"}:
                     break
+
+                # Deterministic path for re-verification-scope (change impact) questions.
+                # Must run before the count-requirements check below: "SRP8-045" (a
+                # project ID) is spuriously matched by _extract_rule_id_from_question's
+                # SRP-prefix pattern as if it were a rule ID, which would otherwise
+                # steal any question containing both "requir..." and an SRP8-x project ID.
+                if _is_reverification_question(user_input):
+                    reverif_project_ids = _extract_project_ids_from_question(user_input)
+                    if reverif_project_ids:
+                        print(f"\n[tool] get_reverification_scope({{'project_ids': {reverif_project_ids}}})")
+                        reverif_result = await session.call_tool(
+                            "get_reverification_scope", {"project_ids": reverif_project_ids}
+                        )
+                        reverif_text = "\n".join(
+                            getattr(p, "text", "") for p in reverif_result.content if getattr(p, "text", None)
+                        ) or "{}"
+                        try:
+                            reverif_payload = json.loads(reverif_text)
+                        except Exception:
+                            reverif_payload = {
+                                "project_ids_in_scope": reverif_project_ids,
+                                "must_reverify_count": 0,
+                                "must_verify_count": 0,
+                                "not_affected_count": 0,
+                                "scope": {},
+                            }
+
+                        content = _format_reverification_scope(reverif_payload)
+                        print(f"\nAssistant: {content}")
+                        messages.append({"role": "user", "content": user_input})
+                        messages.append({"role": "assistant", "content": content})
+                        continue
 
                 # Deterministic path for count+list requirement questions by ADR/SRP ID.
                 if _is_count_requirements_question(user_input):
@@ -408,6 +826,258 @@ async def run_chat(model: str, server_command: str, server_args: list[str]) -> N
                         messages.append({"role": "user", "content": user_input})
                         messages.append({"role": "assistant", "content": content})
                         continue
+
+                # Deterministic path for compliance-gap questions that name an
+                # assembly or ADR explicitly. Left to the model, this parameter
+                # gets contaminated by whatever ADR/assembly was discussed in a
+                # recent prior turn (observed: reused "ADR-43" from the previous
+                # question instead of the "ASM-FRONT-AXLE" named in this one).
+                if _is_compliance_gap_question(user_input):
+                    assembly_id = _extract_assembly_id_from_question(user_input)
+                    gap_rule_id = _extract_rule_id_from_question(user_input)
+                    if assembly_id or gap_rule_id:
+                        gap_kwargs: dict[str, Any] = {}
+                        if assembly_id:
+                            gap_kwargs["assembly_id"] = assembly_id
+                        elif gap_rule_id:
+                            gap_kwargs["adr_id"] = gap_rule_id
+                        print(f"\n[tool] get_compliance_gaps({gap_kwargs})")
+                        gap_result = await session.call_tool("get_compliance_gaps", gap_kwargs)
+                        gap_text = "\n".join(
+                            getattr(p, "text", "") for p in gap_result.content if getattr(p, "text", None)
+                        ) or "{}"
+                        try:
+                            gap_payload = json.loads(gap_text)
+                        except Exception:
+                            gap_payload = {"total_gaps": 0, "by_project": {}, "unassigned_gaps": [], "filter": gap_kwargs}
+
+                        content = _format_compliance_gaps(gap_payload)
+                        print(f"\nAssistant: {content}")
+                        messages.append({"role": "user", "content": user_input})
+                        messages.append({"role": "assistant", "content": content})
+                        continue
+
+                # Deterministic path for "suggest a project for REQ-x-y" questions.
+                # Left to the model, this skipped write_inferred_project_link entirely
+                # (the tool that actually runs the RL agent and writes the graph
+                # relationship) and improvised a plausible-looking confidence score
+                # and vote count instead of reading the real similarity data. Chain
+                # both real tool calls deterministically: majority-vote the target
+                # project from get_similar_assigned_requirements, use the vote
+                # proportion as the base confidence, then let write_inferred_project_link
+                # apply the actual RL adjustment.
+                if _is_suggest_project_question(user_input):
+                    suggest_req_id = _extract_requirement_id_from_question(user_input)
+                    if suggest_req_id:
+                        print(f"\n[tool] get_similar_assigned_requirements({{'requirement_id': '{suggest_req_id}'}})")
+                        sim_result = await session.call_tool(
+                            "get_similar_assigned_requirements", {"requirement_id": suggest_req_id}
+                        )
+                        sim_text = "\n".join(
+                            getattr(p, "text", "") for p in sim_result.content if getattr(p, "text", None)
+                        ) or "{}"
+                        try:
+                            sim_payload = json.loads(sim_text)
+                        except Exception:
+                            sim_payload = {"similar_requirements": []}
+
+                        similar_reqs = sim_payload.get("similar_requirements", [])
+                        vote_counts: dict[str, int] = {}
+                        for r in similar_reqs:
+                            for pid in r.get("assigned_projects", []) or []:
+                                vote_counts[pid] = vote_counts.get(pid, 0) + 1
+
+                        if not vote_counts:
+                            content = (
+                                f"No similar assigned requirements were found for {suggest_req_id}, "
+                                "so I can't suggest a project with any grounded confidence.\n\n"
+                                "Evidence: Neo4j knowledge graph | get_similar_assigned_requirements()"
+                            )
+                        else:
+                            target_project = max(vote_counts, key=vote_counts.get)
+                            total_n = len(similar_reqs)
+                            base_confidence = round(vote_counts[target_project] / total_n, 2) if total_n else 0.5
+                            reasoning = (
+                                f"{vote_counts[target_project]} of {total_n} similar requirements from the same "
+                                f"ADR source are already assigned to {target_project}."
+                            )
+
+                            print(
+                                f"\n[tool] write_inferred_project_link({{'requirement_id': '{suggest_req_id}', "
+                                f"'project_id': '{target_project}', 'confidence': {base_confidence}, ...}})"
+                            )
+                            write_result = await session.call_tool(
+                                "write_inferred_project_link",
+                                {
+                                    "requirement_id": suggest_req_id,
+                                    "project_id": target_project,
+                                    "confidence": base_confidence,
+                                    "reasoning": reasoning,
+                                },
+                            )
+                            write_text = "\n".join(
+                                getattr(p, "text", "") for p in write_result.content if getattr(p, "text", None)
+                            ) or "{}"
+                            try:
+                                write_payload = json.loads(write_text)
+                            except Exception:
+                                write_payload = {}
+
+                            if "error" not in write_payload:
+                                last_suggested_link = (suggest_req_id, target_project)
+
+                            content = _format_project_suggestion(
+                                suggest_req_id, target_project, base_confidence, reasoning,
+                                write_payload, vote_counts, total_n,
+                            )
+
+                        print(f"\nAssistant: {content}")
+                        messages.append({"role": "user", "content": user_input})
+                        messages.append({"role": "assistant", "content": content})
+                        continue
+
+                # Deterministic path for "reject/confirm/modify/ignore that suggestion"
+                # feedback questions. Resolves the requirement/project either from
+                # explicit IDs in the question, or from the last suggestion this
+                # session made via the suggest-project path above -- rather than
+                # asking the model to recall a vague "that suggestion" reference
+                # and invent requirement_id/project_id/reward parameters itself.
+                if _is_feedback_action_question(user_input):
+                    fb_action = _extract_feedback_action(user_input)
+                    fb_req_id = _extract_requirement_id_from_question(user_input)
+                    fb_project_id = _extract_project_id_from_question(user_input)
+                    if fb_req_id and not fb_project_id and last_suggested_link and last_suggested_link[0] == fb_req_id:
+                        fb_project_id = last_suggested_link[1]
+                    if not fb_req_id and not fb_project_id and last_suggested_link:
+                        fb_req_id, fb_project_id = last_suggested_link
+
+                    if fb_action and fb_req_id and fb_project_id:
+                        fb_reward = _FEEDBACK_ACTION_REWARDS[fb_action]
+                        print(
+                            f"\n[tool] record_feedback({{'requirement_id': '{fb_req_id}', "
+                            f"'project_id': '{fb_project_id}', 'action': '{fb_action}', 'reward': {fb_reward}}})"
+                        )
+                        fb_result = await session.call_tool(
+                            "record_feedback",
+                            {
+                                "requirement_id": fb_req_id,
+                                "project_id": fb_project_id,
+                                "action": fb_action,
+                                "reward": fb_reward,
+                            },
+                        )
+                        fb_text = "\n".join(
+                            getattr(p, "text", "") for p in fb_result.content if getattr(p, "text", None)
+                        ) or "{}"
+                        try:
+                            fb_payload = json.loads(fb_text)
+                        except Exception:
+                            fb_payload = {"error": "could not parse tool response"}
+
+                        content = _format_feedback_result(fb_payload)
+                        print(f"\nAssistant: {content}")
+                        messages.append({"role": "user", "content": user_input})
+                        messages.append({"role": "assistant", "content": content})
+                        continue
+
+                # Deterministic path for RL policy questions. get_rl_policy() already
+                # returns a pre-formatted human-readable report, so just relay it.
+                if _is_rl_policy_question(user_input):
+                    print("\n[tool] get_rl_policy({})")
+                    policy_result = await session.call_tool("get_rl_policy", {})
+                    policy_text = "\n".join(
+                        getattr(p, "text", "") for p in policy_result.content if getattr(p, "text", None)
+                    ) or "(no policy data)"
+                    content = f"{policy_text}\n\nEvidence: Neo4j knowledge graph | get_rl_policy()"
+                    print(f"\nAssistant: {content}")
+                    messages.append({"role": "user", "content": user_input})
+                    messages.append({"role": "assistant", "content": content})
+                    continue
+
+                # Deterministic path for feedback-stats questions.
+                if _is_feedback_stats_question(user_input):
+                    print("\n[tool] get_feedback_stats({})")
+                    stats_result = await session.call_tool("get_feedback_stats", {})
+                    stats_text = "\n".join(
+                        getattr(p, "text", "") for p in stats_result.content if getattr(p, "text", None)
+                    ) or "{}"
+                    try:
+                        stats_payload = json.loads(stats_text)
+                    except Exception:
+                        stats_payload = {"total_events": 0, "average_reward": 0.0}
+                    content = _format_feedback_stats(stats_payload)
+                    print(f"\nAssistant: {content}")
+                    messages.append({"role": "user", "content": user_input})
+                    messages.append({"role": "assistant", "content": content})
+                    continue
+
+                # Deterministic path for "inferred links" questions.
+                if _is_inferred_links_question(user_input):
+                    print("\n[tool] get_inferred_links({})")
+                    links_result = await session.call_tool("get_inferred_links", {})
+                    links_text = "\n".join(
+                        getattr(p, "text", "") for p in links_result.content if getattr(p, "text", None)
+                    ) or "{}"
+                    try:
+                        links_payload = json.loads(links_text)
+                    except Exception:
+                        links_payload = {"inferred_link_count": 0, "inferred_links": []}
+
+                    content = _format_inferred_links(links_payload)
+                    print(f"\nAssistant: {content}")
+                    messages.append({"role": "user", "content": user_input})
+                    messages.append({"role": "assistant", "content": content})
+                    continue
+
+                # Deterministic path for "unassigned requirements" questions.
+                if _is_unassigned_requirements_question(user_input):
+                    print("\n[tool] get_unassigned_requirements({})")
+                    unassigned_result = await session.call_tool("get_unassigned_requirements", {})
+                    unassigned_text = "\n".join(
+                        getattr(p, "text", "") for p in unassigned_result.content if getattr(p, "text", None)
+                    ) or "{}"
+                    try:
+                        unassigned_payload = json.loads(unassigned_text)
+                    except Exception:
+                        unassigned_payload = {"unassigned_count": 0, "unassigned_requirements": []}
+
+                    content = _format_unassigned_requirements(unassigned_payload)
+                    print(f"\nAssistant: {content}")
+                    messages.append({"role": "user", "content": user_input})
+                    messages.append({"role": "assistant", "content": content})
+                    continue
+
+                # Deterministic path for cross-assembly / interface-risk questions.
+                # Both underlying tools take no arguments -- calling them directly
+                # avoids the model inventing parameters (e.g. a fabricated
+                # "assemblies" kwarg naming an assembly ID that doesn't exist).
+                if _is_interface_risk_question(user_input):
+                    print("\n[tool] get_cross_assembly_requirements({})")
+                    cross_result = await session.call_tool("get_cross_assembly_requirements", {})
+                    cross_text = "\n".join(
+                        getattr(p, "text", "") for p in cross_result.content if getattr(p, "text", None)
+                    ) or "{}"
+
+                    print("\n[tool] get_interface_risk_report({})")
+                    risk_result = await session.call_tool("get_interface_risk_report", {})
+                    risk_text = "\n".join(
+                        getattr(p, "text", "") for p in risk_result.content if getattr(p, "text", None)
+                    ) or "{}"
+
+                    try:
+                        cross_payload = json.loads(cross_text)
+                    except Exception:
+                        cross_payload = {"cross_assembly_adrs": []}
+                    try:
+                        risk_payload = json.loads(risk_text)
+                    except Exception:
+                        risk_payload = {"interfaces": [], "total_interface_pairs": 0, "risk_count": 0}
+
+                    content = _format_cross_assembly_and_interface_risk(cross_payload, risk_payload)
+                    print(f"\nAssistant: {content}")
+                    messages.append({"role": "user", "content": user_input})
+                    messages.append({"role": "assistant", "content": content})
+                    continue
 
                 # Deterministic path for reference queries by ADR/SRP ID.
                 if _is_reference_question(user_input):
@@ -471,6 +1141,24 @@ async def run_chat(model: str, server_command: str, server_args: list[str]) -> N
                     design_text = "\n".join(design_text_parts) if design_text_parts else "{}"
 
                     messages.append({"role": "user", "content": user_input})
+                    messages.append(
+                        {
+                            "role": "assistant",
+                            "content": "",
+                            "tool_calls": [
+                                {
+                                    "function": {
+                                        "name": "search_local_documents",
+                                        "arguments": {
+                                            "query": design_guidance["query"],
+                                            "max_files": 5,
+                                            "max_hits_per_file": 3,
+                                        },
+                                    }
+                                }
+                            ],
+                        }
+                    )
                     messages.append({"role": "tool", "name": "search_local_documents", "content": design_text})
                     tool_used_this_turn = True
                     evidence_refs_this_turn = _extract_evidence_refs(design_text)
@@ -545,6 +1233,8 @@ async def run_chat(model: str, server_command: str, server_args: list[str]) -> N
 
                 messages.append({"role": "user", "content": user_input})
                 tool_used_this_turn = False
+                graph_tool_called = False
+                graph_nudge_used = False
                 evidence_refs_this_turn: list[str] = []
 
                 # RL-guided prefetch stage for standard questions.
@@ -571,6 +1261,27 @@ async def run_chat(model: str, server_command: str, server_args: list[str]) -> N
                     refs = _extract_evidence_refs(doc_text)
                     if refs:
                         evidence_refs_this_turn.extend(refs)
+                    # A "tool" message must follow an assistant tool_calls turn, or the
+                    # chat template gets a role sequence it wasn't trained on and the model
+                    # starts narrating tool calls as text instead of using the tool_calls field.
+                    messages.append(
+                        {
+                            "role": "assistant",
+                            "content": "",
+                            "tool_calls": [
+                                {
+                                    "function": {
+                                        "name": "search_local_documents",
+                                        "arguments": {
+                                            "query": doc_query,
+                                            "max_files": DOC_MAX_FILES,
+                                            "max_hits_per_file": DOC_MAX_HITS,
+                                        },
+                                    }
+                                }
+                            ],
+                        }
+                    )
                     messages.append({"role": "tool", "name": "search_local_documents", "content": doc_text})
                     tool_used_this_turn = True
 
@@ -586,11 +1297,26 @@ async def run_chat(model: str, server_command: str, server_args: list[str]) -> N
                         if text:
                             graph_text_parts.append(text)
                     graph_text = "\n".join(graph_text_parts) if graph_text_parts else "{}"
-                    refs = _extract_evidence_refs(graph_text)
+                    refs = _extract_evidence_refs(graph_text, tool_name="get_adr_requirements")
                     if refs:
                         evidence_refs_this_turn.extend(refs)
+                    messages.append(
+                        {
+                            "role": "assistant",
+                            "content": "",
+                            "tool_calls": [
+                                {
+                                    "function": {
+                                        "name": "get_adr_requirements",
+                                        "arguments": {"adr_id": rule_id, "limit": GRAPH_LIMIT},
+                                    }
+                                }
+                            ],
+                        }
+                    )
                     messages.append({"role": "tool", "name": "get_adr_requirements", "content": graph_text})
                     tool_used_this_turn = True
+                    graph_tool_called = True
 
                 for _ in range(6):
                     result = _post_chat(model=model, messages=messages, tools=tools)
@@ -601,6 +1327,31 @@ async def run_chat(model: str, server_command: str, server_args: list[str]) -> N
                         content = assistant_message.get("content", "")
                         if _strict_context_only() and not tool_used_this_turn:
                             content = "I do not have enough context in the indexed sources to answer that."
+                        elif _strict_context_only() and not graph_tool_called and not graph_nudge_used:
+                            # The model answered from a (likely unhelpful) document search alone
+                            # without trying the knowledge graph. Small local models don't reliably
+                            # volunteer a second tool call on their own, so force exactly one retry
+                            # with an explicit instruction before giving up.
+                            graph_nudge_used = True
+                            print("\n[nudge] no graph tool called yet — retrying with an explicit instruction")
+                            messages.append(
+                                {
+                                    "role": "user",
+                                    "content": (
+                                        "You have not called a knowledge-graph tool yet. Call the single most "
+                                        "relevant one now — pick from the FULL tool list above, not just this "
+                                        "short list of examples: list_all_projects, list_all_adrs, get_project, "
+                                        "get_adr, get_assembly, get_compliance_gaps, get_unassigned_requirements, "
+                                        "get_interface_risk_report, get_inferred_links, promote_inferred_link, "
+                                        "record_feedback, get_feedback_stats, get_rl_policy, "
+                                        "query_knowledge_graph. Choose the one that actually matches the "
+                                        "question, don't default to one of these examples if a better match "
+                                        "exists elsewhere in your tool list. Do not reply with plain text yet — "
+                                        "call a tool first."
+                                    ),
+                                }
+                            )
+                            continue
                         elif _strict_context_only() and _require_explicit_citations():
                             if not _has_explicit_citation(content):
                                 if evidence_refs_this_turn:
@@ -644,6 +1395,8 @@ async def run_chat(model: str, server_command: str, server_args: list[str]) -> N
                         print(f"\n[tool] {tool_name}({args})")
                         tool_result = await session.call_tool(tool_name, args)
                         tool_used_this_turn = True
+                        if tool_name not in _DOCUMENT_TOOLS:
+                            graph_tool_called = True
 
                         tool_text_parts: list[str] = []
                         for part in tool_result.content:
@@ -651,7 +1404,7 @@ async def run_chat(model: str, server_command: str, server_args: list[str]) -> N
                             if text:
                                 tool_text_parts.append(text)
                         tool_text = "\n".join(tool_text_parts) if tool_text_parts else str(tool_result)
-                        refs = _extract_evidence_refs(tool_text)
+                        refs = _extract_evidence_refs(tool_text, tool_name=tool_name)
                         if refs:
                             evidence_refs_this_turn.extend(refs)
 
