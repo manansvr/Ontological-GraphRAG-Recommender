@@ -47,6 +47,10 @@ ValidationResult,Requirement,Outcome Record For Validation Execution,Derived,Art
 PartsManagement,,,TopLevel,Artifact
 Assembly,PartsManagement,,Derived,Artifact
 Component,Assembly,,Derived,Artifact
+FailureMode,Component,Way In Which A Component Can Fail (FMEA),Derived,Artifact
+Cause,FailureMode,Root Cause Of A Failure Mode (FMEA),Derived,Artifact
+Effect,FailureMode,Consequence Of A Failure Mode (FMEA),Derived,Artifact
+ControlAction,FailureMode,Mitigation Or Control Action For A Failure Mode (FMEA),Derived,Artifact
 Subsystem,System,Functional Unit Within A System,Derived,Artifact
 Project,,Engineering Project With ID Name And Description (189 Concurrent Projects),TopLevel,Artifact
 VerificationProcedure,Requirement,Detailed Procedure For Verifying ADR Compliance,Derived,Artifact

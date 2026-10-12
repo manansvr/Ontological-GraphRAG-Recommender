@@ -13,6 +13,11 @@ hasAcceptanceCriterion,ValidationScenario,AcceptanceCriterion,Validation Scenari
 validatedBy,All,ValidationResult,Entity Is Validated By Validation Result,
 validatesRequirement,ValidationResult,Requirement,Validation Result Validates Requirement,
 hasComponent,Subsystem,Component,Has Component,transitive
+hasFailureMode,Component,FailureMode,Has Failure Mode (FMEA),
+causedBy,FailureMode,Cause,Caused By (FMEA),
+causes,FailureMode,Effect,Causes (FMEA),
+mitigatedBy,FailureMode,ControlAction,Mitigated By (FMEA),
+satisfiesRequirement,Component,Requirement,Satisfies Requirement (FMEA Mapping),
 componentInSubsystem,Component,Subsystem,Component Goes Into Subsystem,
 componentInSystem,Component,System,Component Goes Into System,
 componentInProject,Component,Project,Component Goes Into Project,
