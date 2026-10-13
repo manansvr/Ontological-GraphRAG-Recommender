@@ -382,6 +382,48 @@ def _rl_update(feedback_action: str, reward: float, state: str = "inference") ->
         pass
 
 
+class _FeedbackRefused(Exception):
+    """Raised inside a transaction when a pair has no pending suggestion; payload is the JSON error to return."""
+
+    def __init__(self, payload: dict[str, Any]) -> None:
+        super().__init__(payload.get("error", "feedback refused"))
+        self.payload = payload
+
+
+def _suggestions_for_pair(tx: Any, requirement_id: str, project_id: str) -> list[dict[str, Any]]:
+    """Return every suggestedProject relationship between a requirement and a project.
+
+    A pair can have one pending suggestion (no status) and any number of reviewed ones
+    (status 'promoted' or 'rejected', e.g. after write_inferred_project_link(resubmit=True)).
+    """
+    result = tx.run("""
+        MATCH (r:ExtractedEssentialRequirement {hasID: $req_id})
+              -[s:suggestedProject]->(p:Project {projectID: $proj_id})
+        RETURN s.status AS status,
+               s.confidence AS confidence,
+               s.inferenceState AS inference_state,
+               s.inferredAt AS inferred_at,
+               s.reviewedBy AS reviewed_by,
+               toString(s.reviewedAt) AS reviewed_at,
+               s.rejectionReason AS rejection_reason
+    """, req_id=requirement_id, proj_id=project_id)
+    return [record.data() for record in result]
+
+
+def _latest_decision(suggestions: list[dict[str, Any]]) -> dict[str, Any] | None:
+    """Return the most recently reviewed suggestion's decision, or None if none was reviewed."""
+    reviewed = [s for s in suggestions if s.get("status") is not None]
+    if not reviewed:
+        return None
+    latest = max(reviewed, key=lambda s: s.get("reviewed_at") or "")
+    return {
+        "status": latest.get("status"),
+        "reviewed_by": latest.get("reviewed_by"),
+        "reviewed_at": latest.get("reviewed_at"),
+        "rejection_reason": latest.get("rejection_reason"),
+    }
+
+
 def _record_feedback_internal(
     tx: Any,
     requirement_id: str,
@@ -393,22 +435,35 @@ def _record_feedback_internal(
     """Write a FeedbackEvent inside an open Neo4j transaction.
 
     Shared by record_feedback, promote_inferred_link and reject_inferred_link.
-    Reads confidence and inferenceState from the suggestedProject relationship first,
-    so callers must invoke it before they change that relationship. When action is
-    'rejected' and the stored confidence was >0.8, PENALTY_OVERCONFIDENT replaces the
-    reward. The caller commits the transaction and then calls _rl_update with the
-    returned reward_applied and inference_state.
+    Acts only on the pending suggestedProject relationship (status IS NULL). If the pair
+    has no pending suggestion, raises _FeedbackRefused carrying the earlier decision, so
+    a decision can never be counted twice and no FeedbackEvent is written.
+    Reads confidence and inferenceState from the pending suggestion first, so callers
+    must invoke it before they change that relationship. When action is 'rejected' and
+    the stored confidence was >0.8, PENALTY_OVERCONFIDENT replaces the reward. The
+    caller commits the transaction and then calls _rl_update with the returned
+    reward_applied and inference_state.
     """
-    # FIX 3: fetch stored confidence and inference state from the suggestedProject
-    # relationship so we can auto-apply the overconfidence penalty.
-    state_row = tx.run("""
-        MATCH (r:ExtractedEssentialRequirement {hasID: $req_id})
-              -[rel:suggestedProject]->(p:Project {projectID: $proj_id})
-        RETURN rel.confidence AS confidence,
-               rel.inferenceState AS inference_state
-    """, req_id=requirement_id, proj_id=project_id).single()
-    stored_confidence: float | None = state_row["confidence"] if state_row else None
-    inferred_state: str = (state_row["inference_state"] if state_row else None) or "inference"
+    suggestions = _suggestions_for_pair(tx, requirement_id, project_id)
+    pending = [s for s in suggestions if s.get("status") is None]
+    if not pending:
+        previous = _latest_decision(suggestions)
+        if previous is None:
+            raise _FeedbackRefused({
+                "error": f"No suggestedProject relationship found between '{requirement_id}' and '{project_id}'.",
+            })
+        raise _FeedbackRefused({
+            "error": (
+                f"Suggestion between '{requirement_id}' and '{project_id}' was already reviewed "
+                f"(status '{previous['status']}'); feedback not recorded again."
+            ),
+            "previous_decision": previous,
+        })
+
+    # FIX 3: use the stored confidence and inference state from the pending
+    # suggestedProject relationship so we can auto-apply the overconfidence penalty.
+    stored_confidence: float | None = pending[0].get("confidence")
+    inferred_state: str = pending[0].get("inference_state") or "inference"
 
     actual_reward = reward
     overconfidence_penalty_applied = False
@@ -461,18 +516,6 @@ def _record_feedback_internal(
         "overconfidence_penalty_applied": overconfidence_penalty_applied,
         "inference_state": inferred_state,
     }
-
-
-def _pending_suggestion_status(tx: Any, requirement_id: str, project_id: str) -> tuple[bool, str | None]:
-    """Return (exists, status) for the suggestedProject relationship between a requirement and a project."""
-    row = tx.run("""
-        MATCH (r:ExtractedEssentialRequirement {hasID: $req_id})
-              -[s:suggestedProject]->(p:Project {projectID: $proj_id})
-        RETURN s.status AS status
-    """, req_id=requirement_id, proj_id=project_id).single()
-    if not row:
-        return False, None
-    return True, row["status"]
 
 
 # ── Document tools ─────────────────────────────────────────────────────────────
@@ -1604,17 +1647,94 @@ def write_inferred_project_link(
     project_id: str,
     confidence: float,
     reasoning: str,
+    resubmit: bool = False,
 ) -> str:
     """Write a suggestedProject relationship from an unassigned requirement to a project.
 
     NEVER creates assignedToProject — only suggestedProject. The confidence score is
     nudged by the RL agent's contextual policy before being stored. The computed
     inference state is stored on the relationship so record_feedback can retrieve it.
+
+    A suggestion a reviewer has promoted or rejected is never modified:
+    - Requirement already assignedToProject to this project: nothing is written;
+      returns status 'already_assigned' with the edge's source.
+    - Only reviewed suggestions exist for the pair: nothing is written; returns status
+      'previously_reviewed' with the latest decision (status, reviewed_by, reviewed_at,
+      rejection_reason). With resubmit=True a second suggestedProject relationship is
+      created instead, with resubmissionOf set to the reviewed suggestion's inferredAt.
+    - A pending suggestion (no status) exists: it is updated in place after saving
+      previousConfidence, previousReasoning and incrementing revisionCount.
+    - Requirement assigned to a different project: the suggestion is written and the
+      response includes a warning.
     """
     if not requirement_id.strip() or not project_id.strip():
         return json.dumps({"error": "requirement_id and project_id must not be empty."}, indent=2)
     if not 0.0 <= confidence <= 1.0:
         return json.dumps({"error": "confidence must be between 0.0 and 1.0."}, indent=2)
+
+    # Decide what may be written before consulting the RL agent.
+    assignments_query = """
+    MATCH (r:ExtractedEssentialRequirement {hasID: $req_id})
+    MATCH (target:Project {projectID: $project_id})
+    OPTIONAL MATCH (r)-[a:assignedToProject]->(p:Project)
+    RETURN p.projectID AS assigned_project, a.source AS source
+    """
+    try:
+        with _neo4j_driver() as driver:
+            with driver.session() as session:
+                with session.begin_transaction() as tx:
+                    assignments = [record.data() for record in tx.run(
+                        assignments_query, req_id=requirement_id, project_id=project_id,
+                    )]
+                    suggestions = _suggestions_for_pair(tx, requirement_id, project_id)
+    except Exception as exc:
+        return json.dumps({"error": str(exc)}, indent=2)
+
+    if not assignments:
+        return json.dumps({"error": "Requirement or Project not found."}, indent=2)
+
+    same_project = [a for a in assignments if a["assigned_project"] == project_id]
+    if same_project:
+        return json.dumps({
+            "status": "already_assigned",
+            "req_id": requirement_id,
+            "project_id": project_id,
+            "source": same_project[0]["source"],
+            "message": "Requirement is already assignedToProject to this project; no suggestion written.",
+        }, indent=2)
+
+    other_projects = sorted({
+        a["assigned_project"] for a in assignments
+        if a["assigned_project"] and a["assigned_project"] != project_id
+    })
+    warning = (
+        f"Requirement is already assignedToProject to {', '.join(other_projects)}; "
+        "this suggestion would add a further project."
+        if other_projects else None
+    )
+
+    pending = [s for s in suggestions if s.get("status") is None]
+    previous = _latest_decision(suggestions)
+    resubmission_of = None
+    if pending:
+        write_mode = "revised"
+    elif previous is not None:
+        if not resubmit:
+            return json.dumps({
+                "status": "previously_reviewed",
+                "req_id": requirement_id,
+                "project_id": project_id,
+                "previous_decision": previous,
+                "message": (
+                    "A reviewer already decided on this suggestion; it was not modified. "
+                    "Pass resubmit=True to submit a new suggestion alongside it."
+                ),
+            }, indent=2)
+        write_mode = "resubmitted"
+        reviewed = [s for s in suggestions if s.get("status") is not None]
+        resubmission_of = max(reviewed, key=lambda s: s.get("reviewed_at") or "").get("inferred_at")
+    else:
+        write_mode = "created"
 
     # FIX 1: gather context to compute a richer state before calling the agent.
     similar_count = 0
@@ -1643,42 +1763,69 @@ def write_inferred_project_link(
     infer_state = _inference_state(similar_count, adr_populated, confidence)
     adjusted_confidence = _rl_adjust_confidence(confidence, infer_state)
 
-    write_query = """
-    MATCH (r:ExtractedEssentialRequirement {hasID: $req_id})
-    MATCH (p:Project {projectID: $project_id})
-    MERGE (r)-[rel:suggestedProject]->(p)
-    SET rel.confidence     = $confidence,
-        rel.reasoning      = $reasoning,
-        rel.inferredBy     = 'Ollama-MCP',
-        rel.inferredAt     = datetime(),
-        rel.inferenceState = $inference_state
-    RETURN r.hasID AS req_id, p.projectID AS project_id, rel.confidence AS stored_confidence
-    """
+    if write_mode == "revised":
+        write_query = """
+        MATCH (r:ExtractedEssentialRequirement {hasID: $req_id})
+              -[rel:suggestedProject]->(p:Project {projectID: $project_id})
+        WHERE rel.status IS NULL
+        SET rel.previousConfidence = rel.confidence,
+            rel.previousReasoning  = rel.reasoning,
+            rel.revisionCount      = coalesce(rel.revisionCount, 0) + 1
+        SET rel.confidence     = $confidence,
+            rel.reasoning      = $reasoning,
+            rel.inferredBy     = 'Ollama-MCP',
+            rel.inferredAt     = datetime(),
+            rel.inferenceState = $inference_state
+        RETURN r.hasID AS req_id, p.projectID AS project_id, rel.revisionCount AS revision_count
+        """
+    else:
+        # CREATE, not MERGE: a reviewed suggestion for the pair is left untouched.
+        write_query = """
+        MATCH (r:ExtractedEssentialRequirement {hasID: $req_id})
+        MATCH (p:Project {projectID: $project_id})
+        WHERE size([(r)-[x:suggestedProject]->(p) WHERE x.status IS NULL | x]) = 0
+        CREATE (r)-[rel:suggestedProject]->(p)
+        SET rel.confidence     = $confidence,
+            rel.reasoning      = $reasoning,
+            rel.inferredBy     = 'Ollama-MCP',
+            rel.inferredAt     = datetime(),
+            rel.inferenceState = $inference_state,
+            rel.resubmissionOf = $resubmission_of
+        RETURN r.hasID AS req_id, p.projectID AS project_id, rel.revisionCount AS revision_count
+        """
 
     try:
         with _neo4j_driver() as driver:
             with driver.session() as session:
-                row = session.run(
-                    write_query,
-                    req_id=requirement_id,
-                    project_id=project_id,
-                    confidence=adjusted_confidence,
-                    reasoning=reasoning,
-                    inference_state=infer_state,
-                ).single()
-                if not row:
-                    return json.dumps({"error": "Requirement or Project not found."}, indent=2)
-                return json.dumps({
-                    "status": "written",
-                    "req_id": row["req_id"],
-                    "project_id": row["project_id"],
-                    "original_confidence": confidence,
-                    "adjusted_confidence": adjusted_confidence,
-                    "inference_state": infer_state,
-                    "reasoning": reasoning,
-                }, indent=2)
+                with session.begin_transaction() as tx:
+                    row = tx.run(
+                        write_query,
+                        req_id=requirement_id,
+                        project_id=project_id,
+                        confidence=adjusted_confidence,
+                        reasoning=reasoning,
+                        inference_state=infer_state,
+                        resubmission_of=resubmission_of,
+                    ).single()
+                    if row is None:
+                        raise RuntimeError("Suggestion state changed during the write; nothing written. Retry.")
+                    tx.commit()
     except Exception as exc:
         return json.dumps({"error": str(exc)}, indent=2)
+
+    return json.dumps({
+        "status": "written",
+        "write_mode": write_mode,
+        "req_id": row["req_id"],
+        "project_id": row["project_id"],
+        "original_confidence": confidence,
+        "adjusted_confidence": adjusted_confidence,
+        "inference_state": infer_state,
+        "reasoning": reasoning,
+        "revision_count": row["revision_count"],
+        "resubmission_of": str(resubmission_of) if resubmission_of is not None else None,
+        "warning": warning,
+    }, indent=2)
 
 
 @mcp.tool()
@@ -1751,7 +1898,9 @@ def promote_inferred_link(
     3. keeps the suggestedProject relationship and sets status='promoted', reviewedAt
        and reviewedBy on it.
     The RL agent is then updated. Do not call record_feedback for the same decision.
-    Only pending suggestions (no status) can be promoted.
+    Only the pending suggestion (no status) is promoted; earlier reviewed suggestions
+    for the same pair are never touched. If there is no pending suggestion, nothing is
+    written and the earlier decision is returned.
     """
     if not requirement_id.strip() or not project_id.strip():
         return json.dumps({"error": "requirement_id and project_id must not be empty."}, indent=2)
@@ -1787,22 +1936,17 @@ def promote_inferred_link(
         with _neo4j_driver() as driver:
             with driver.session() as session:
                 with session.begin_transaction() as tx:
-                    exists, status = _pending_suggestion_status(tx, requirement_id, project_id)
-                    if not exists:
-                        return json.dumps({
-                            "error": f"No suggestedProject relationship found between '{requirement_id}' and '{project_id}'.",
-                        }, indent=2)
-                    if status is not None:
-                        return json.dumps({
-                            "error": f"Suggestion between '{requirement_id}' and '{project_id}' was already reviewed (status '{status}').",
-                        }, indent=2)
                     feedback = _record_feedback_internal(
                         tx, requirement_id, project_id, action, rewards[action], reviewer=reviewer,
                     )
                     row = tx.run(
                         promote_query, req_id=requirement_id, project_id=project_id, reviewer=reviewer,
                     ).single()
+                    if row is None:
+                        raise RuntimeError("Pending suggestion changed during the transaction; nothing written.")
                     tx.commit()
+    except _FeedbackRefused as refused:
+        return json.dumps(refused.payload, indent=2)
     except Exception as exc:
         return json.dumps({"error": str(exc)}, indent=2)
 
@@ -1834,7 +1978,9 @@ def reject_inferred_link(requirement_id: str, project_id: str, reviewer: str, re
     PENALTY_OVERCONFIDENT=-2.0 when the stored confidence was >0.8) and sets
     status='rejected', reviewedBy, reviewedAt and rejectionReason on the suggestion.
     The suggestion is not deleted. The RL agent is then updated.
-    Do not call record_feedback for the same decision.
+    Do not call record_feedback for the same decision. Only the pending suggestion
+    (no status) is rejected; if there is none, nothing is written and the earlier
+    decision is returned.
     """
     if not requirement_id.strip() or not project_id.strip():
         return json.dumps({"error": "requirement_id and project_id must not be empty."}, indent=2)
@@ -1857,15 +2003,6 @@ def reject_inferred_link(requirement_id: str, project_id: str, reviewer: str, re
         with _neo4j_driver() as driver:
             with driver.session() as session:
                 with session.begin_transaction() as tx:
-                    exists, status = _pending_suggestion_status(tx, requirement_id, project_id)
-                    if not exists:
-                        return json.dumps({
-                            "error": f"No suggestedProject relationship found between '{requirement_id}' and '{project_id}'.",
-                        }, indent=2)
-                    if status is not None:
-                        return json.dumps({
-                            "error": f"Suggestion between '{requirement_id}' and '{project_id}' was already reviewed (status '{status}').",
-                        }, indent=2)
                     feedback = _record_feedback_internal(
                         tx, requirement_id, project_id, "rejected", REWARD_REJECTED, reviewer=reviewer,
                     )
@@ -1873,7 +2010,11 @@ def reject_inferred_link(requirement_id: str, project_id: str, reviewer: str, re
                         reject_query, req_id=requirement_id, project_id=project_id,
                         reviewer=reviewer, reason=reason,
                     ).single()
+                    if row is None:
+                        raise RuntimeError("Pending suggestion changed during the transaction; nothing written.")
                     tx.commit()
+    except _FeedbackRefused as refused:
+        return json.dumps(refused.payload, indent=2)
     except Exception as exc:
         return json.dumps({"error": str(exc)}, indent=2)
 
@@ -2130,6 +2271,10 @@ def record_feedback(
     PENALTY_OVERCONFIDENT=-2.0 is applied automatically — do not pass it manually.
     The FeedbackEvent node records overconfidencePenaltyApplied=true for audit.
 
+    Feedback is only accepted while the pair has a pending suggestedProject relationship
+    (no status). If the suggestion was already promoted or rejected, or none exists, no
+    FeedbackEvent is written and the earlier decision is returned with the error.
+
     promote_inferred_link and reject_inferred_link record feedback themselves (with the
     reviewer); do not also call record_feedback for a decision made through them.
     """
@@ -2143,6 +2288,8 @@ def record_feedback(
                 with session.begin_transaction() as tx:
                     feedback = _record_feedback_internal(tx, requirement_id, project_id, action, reward)
                     tx.commit()
+    except _FeedbackRefused as refused:
+        return json.dumps(refused.payload, indent=2)
     except Exception as exc:
         return json.dumps({"error": str(exc)}, indent=2)
 

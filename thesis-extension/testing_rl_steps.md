@@ -169,6 +169,65 @@ This calls `record_feedback` with `action="rejected"` and `reward=-1.0`.
 
 ---
 
+## Test 5b — Rejection through `reject_inferred_link` keeps the suggestion and blocks double feedback
+
+**What it tests:** `reject_inferred_link` records a `rejected` FeedbackEvent that names the reviewer, marks the suggestion `status = 'rejected'` without deleting it, and any later feedback for the same pair is refused instead of being counted twice.
+
+**Step 5b-1 — Write a fresh suggestion** for a requirement/project pair that has no suggestion yet (use Step 3a–3c to pick one):
+
+> Suggest that requirement [req_id] belongs to project [project_id] with confidence 0.65, because it shares the same ADR source as other requirements already assigned there.
+
+Confirm the response has `"status": "written"` and `"write_mode": "created"`.
+
+**Step 5b-2 — Reject it as a named reviewer:**
+
+> Reject the inferred link from [req_id] to [project_id]. Reviewer: [your name]. Reason: belongs to a different subsystem.
+
+This calls `reject_inferred_link`.
+
+**Expected response:**
+
+```json
+{
+  "status": "rejected",
+  "reviewer": "[your name]",
+  "rejection_reason": "belongs to a different subsystem",
+  "feedback": {
+    "action": "rejected",
+    "reward_applied": -1.0,
+    "overconfidence_penalty_applied": false
+  }
+}
+```
+
+**Step 5b-3 — The suggestion is kept, marked rejected:**
+
+> Run this Cypher query: MATCH (r {hasID: "[req_id]"})-[s:suggestedProject]->(p {projectID: "[project_id]"}) RETURN s.status, s.reviewedBy, s.reviewedAt, s.rejectionReason, s.confidence
+
+**Step 5b-4 — The FeedbackEvent names the reviewer:**
+
+> Run this Cypher query: MATCH (fe:FeedbackEvent {requirementID: "[req_id]", projectID: "[project_id]"}) RETURN fe.action, fe.reward, fe.reviewer, fe.timestamp ORDER BY fe.timestamp DESC
+
+**Step 5b-5 — A second feedback call on the same pair is refused:**
+
+> Record feedback: the suggestion linking [req_id] to [project_id] was rejected. Use reward -1.0.
+
+**Expected response:** an `error` saying the suggestion was already reviewed, with `previous_decision` showing `status: "rejected"`, your name as `reviewed_by`, and the rejection reason.
+
+**Step 5b-6 — Re-suggesting does not overwrite the decision:**
+
+> Suggest that requirement [req_id] belongs to project [project_id] with confidence 0.7, because of the same ADR source.
+
+**Expected response:** `"status": "previously_reviewed"` with the same `previous_decision`; the stored suggestion is unchanged.
+
+**Pass criteria:**
+- Step 5b-3 returns exactly one row with `s.status = "rejected"`, your name in `s.reviewedBy`, a `s.reviewedAt` timestamp and the reason in `s.rejectionReason`
+- Step 5b-4 returns exactly one `rejected` FeedbackEvent for the pair, with `fe.reviewer` set to your name
+- Step 5b-5 returns an error with `previous_decision`, and re-running the Step 5b-4 query still returns exactly one FeedbackEvent
+- Step 5b-6 returns `previously_reviewed` and Step 5b-3 still shows the original confidence
+
+---
+
 ## Test 6 — FIX 5: File lock is created during saves
 
 **What it tests:** `_safe_agent_save` creates a `.rl-model.json.lock` file while the save is in progress, preventing concurrent writes from `ollama-mcp` and `sr8-mcp`.
@@ -281,6 +340,9 @@ EOF
 | FIX 2 | `get_inferred_links` | `warning` | `"low confidence — review carefully"` when confidence < 0.4 |
 | FIX 3 | `record_feedback` | `reward_applied` | `-2.0` when rejected + confidence > 0.8 |
 | FIX 3 | `record_feedback` | `overconfidence_penalty_applied` | `true` |
+| Review | `reject_inferred_link` | `status`, `feedback.reward_applied` | `"rejected"`, `-1.0` (or `-2.0` when confidence > 0.8) |
+| Review | `record_feedback` after review | `error`, `previous_decision` | refused; no second FeedbackEvent |
+| Review | `write_inferred_project_link` after review | `status` | `"previously_reviewed"` (unless `resubmit=True`) |
 | FIX 5 | any write | `.rl-model.json.lock` | file exists on disk |
 | FIX 6 | `get_rl_policy` | 12 inference states | all present with non-zero Q-values on first start |
 | FIX 7 | `get_rl_policy` | full text report | epsilon, Q-table, feedback stats, convergence |

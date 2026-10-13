@@ -128,7 +128,7 @@ Relationship types:
 
 - `hasExternalEssentialRequirement` — ADR → Requirement
 - `assignedToProject` — Requirement → Project (confirmed). `source = 'extracted'` when created by `extract-ADR.py`; `source = 'inferred'` when created by `promote_inferred_link`, which also stores `promotedAt`, `promotedBy` (the reviewer), `promotedFromConfidence`, `inferenceReasoning`, `inferredBy`, `inferredAt` and `inferenceState`
-- `suggestedProject` — Requirement → Project (machine inference, written by `write_inferred_project_link`). Never deleted: a pending suggestion has no `status`; after review it has `status = 'promoted'` or `'rejected'`, `reviewedBy`, `reviewedAt`, and for rejections `rejectionReason`. `get_inferred_links` and `get_unassigned_requirements` hide reviewed suggestions unless `include_reviewed=True`
+- `suggestedProject` — Requirement → Project (machine inference, written by `write_inferred_project_link`). Never deleted: a pending suggestion has no `status`; after review it has `status = 'promoted'` or `'rejected'`, `reviewedBy`, `reviewedAt`, and for rejections `rejectionReason`. A revised pending suggestion also has `previousConfidence`, `previousReasoning` and `revisionCount`; a resubmitted one has `resubmissionOf` (the reviewed suggestion's `inferredAt`). `get_inferred_links` and `get_unassigned_requirements` hide reviewed suggestions unless `include_reviewed=True`
 - `partOfAssembly` — Project → Assembly
 - `hasClause` — ADR → Clause
 - `affectsRequirement` / `affectsProject` — ChangeImpactReport → Requirement / Project
@@ -137,6 +137,15 @@ Relationship types:
 ## Reviewing inferred links
 
 `promote_inferred_link(requirement_id, project_id, reviewer, action="confirmed")` and `reject_inferred_link(requirement_id, project_id, reviewer, reason)` both require a non-empty `reviewer`. In one transaction each records a `FeedbackEvent` (reading the confidence and inference state from the suggestion before it changes, so the overconfidence penalty applies to rejections of suggestions with confidence > 0.8) and marks the suggestion as reviewed. `action` for promotion is `confirmed` (reward 1.0) or `modified` (reward 0.5). Do not call `record_feedback` as well for the same decision.
+
+A reviewed suggestion is never modified. `write_inferred_project_link`:
+
+- does not write if the requirement is already `assignedToProject` to that project (returns `already_assigned` and the edge's `source`);
+- does not write if the pair only has reviewed suggestions, and returns the latest decision (`previously_reviewed`); with `resubmit=True` it creates a second `suggestedProject` edge with `resubmissionOf` instead;
+- updates a pending suggestion in place, keeping `previousConfidence`, `previousReasoning` and `revisionCount`;
+- still writes, with a `warning`, if the requirement is assigned to a different project.
+
+`promote_inferred_link`, `reject_inferred_link` and `record_feedback` act only on the pending suggestion. If the pair has none, no `FeedbackEvent` is written and the earlier decision is returned with the error, so a decision is never counted twice.
 
 Auditing the three kinds of project link:
 
@@ -154,6 +163,17 @@ RETURN r.hasID, p.projectID, s.confidence, s.inferenceState, s.reasoning;
 MATCH (r:ExtractedEssentialRequirement)-[a:assignedToProject {source: 'inferred'}]->(p:Project)
 MATCH (r)-[s:suggestedProject {status: 'promoted'}]->(p)
 RETURN r.hasID, p.projectID, a.promotedBy, a.promotedAt, a.promotedFromConfidence, s.reviewedBy, s.reviewedAt;
+```
+
+Links promoted by the earlier version of `promote_inferred_link` have `promotedBy = 'human-review'`, no `source` and no surviving suggestion. Two scripts handle existing graphs (neither runs automatically):
+
+- `scripts/export-confirmed-links.py` — read-only; writes every `assignedToProject` edge with `promotedBy` set to a CSV (requirement, project, promotedBy, promotedAt, promotedFromConfidence, source). Run it before a clean rebuild so human decisions are not lost.
+- `scripts/backfill-link-source.cypher` — for graphs that are not rebuilt; sets `source = 'extracted'` on edges with no `promotedBy`, and `source = 'inferred-legacy'` on edges with `promotedBy = 'human-review'`. Only edges without a `source` are changed.
+
+Offline unit tests for these rules (mocked Neo4j session, no server needed):
+
+```bash
+python3 -m unittest discover -s thesis-extension/tests -v
 ```
 
 ## Reinforcement learning
