@@ -2,8 +2,9 @@
 """export-confirmed-links.py: export human-confirmed project links before a graph rebuild.
 
 Writes every assignedToProject relationship that has promotedBy set to a CSV. That covers
-links promoted by the old promote_inferred_link (promotedBy = 'human-review') and by the
-current one (promotedBy = the reviewer's name). Extracted links have no promotedBy and are
+links promoted by the old promote_inferred_link (promotedBy = 'human-review') and links
+created by the current promote_inferred_link or modify_inferred_link (promotedBy = the
+reviewer's name). Extracted links have no promotedBy and are
 recreated by extract-ADR.py, so they are not exported.
 
 The script only reads from Neo4j (read-access session).

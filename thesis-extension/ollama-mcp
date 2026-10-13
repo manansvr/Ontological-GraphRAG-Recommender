@@ -1,6 +1,7 @@
 #!/usr/bin/env python3
 import argparse
 import asyncio
+import importlib.machinery
 import importlib.util
 import json
 import os
@@ -184,6 +185,71 @@ def _extract_rule_id_from_question(text: str) -> str | None:
     if not m:
         return None
     return m.group(0).replace(" ", "")
+
+
+# Typed review commands. These are parsed only from what the user types at the
+# "You:" prompt and call sr8-mcp's review functions in-process. The functions are not
+# MCP tools, so a model tool call can never reach them.
+_CONFIRM_LINK_RE = re.compile(r"^\s*confirm\s+link\s+(\S+)\s*->\s*(\S+)\s*$", re.IGNORECASE)
+_REJECT_LINK_RE = re.compile(r"^\s*reject\s+link\s+(\S+)\s*->\s*(\S+)\s+because\s+(.*\S)\s*$", re.IGNORECASE)
+_REVIEW_PREFIX_RE = re.compile(r"^\s*(confirm|reject)\s+link\b", re.IGNORECASE)
+REVIEW_USAGE = (
+    "Review commands:\n"
+    "  confirm link <REQ> -> <PROJECT>\n"
+    "  reject link <REQ> -> <PROJECT> because <reason>"
+)
+
+_review_module: Any = None
+
+
+def _parse_review_command(text: str) -> dict[str, str] | None:
+    """Return the parsed review command, {'kind': 'usage'} for a malformed one, or None."""
+    m = _CONFIRM_LINK_RE.match(text)
+    if m:
+        return {"kind": "confirm", "requirement_id": m.group(1), "project_id": m.group(2)}
+    m = _REJECT_LINK_RE.match(text)
+    if m:
+        return {"kind": "reject", "requirement_id": m.group(1), "project_id": m.group(2), "reason": m.group(3)}
+    if _REVIEW_PREFIX_RE.match(text):
+        return {"kind": "usage"}
+    return None
+
+
+def _load_review_module() -> Any:
+    """Import sr8-mcp in-process (without starting its server) to reach the review functions."""
+    global _review_module
+    if _review_module is None:
+        module_path = Path(__file__).resolve().with_name("sr8-mcp")
+        loader = importlib.machinery.SourceFileLoader("sr8_mcp_review", str(module_path))
+        spec = importlib.util.spec_from_loader("sr8_mcp_review", loader)
+        module = importlib.util.module_from_spec(spec)
+        loader.exec_module(module)
+        _review_module = module
+    return _review_module
+
+
+def _run_review_command(command: dict[str, str], reviewer: str) -> str:
+    """Call the sr8-mcp review function for a parsed command and return a printable summary."""
+    module = _load_review_module()
+    if command["kind"] == "confirm":
+        raw = module.promote_inferred_link(command["requirement_id"], command["project_id"], reviewer)
+    else:
+        raw = module.reject_inferred_link(
+            command["requirement_id"], command["project_id"], reviewer, command["reason"],
+        )
+    out = json.loads(raw)
+    if "error" in out:
+        lines = [f"Not recorded: {out['error']}"]
+        if out.get("previous_decision"):
+            lines.append(f"Earlier decision: {json.dumps(out['previous_decision'])}")
+        return "\n".join(lines)
+    feedback = out.get("feedback", {})
+    note = " (link already existed; left unchanged)" if out.get("already_assigned") else ""
+    return (
+        f"{out['status'].capitalize()} {out['req_id']} -> {out['project_id']} as {reviewer}{note}; "
+        f"reward {feedback.get('reward_applied')}"
+        f"{' (overconfidence penalty)' if feedback.get('overconfidence_penalty_applied') else ''}."
+    )
 
 
 def _is_count_requirements_question(text: str) -> bool:
@@ -370,8 +436,10 @@ async def run_chat(model: str, server_command: str, server_args: list[str]) -> N
 
             messages: list[dict[str, Any]] = [{"role": "system", "content": system_prompt}]
             rl_bridge = _RLBridge()
+            reviewer = ""  # asked for on the first typed review command
 
             print("Connected. Type your prompt, or /exit to quit.")
+            print(REVIEW_USAGE)
             print(f"Model: {model}")
             print("Tools:")
             for t in tool_list.tools:
@@ -383,6 +451,24 @@ async def run_chat(model: str, server_command: str, server_args: list[str]) -> N
                     continue
                 if user_input.lower() in {"/exit", "exit", "quit"}:
                     break
+
+                # Typed review commands (people only): never sent to the model, and the
+                # functions they call are not MCP tools the model could invoke.
+                review_command = _parse_review_command(user_input)
+                if review_command is not None:
+                    if review_command["kind"] == "usage":
+                        print(f"\n{REVIEW_USAGE}")
+                        continue
+                    if not reviewer:
+                        reviewer = input("Reviewer name (recorded on every review decision this session): ").strip()
+                        if not reviewer:
+                            print("\nNo reviewer name given; nothing recorded.")
+                            continue
+                    try:
+                        print(f"\n[review] {_run_review_command(review_command, reviewer)}")
+                    except Exception as exc:
+                        print(f"\n[review] failed: {exc}")
+                    continue
 
                 # Deterministic path for count+list requirement questions by ADR/SRP ID.
                 if _is_count_requirements_question(user_input):

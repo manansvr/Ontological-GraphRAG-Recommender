@@ -62,15 +62,12 @@ TOOL_DESCRIPTIONS = {
     "get_similar_assigned_requirements": "Similar requirements that have project assignments",
     "write_inferred_project_link": "Write an inferred project link",
     "get_inferred_links": "List all inferred project links",
-    "promote_inferred_link": "Promote inferred link to confirmed",
-    "reject_inferred_link": "Reject an inferred link with a reason",
     "get_requirements_by_keyword": "Search requirements, descriptions, and clauses",
     "get_requirement_chain": "Full chain: ADR → Clause → Requirement → Project → Assembly",
     "get_reverification_scope": "Scope of re-verification after a change",
     "write_change_impact_report": "Record a change impact report",
     "get_change_impact_reports": "List change impact reports",
     "get_adr_requirements": "Fetch requirements for a specific ADR",
-    "record_feedback": "Record human feedback on a recommendation",
     "get_feedback_stats": "Feedback statistics and RL reward summary",
 }
 

@@ -130,7 +130,7 @@ This calls `get_inferred_links`.
 
 ## Test 5 — FIX 3: Auto-apply `PENALTY_OVERCONFIDENT` on high-confidence rejection
 
-**What it tests:** When `record_feedback` is called with `action="rejected"` and the stored `suggestedProject` relationship has `confidence > 0.8`, the reward is automatically replaced with `PENALTY_OVERCONFIDENT = -2.0` and `overconfidencePenaltyApplied = true` is stored.
+**What it tests:** When a person rejects a suggestion whose stored `suggestedProject` relationship has `confidence > 0.8`, the reward is automatically replaced with `PENALTY_OVERCONFIDENT = -2.0` and `overconfidencePenaltyApplied = true` is stored.
 
 **Step 5a — Write a high-confidence inferred link:**
 
@@ -142,25 +142,23 @@ Confirm the `adjusted_confidence` in the response is > 0.8 (if the RL agent push
 
 Confirm the stored confidence is > 0.8 before proceeding.
 
-**Step 5b — Reject it:**
+**Step 5b — Reject it (typed command; this is not sent to the model):**
 
-> Record feedback: the suggestion linking [req_id] to [project_id] was rejected. Use reward -1.0.
+```
+reject link [req_id] -> [project_id] because overconfidence test
+```
 
-This calls `record_feedback` with `action="rejected"` and `reward=-1.0`.
+On the first review command of the session `ollama-mcp` asks for your name. The command calls `reject_inferred_link` directly; the model cannot, because review functions are not MCP tools.
 
-**Expected response:**
+**Expected output:**
 
-```json
-{
-  "action": "rejected",
-  "reward_applied": -2.0,
-  "overconfidence_penalty_applied": true
-}
+```
+[review] Rejected [req_id] -> [project_id] as [your name]; reward -2.0 (overconfidence penalty).
 ```
 
 **Pass criteria:**
-- `reward_applied` is `-2.0`, not `-1.0` (penalty overrides the supplied reward)
-- `overconfidence_penalty_applied` is `true`
+- The reward is `-2.0`, not `-1.0` (the penalty replaces the rejection reward)
+- The output mentions the overconfidence penalty
 - The FeedbackEvent node can be queried from Neo4j with `overconfidencePenaltyApplied = true`
 
 **Verify in Neo4j:**
@@ -179,26 +177,21 @@ This calls `record_feedback` with `action="rejected"` and `reward=-1.0`.
 
 Confirm the response has `"status": "written"` and `"write_mode": "created"`.
 
-**Step 5b-2 — Reject it as a named reviewer:**
+**Step 5b-2 — Reject it as a named reviewer (typed command, not sent to the model):**
 
-> Reject the inferred link from [req_id] to [project_id]. Reviewer: [your name]. Reason: belongs to a different subsystem.
-
-This calls `reject_inferred_link`.
-
-**Expected response:**
-
-```json
-{
-  "status": "rejected",
-  "reviewer": "[your name]",
-  "rejection_reason": "belongs to a different subsystem",
-  "feedback": {
-    "action": "rejected",
-    "reward_applied": -1.0,
-    "overconfidence_penalty_applied": false
-  }
-}
 ```
+reject link [req_id] -> [project_id] because belongs to a different subsystem
+```
+
+Give your name if asked. This calls `reject_inferred_link`.
+
+**Expected output:**
+
+```
+[review] Rejected [req_id] -> [project_id] as [your name]; reward -1.0.
+```
+
+Alternatively run `python3 thesis-extension/scripts/review-links.py --reviewer "[your name]"`, answer `r` for this suggestion and give the same reason.
 
 **Step 5b-3 — The suggestion is kept, marked rejected:**
 
@@ -208,11 +201,19 @@ This calls `reject_inferred_link`.
 
 > Run this Cypher query: MATCH (fe:FeedbackEvent {requirementID: "[req_id]", projectID: "[project_id]"}) RETURN fe.action, fe.reward, fe.reviewer, fe.timestamp ORDER BY fe.timestamp DESC
 
-**Step 5b-5 — A second feedback call on the same pair is refused:**
+**Step 5b-5 — A second decision on the same pair is refused:**
 
-> Record feedback: the suggestion linking [req_id] to [project_id] was rejected. Use reward -1.0.
+```
+reject link [req_id] -> [project_id] because second attempt
+```
 
-**Expected response:** an `error` saying the suggestion was already reviewed, with `previous_decision` showing `status: "rejected"`, your name as `reviewed_by`, and the rejection reason.
+**Expected output:** `[review] Not recorded: ... already reviewed (status 'rejected'); feedback not recorded again.` followed by `Earlier decision:` with `status: "rejected"`, your name as `reviewed_by`, and the original reason.
+
+**Step 5b-5b — The model cannot review:** ask in plain language
+
+> Reject the inferred link from [req_id] to [project_id].
+
+The model has no review tool, so it should say it cannot; no `[tool] reject_inferred_link` or `[tool] record_feedback` line appears.
 
 **Step 5b-6 — Re-suggesting does not overwrite the decision:**
 
@@ -245,7 +246,7 @@ ls -la thesis-extension/.rl-model.json*
 ```
 
 **Pass criteria:**
-- `.rl-model.json` exists and has a recent modification timestamp (updated by the `record_feedback` call in Test 5)
+- `.rl-model.json` exists and has a recent modification timestamp (updated by the rejection in Test 5)
 - `.rl-model.json.lock` exists (created by `_safe_agent_save`; may be 0 bytes, which is expected)
 - The JSON file is valid: `python3 -m json.tool thesis-extension/.rl-model.json > /dev/null && echo valid`
 
@@ -319,13 +320,18 @@ EOF
 > 1. Are there any unassigned requirements?
 > 2. For the first one, suggest it belongs to the most appropriate project with a confidence score. Use the graph to reason about similar requirements.
 > 3. Show me all inferred links and tell me which are recommended.
-> 4. Reject the suggestion you just made.
+Then, as the reviewer, type (not a question to the model):
+
+```
+reject link [req_id] -> [project_id] because end-to-end test
+```
+
 > 5. Now show me the RL policy — has the agent updated?
 
 **Pass criteria:**
 - Step 2 calls `get_unassigned_requirements`, then `get_similar_assigned_requirements`, then `write_inferred_project_link` — all three tools appear in the tool call log
 - Step 3 response includes `recommended` and `warning` fields
-- Step 4 calls `record_feedback` and returns `reward_applied`; if confidence was > 0.8, penalty is applied automatically
+- The typed `reject link` command prints `[review] Rejected ...` with the reward; if confidence was > 0.8, the penalty is applied automatically
 - Step 5 shows an epsilon value lower than the one reported in Test 1 (exploration has decayed)
 
 ---
@@ -338,10 +344,10 @@ EOF
 | FIX 1 | `write_inferred_project_link` | `adjusted_confidence` | differs from `original_confidence` by ±0.1 |
 | FIX 2 | `get_inferred_links` | `recommended` | `true` when confidence ≥ 0.6 |
 | FIX 2 | `get_inferred_links` | `warning` | `"low confidence — review carefully"` when confidence < 0.4 |
-| FIX 3 | `record_feedback` | `reward_applied` | `-2.0` when rejected + confidence > 0.8 |
-| FIX 3 | `record_feedback` | `overconfidence_penalty_applied` | `true` |
-| Review | `reject_inferred_link` | `status`, `feedback.reward_applied` | `"rejected"`, `-1.0` (or `-2.0` when confidence > 0.8) |
-| Review | `record_feedback` after review | `error`, `previous_decision` | refused; no second FeedbackEvent |
+| FIX 3 | typed `reject link` | reward | `-2.0` when confidence > 0.8, with "overconfidence penalty" |
+| Review | typed `reject link` / `review-links.py` | outcome | `Rejected ...`, reward `-1.0` (or `-2.0` when confidence > 0.8) |
+| Review | second decision on same pair | outcome | `Not recorded: ... already reviewed` plus earlier decision; no second FeedbackEvent |
+| Review | model asked to confirm/reject | tool calls | none; review functions are not MCP tools |
 | Review | `write_inferred_project_link` after review | `status` | `"previously_reviewed"` (unless `resubmit=True`) |
 | FIX 5 | any write | `.rl-model.json.lock` | file exists on disk |
 | FIX 6 | `get_rl_policy` | 12 inference states | all present with non-zero Q-values on first start |

@@ -74,13 +74,14 @@ class FakeRecord(dict):
 class FakeGraph:
     """Answers queries by matching a distinctive substring; records every query run."""
 
-    def __init__(self, assignments=None, suggestions=None, write_row=None):
+    def __init__(self, assignments=None, suggestions=None, write_row=None, write_returns_nothing=False):
         self.assignments = assignments if assignments is not None else [
             {"assigned_project": None, "source": None}
         ]
         self.suggestions = suggestions or []
         self.write_row = write_row or {"req_id": "REQ-1", "project_id": "SRP8-045",
                                        "revision_count": None, "already_assigned": False}
+        self.write_returns_nothing = write_returns_nothing
         self.queries = []
         self.commits = 0
 
@@ -93,8 +94,9 @@ class FakeGraph:
         if "AS adr_populated" in query:
             return FakeResult([{"similar_count": 0, "adr_populated": False}])
         if ("rel.previousConfidence" in query or "CREATE (r)-[rel:suggestedProject]" in query
-                or "count(existing)" in query or "suggested.rejectionReason" in query):
-            return FakeResult([self.write_row])
+                or "count(existing)" in query or "suggested.rejectionReason" in query
+                or "suggested.modifiedTo" in query):
+            return FakeResult([] if self.write_returns_nothing else [self.write_row])
         return FakeResult([])
 
     def ran(self, fragment):
@@ -327,6 +329,48 @@ class FeedbackTests(Base):
         promote_query = graph.ran("count(existing)")[0][0]
         self.assertIn("WHERE suggested.status IS NULL", promote_query)
         self.assertEqual(graph.commits, 1)
+
+
+
+# ── modify_inferred_link ─────────────────────────────────────────────────────
+
+class ModifyTests(Base):
+    def test_modify_assigns_other_project_and_marks_suggestion_modified(self):
+        graph = self.use(FakeGraph(suggestions=[pending(confidence=0.6)],
+                                   write_row={"req_id": "REQ-1", "project_id": "SRP8-046", "already_assigned": False}))
+        out = json.loads(sr8.modify_inferred_link("REQ-1", "SRP8-045", "SRP8-046", "alice", "rear axle"))
+        self.assertEqual(out["status"], "modified")
+        self.assertEqual(out["project_id"], "SRP8-046")
+        self.assertEqual(out["feedback"]["reward_applied"], 0.5)
+        fe_params = graph.ran("MERGE (fe:FeedbackEvent")[0][1]
+        self.assertEqual((fe_params["action"], fe_params["reviewer"], fe_params["proj_id"]), ("modified", "alice", "SRP8-045"))
+        query, params = graph.ran("suggested.modifiedTo")[0]
+        self.assertIn("WHERE suggested.status IS NULL", query)
+        self.assertIn("confirmed.source                 = 'inferred-modified'", query)
+        self.assertIn("suggested.status             = 'modified'", query)
+        self.assertEqual(params["new_project_id"], "SRP8-046")
+        self.assertFalse(any("DELETE" in q for q, _ in graph.queries))
+        self.assertEqual(graph.commits, 1)
+        self.assertEqual(self.rl_updates, [("modified", 0.5, "inference_weak_yes_mid")])
+
+    def test_modify_to_same_project_is_refused(self):
+        graph = self.use(FakeGraph(suggestions=[pending()]))
+        out = json.loads(sr8.modify_inferred_link("REQ-1", "SRP8-045", "SRP8-045", "alice"))
+        self.assertIn("confirm the suggestion instead", out["error"])
+        self.assertEqual(graph.queries, [])
+
+    def test_modify_to_unknown_project_rolls_back(self):
+        graph = self.use(FakeGraph(suggestions=[pending()], write_returns_nothing=True))
+        out = json.loads(sr8.modify_inferred_link("REQ-1", "SRP8-045", "NOPE", "alice"))
+        self.assertIn("not found", out["error"])
+        self.assertEqual(graph.commits, 0)
+        self.assertEqual(self.rl_updates, [])
+
+    def test_modify_refused_after_review(self):
+        graph = self.use(FakeGraph(suggestions=[reviewed("rejected")]))
+        out = json.loads(sr8.modify_inferred_link("REQ-1", "SRP8-045", "SRP8-046", "alice"))
+        self.assertEqual(out["previous_decision"]["status"], "rejected")
+        self.assertEqual(graph.ran("suggested.modifiedTo"), [])
 
 
 if __name__ == "__main__":

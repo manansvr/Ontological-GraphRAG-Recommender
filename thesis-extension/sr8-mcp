@@ -394,7 +394,7 @@ def _suggestions_for_pair(tx: Any, requirement_id: str, project_id: str) -> list
     """Return every suggestedProject relationship between a requirement and a project.
 
     A pair can have one pending suggestion (no status) and any number of reviewed ones
-    (status 'promoted' or 'rejected', e.g. after write_inferred_project_link(resubmit=True)).
+    (status 'promoted', 'modified' or 'rejected', e.g. after write_inferred_project_link(resubmit=True)).
     """
     result = tx.run("""
         MATCH (r:ExtractedEssentialRequirement {hasID: $req_id})
@@ -434,7 +434,8 @@ def _record_feedback_internal(
 ) -> dict[str, Any]:
     """Write a FeedbackEvent inside an open Neo4j transaction.
 
-    Shared by record_feedback, promote_inferred_link and reject_inferred_link.
+    Shared by record_feedback, promote_inferred_link, modify_inferred_link and
+    reject_inferred_link, none of which is exposed to the LLM as an MCP tool.
     Acts only on the pending suggestedProject relationship (status IS NULL). If the pair
     has no pending suggestion, raises _FeedbackRefused carrying the earlier decision, so
     a decision can never be counted twice and no FeedbackEvent is written.
@@ -1562,7 +1563,7 @@ def get_unassigned_requirements(include_reviewed: bool = False) -> str:
 
     Returns all ExtractedEssentialRequirement nodes that have no assignedToProject relationship.
     Each result lists its existing suggestedProject links under 'suggestions'. By default only
-    pending suggestions (no status) are listed; suggestions already promoted or rejected by a
+    pending suggestions (no status) are listed; suggestions already promoted, modified or rejected by a
     reviewer are left out unless include_reviewed=True.
     After calling this, call get_similar_assigned_requirements for each result,
     then write_inferred_project_link. Only promote links where confidence >= 0.6.
@@ -1653,9 +1654,10 @@ def write_inferred_project_link(
 
     NEVER creates assignedToProject — only suggestedProject. The confidence score is
     nudged by the RL agent's contextual policy before being stored. The computed
-    inference state is stored on the relationship so record_feedback can retrieve it.
+    inference state is stored on the relationship so the feedback recorded when a
+    person reviews the suggestion can retrieve it.
 
-    A suggestion a reviewer has promoted or rejected is never modified:
+    A suggestion a reviewer has promoted, modified or rejected is never changed:
     - Requirement already assignedToProject to this project: nothing is written;
       returns status 'already_assigned' with the edge's source.
     - Only reviewed suggestions exist for the pair: nothing is written; returns status
@@ -1833,7 +1835,7 @@ def get_inferred_links(include_reviewed: bool = False) -> str:
     """Return suggestedProject relationships sorted by confidence (highest first).
 
     By default only pending suggestions (no status) are returned. Suggestions a reviewer
-    has promoted or rejected keep their status, reviewedBy, reviewedAt and (for rejections)
+    has promoted, modified or rejected keep their status, reviewedBy, reviewedAt and (for rejections)
     rejectionReason; pass include_reviewed=True to include them.
 
     Each entry includes a 'recommended' flag (true if confidence >= 0.6) and a
@@ -1876,7 +1878,8 @@ def get_inferred_links(include_reviewed: bool = False) -> str:
     return json.dumps({"inferred_link_count": len(rows), "inferred_links": rows}, indent=2)
 
 
-@mcp.tool()
+# Not an MCP tool: only people may review suggestions (see scripts/review-links.py
+# and the typed "confirm link" / "reject link" commands in ollama-mcp).
 def promote_inferred_link(
     requirement_id: str,
     project_id: str,
@@ -1884,6 +1887,10 @@ def promote_inferred_link(
     action: str = "confirmed",
 ) -> str:
     """Confirm a pending suggestedProject relationship as an assignedToProject relationship.
+
+    Not an MCP tool, so the LLM cannot confirm its own suggestions. Called by
+    scripts/review-links.py and by the typed "confirm link <REQ> -> <PROJECT>" command
+    in ollama-mcp.
 
     reviewer (required, non-empty) identifies the person who reviewed the suggestion.
     action must be 'confirmed' (reward 1.0) or 'modified' (reward 0.5).
@@ -1967,9 +1974,14 @@ def promote_inferred_link(
     }, indent=2)
 
 
-@mcp.tool()
+# Not an MCP tool: only people may review suggestions (see scripts/review-links.py
+# and the typed "confirm link" / "reject link" commands in ollama-mcp).
 def reject_inferred_link(requirement_id: str, project_id: str, reviewer: str, reason: str) -> str:
     """Reject a pending suggestedProject relationship.
+
+    Not an MCP tool, so the LLM cannot reject suggestions. Called by
+    scripts/review-links.py and by the typed "reject link <REQ> -> <PROJECT> because
+    <reason>" command in ollama-mcp.
 
     reviewer (required, non-empty) identifies the person who reviewed the suggestion;
     reason is stored as rejectionReason.
@@ -2026,6 +2038,96 @@ def reject_inferred_link(requirement_id: str, project_id: str, reviewer: str, re
         "project_id": row["project_id"],
         "reviewer": reviewer,
         "rejection_reason": reason,
+        "feedback": feedback,
+    }, indent=2)
+
+
+# Not an MCP tool: only people may review suggestions (see scripts/review-links.py).
+def modify_inferred_link(
+    requirement_id: str,
+    suggested_project_id: str,
+    new_project_id: str,
+    reviewer: str,
+    reason: str = "",
+) -> str:
+    """Resolve a pending suggestion by assigning the requirement to a different project.
+
+    Not an MCP tool. Called by scripts/review-links.py when the reviewer chooses
+    "modify". In one transaction this:
+    1. records a 'modified' FeedbackEvent (reward 0.5, with reviewer) against the
+       suggested pair, using the confidence and inference state stored on the suggestion;
+    2. creates assignedToProject to new_project_id with source='inferred-modified',
+       promotedAt, promotedBy=reviewer, promotedFromConfidence, inferenceReasoning,
+       inferredBy, inferredAt, inferenceState, modifiedFromProject and
+       modificationReason. If that link already exists it is left unchanged and
+       already_assigned=true is returned;
+    3. keeps the suggestion and sets status='modified', reviewedAt, reviewedBy,
+       modifiedTo and modificationReason on it.
+    The RL agent is then updated. Only the pending suggestion (no status) is used; if
+    there is none, nothing is written and the earlier decision is returned.
+    """
+    if not requirement_id.strip() or not suggested_project_id.strip() or not new_project_id.strip():
+        return json.dumps({"error": "requirement_id, suggested_project_id and new_project_id must not be empty."}, indent=2)
+    if new_project_id.strip() == suggested_project_id.strip():
+        return json.dumps({"error": "new_project_id equals the suggested project; confirm the suggestion instead."}, indent=2)
+    reviewer = reviewer.strip()
+    if not reviewer:
+        return json.dumps({"error": "reviewer must not be empty."}, indent=2)
+
+    modify_query = """
+    MATCH (r:ExtractedEssentialRequirement {hasID: $req_id})
+          -[suggested:suggestedProject]->(:Project {projectID: $suggested_project_id})
+    WHERE suggested.status IS NULL
+    MATCH (np:Project {projectID: $new_project_id})
+    OPTIONAL MATCH (r)-[existing:assignedToProject]->(np)
+    WITH r, np, suggested, count(existing) > 0 AS already_assigned
+    MERGE (r)-[confirmed:assignedToProject]->(np)
+    ON CREATE SET confirmed.source                 = 'inferred-modified',
+                  confirmed.promotedAt             = datetime(),
+                  confirmed.promotedBy             = $reviewer,
+                  confirmed.promotedFromConfidence = suggested.confidence,
+                  confirmed.inferenceReasoning     = suggested.reasoning,
+                  confirmed.inferredBy             = suggested.inferredBy,
+                  confirmed.inferredAt             = suggested.inferredAt,
+                  confirmed.inferenceState         = suggested.inferenceState,
+                  confirmed.modifiedFromProject    = $suggested_project_id,
+                  confirmed.modificationReason     = $reason
+    SET suggested.status             = 'modified',
+        suggested.reviewedAt         = datetime(),
+        suggested.reviewedBy         = $reviewer,
+        suggested.modifiedTo         = $new_project_id,
+        suggested.modificationReason = $reason
+    RETURN r.hasID AS req_id, np.projectID AS project_id, already_assigned
+    """
+
+    try:
+        with _neo4j_driver() as driver:
+            with driver.session() as session:
+                with session.begin_transaction() as tx:
+                    feedback = _record_feedback_internal(
+                        tx, requirement_id, suggested_project_id, "modified", REWARD_MODIFIED, reviewer=reviewer,
+                    )
+                    row = tx.run(
+                        modify_query, req_id=requirement_id, suggested_project_id=suggested_project_id,
+                        new_project_id=new_project_id, reviewer=reviewer, reason=reason,
+                    ).single()
+                    if row is None:
+                        raise RuntimeError(f"Project '{new_project_id}' not found; nothing written.")
+                    tx.commit()
+    except _FeedbackRefused as refused:
+        return json.dumps(refused.payload, indent=2)
+    except Exception as exc:
+        return json.dumps({"error": str(exc)}, indent=2)
+
+    _rl_update("modified", feedback["reward_applied"], state=feedback["inference_state"])
+
+    return json.dumps({
+        "status": "modified",
+        "req_id": row["req_id"],
+        "suggested_project_id": suggested_project_id,
+        "project_id": row["project_id"],
+        "reviewer": reviewer,
+        "already_assigned": row["already_assigned"],
         "feedback": feedback,
     }, indent=2)
 
@@ -2254,7 +2356,7 @@ def get_change_impact_reports() -> str:
 
 # ── Phase 6: RL / feedback tools ──────────────────────────────────────────────
 
-@mcp.tool()
+# Not an MCP tool: feedback must come from a person, not the LLM.
 def record_feedback(
     requirement_id: str,
     project_id: str,
@@ -2262,6 +2364,10 @@ def record_feedback(
     reward: float,
 ) -> str:
     """Record a human-feedback event for an inferred recommendation.
+
+    Not an MCP tool: feedback must come from a person. Nothing in the repository calls
+    it any more; review decisions record their feedback through promote_inferred_link,
+    modify_inferred_link and reject_inferred_link, which share _record_feedback_internal.
 
     action must be one of: confirmed, rejected, modified, ignored.
     Writes a FeedbackEvent node to Neo4j and updates the RL agent.
@@ -2272,11 +2378,11 @@ def record_feedback(
     The FeedbackEvent node records overconfidencePenaltyApplied=true for audit.
 
     Feedback is only accepted while the pair has a pending suggestedProject relationship
-    (no status). If the suggestion was already promoted or rejected, or none exists, no
+    (no status). If the suggestion was already promoted, modified or rejected, or none exists, no
     FeedbackEvent is written and the earlier decision is returned with the error.
 
-    promote_inferred_link and reject_inferred_link record feedback themselves (with the
-    reviewer); do not also call record_feedback for a decision made through them.
+    promote_inferred_link, modify_inferred_link and reject_inferred_link record feedback
+    themselves (with the reviewer); do not also call record_feedback for those decisions.
     """
     valid_actions = {"confirmed", "rejected", "modified", "ignored"}
     if action not in valid_actions:
