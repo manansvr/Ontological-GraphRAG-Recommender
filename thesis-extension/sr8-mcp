@@ -5,6 +5,7 @@ import re
 import json
 import csv
 import subprocess
+import sys
 import importlib.util as _importlib_util
 from datetime import datetime, timezone
 from pathlib import Path
@@ -300,6 +301,10 @@ def _load_rl_agent() -> Any:
         if not spec or not spec.loader:
             return None
         module = _importlib_util.module_from_spec(spec)
+        # The module must be in sys.modules while it runs: its dataclasses (with
+        # "from __future__ import annotations") look their module up there, and
+        # without it exec_module raises AttributeError, leaving RL disabled.
+        sys.modules[spec.name] = module
         spec.loader.exec_module(module)
 
         _rl_transition_cls = getattr(module, "Transition")
