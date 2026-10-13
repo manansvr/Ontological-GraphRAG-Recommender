@@ -51,6 +51,9 @@ def _load_sr8() -> types.ModuleType:
 
 
 sr8 = _load_sr8()
+# Kept before any test replaces them with recording fakes.
+REAL_RL_UPDATE = sr8._rl_update
+REAL_RL_ADJUST = sr8._rl_adjust_confidence
 
 
 # ── Fake Neo4j driver ─────────────────────────────────────────────────────────
@@ -87,7 +90,7 @@ class FakeGraph:
     """Answers queries by matching a distinctive substring; records every query run."""
 
     def __init__(self, assignments=None, suggestions=None, write_row=None, write_returns_nothing=False,
-                 schema=None, subclass_of=None, requirement_labels=None, project_labels=None):
+                 schema=None, subclass_of=None, requirement_labels=None, project_labels=None, context=None):
         self.assignments = assignments if assignments is not None else [
             {"assigned_project": None, "source": None}
         ]
@@ -95,6 +98,7 @@ class FakeGraph:
         self.write_row = write_row or {"req_id": "REQ-1", "project_id": "SRP8-045",
                                        "revision_count": None, "already_assigned": False}
         self.write_returns_nothing = write_returns_nothing
+        self.context = context or {"same_adr_assigned": 0, "project_has_same_adr": False}
         self.schema = DEFAULT_SCHEMA if schema is None else schema
         self.subclass_of = DEFAULT_SUBCLASS_OF if subclass_of is None else subclass_of
         self.requirement_labels = requirement_labels or EER_LABELS
@@ -121,8 +125,8 @@ class FakeGraph:
             return FakeResult([{"labels": self.project_labels}] if params["ids"] else [])
         if "s.rejectionReason AS rejection_reason" in query:
             return FakeResult(self.suggestions)
-        if "AS adr_populated" in query:
-            return FakeResult([{"similar_count": 0, "adr_populated": False}])
+        if "AS project_has_same_adr" in query:
+            return FakeResult([self.context])
         if ("rel.previousConfidence" in query or "CREATE (r)-[rel:suggestedProject]" in query
                 or "count(existing)" in query or "suggested.rejectionReason" in query
                 or "suggested.modifiedTo" in query):
@@ -171,11 +175,12 @@ class FakeDriver:
 
 def reviewed(status, by="bob", at="2026-10-01T10:00:00Z", reason=None, inferred_at="T-REVIEWED", confidence=0.7):
     return {"status": status, "confidence": confidence, "inference_state": "inference_weak_yes_mid",
-            "inferred_at": inferred_at, "reviewed_by": by, "reviewed_at": at, "rejection_reason": reason}
+            "rl_action": "keep_confidence", "inferred_at": inferred_at, "reviewed_by": by, "reviewed_at": at,
+            "rejection_reason": reason}
 
 
-def pending(confidence=0.5, state="inference_weak_yes_mid"):
-    return {"status": None, "confidence": confidence, "inference_state": state,
+def pending(confidence=0.5, state="inference_weak_yes_mid", rl_action="increase_confidence"):
+    return {"status": None, "confidence": confidence, "inference_state": state, "rl_action": rl_action,
             "inferred_at": "T-PENDING", "reviewed_by": None, "reviewed_at": None, "rejection_reason": None}
 
 
@@ -185,11 +190,15 @@ class Base(unittest.TestCase):
         self.rl_updates = []
         self.rl_adjust_calls = []
         sr8._neo4j_driver = lambda: FakeDriver(graph)
-        sr8._rl_update = lambda action, reward, state="inference": self.rl_updates.append((action, reward, state))
+        def record_update(reward, state, rl_action):
+            self.rl_updates.append((reward, state, rl_action))
+            return True
+
+        sr8._rl_update = record_update
 
         def adjust(base, state):
             self.rl_adjust_calls.append((base, state))
-            return base
+            return base, "keep_confidence"
 
         sr8._rl_adjust_confidence = adjust
         return graph
@@ -343,7 +352,7 @@ class FeedbackTests(Base):
         self.assertIn("WHERE suggested.status IS NULL", reject_query)
         self.assertEqual(reject_params["reason"], "wrong subsystem")
         self.assertFalse(any("DELETE" in q for q, _ in graph.queries))
-        self.assertEqual(self.rl_updates, [("rejected", -2.0, "inference_weak_no_high")])
+        self.assertEqual(self.rl_updates, [(-2.0, "inference_weak_no_high", "increase_confidence")])
 
         # The graph now holds the rejected suggestion; a second feedback call is refused.
         graph.suggestions = [reviewed("rejected", reason="wrong subsystem", confidence=0.92)]
@@ -381,7 +390,7 @@ class ModifyTests(Base):
         self.assertEqual(params["new_project_id"], "SRP8-046")
         self.assertFalse(any("DELETE" in q for q, _ in graph.queries))
         self.assertEqual(graph.commits, 1)
-        self.assertEqual(self.rl_updates, [("modified", 0.5, "inference_weak_yes_mid")])
+        self.assertEqual(self.rl_updates, [(0.5, "inference_weak_yes_mid", "increase_confidence")])
 
     def test_modify_to_same_project_is_refused(self):
         graph = self.use(FakeGraph(suggestions=[pending()]))
@@ -517,6 +526,106 @@ class SchemaValidationTests(Base):
         self.assertEqual(out["status"], "created")
         self.assertEqual(out["schema_validation"], {})
         self.assertEqual(graph.commits, 1)
+
+
+
+# ── Problem B: credit the stored action; independent state features ───────────
+
+class RlCreditTests(Base):
+    def test_write_stores_chosen_action_and_base_confidence(self):
+        graph = self.use(FakeGraph())
+        sr8._rl_adjust_confidence = lambda base, state: (round(base - 0.1, 10), "decrease_confidence")
+        out = json.loads(sr8.write_inferred_project_link("REQ-1", "SRP8-045", 0.65, "same ADR"))
+        self.assertEqual((out["rl_action"], out["original_confidence"], out["adjusted_confidence"]),
+                         ("decrease_confidence", 0.65, 0.55))
+        query, params = graph.ran("CREATE (r)-[rel:suggestedProject]")[0]
+        self.assertIn("rel.rlAction       = $rl_action", query)
+        self.assertIn("rel.baseConfidence = $base_confidence", query)
+        self.assertEqual((params["rl_action"], params["base_confidence"], params["confidence"]),
+                         ("decrease_confidence", 0.65, 0.55))
+
+    def test_revision_stores_new_action_and_base_confidence(self):
+        graph = self.use(FakeGraph(suggestions=[pending()]))
+        sr8.write_inferred_project_link("REQ-1", "SRP8-045", 0.65, "same ADR")
+        query, params = graph.ran("rel.previousConfidence")[0]
+        self.assertIn("rel.rlAction       = $rl_action", query)
+        self.assertEqual((params["rl_action"], params["base_confidence"]), ("keep_confidence", 0.65))
+
+    def test_context_query_uses_candidate_project(self):
+        graph = self.use(FakeGraph(context={"same_adr_assigned": 4, "project_has_same_adr": False}))
+        out = json.loads(sr8.write_inferred_project_link("REQ-1", "SRP8-045", 0.65, "same ADR"))
+        self.assertEqual(graph.ran("AS project_has_same_adr")[0][1]["project_id"], "SRP8-045")
+        self.assertEqual(out["inference_state"], "inference_strong_no_mid")
+
+    def test_rejection_credits_the_stored_action_not_a_mapped_one(self):
+        # The agent had chosen to INCREASE confidence; the rejection must penalise that action.
+        self.use(FakeGraph(suggestions=[pending(rl_action="increase_confidence")]))
+        out = json.loads(sr8.reject_inferred_link("REQ-1", "SRP8-045", "bob", "wrong"))
+        self.assertEqual(self.rl_updates, [(-1.0, "inference_weak_yes_mid", "increase_confidence")])
+        self.assertEqual(out["feedback"]["rl_action"], "increase_confidence")
+
+    def test_confirmation_credits_the_stored_action_even_if_it_was_decrease(self):
+        self.use(FakeGraph(suggestions=[pending(rl_action="decrease_confidence")]))
+        sr8.promote_inferred_link("REQ-1", "SRP8-045", "alice")
+        self.assertEqual(self.rl_updates, [(1.0, "inference_weak_yes_mid", "decrease_confidence")])
+
+    def test_feedback_event_records_the_credited_action(self):
+        graph = self.use(FakeGraph(suggestions=[pending(rl_action="keep_confidence")]))
+        sr8.reject_inferred_link("REQ-1", "SRP8-045", "bob", "wrong")
+        self.assertEqual(graph.ran("MERGE (fe:FeedbackEvent")[0][1]["rl_action"], "keep_confidence")
+
+    def test_overconfidence_penalty_kept(self):
+        self.use(FakeGraph(suggestions=[pending(confidence=0.85)]))
+        out = json.loads(sr8.reject_inferred_link("REQ-1", "SRP8-045", "bob", "wrong"))
+        self.assertEqual(out["feedback"]["reward_applied"], -2.0)
+        self.assertEqual(sr8.PENALTY_OVERCONFIDENT, -2.0)
+
+    def test_no_feedback_mapping_table_remains(self):
+        self.assertNotIn("rl_map", SR8_PATH.read_text(encoding="utf-8"))
+
+    def test_legacy_suggestion_without_stored_action_does_not_update_q(self):
+        self.assertFalse(REAL_RL_UPDATE(-1.0, "inference_weak_no_low", None))
+        self.assertFalse(REAL_RL_UPDATE(-1.0, None, "keep_confidence"))
+
+    def test_adjust_returns_the_chosen_action_and_clamps(self):
+        class FakeAgent:
+            def __init__(self, action):
+                self.action = action
+
+            def choose_action(self, state, actions):
+                return self.action
+
+        saved = sr8._load_rl_agent
+        try:
+            sr8._load_rl_agent = lambda: FakeAgent("decrease_confidence")
+            self.assertEqual(REAL_RL_ADJUST(0.05, "inference_weak_no_low"), (0.0, "decrease_confidence"))
+            sr8._load_rl_agent = lambda: FakeAgent("increase_confidence")
+            self.assertEqual(REAL_RL_ADJUST(0.95, "inference_strong_yes_high"), (1.0, "increase_confidence"))
+            sr8._load_rl_agent = lambda: None
+            self.assertEqual(REAL_RL_ADJUST(0.5, "inference_weak_no_mid"), (0.5, None))
+        finally:
+            sr8._load_rl_agent = saved
+
+
+class InferenceStateTests(unittest.TestCase):
+    def test_band_boundaries_come_from_one_constant(self):
+        self.assertEqual(sr8.CONFIDENCE_BANDS, (("high", 0.7), ("mid", 0.4)))
+        cases = {0.71: "high", 0.7: "mid", 0.41: "mid", 0.4: "low", 0.0: "low", 1.0: "high"}
+        for confidence, band in cases.items():
+            self.assertEqual(sr8._confidence_band(confidence), band, confidence)
+
+    def test_all_four_evidence_project_combinations_are_reachable(self):
+        self.assertEqual(sr8._inference_state(5, True, 0.8), "inference_strong_yes_high")
+        self.assertEqual(sr8._inference_state(5, False, 0.8), "inference_strong_no_high")   # assigned elsewhere
+        self.assertEqual(sr8._inference_state(1, True, 0.5), "inference_weak_yes_mid")
+        self.assertEqual(sr8._inference_state(0, False, 0.3), "inference_weak_no_low")
+        self.assertEqual(sr8._inference_state(2, False, 0.3), "inference_weak_no_low")
+        self.assertEqual(sr8._inference_state(3, False, 0.3), "inference_strong_no_low")    # threshold is >= 3
+
+    def test_twelve_states(self):
+        produced = {sr8._inference_state(n, p, c) for n in (0, 3) for p in (True, False) for c in (0.9, 0.5, 0.1)}
+        self.assertEqual(produced, set(sr8._INFERENCE_STATES))
+        self.assertEqual(len(produced), 12)
 
 
 if __name__ == "__main__":

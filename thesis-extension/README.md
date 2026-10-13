@@ -124,7 +124,7 @@ Node labels used by the MCP tools:
 - `Project` — an SR8 project area; `projectID`, `projectName`
 - `Assembly` (or any node with `assemblyID`) — e.g. `ASM-FRONT-AXLE`, `ASM-STEERING`, `ASM-REAR-AXLE`
 - `ChangeImpactReport` — written by `write_change_impact_report`; `hasID`, `changeDescription`, `riskSummary`, `createdAt`
-- `FeedbackEvent` — written when a person reviews a suggestion (`promote_inferred_link`, `modify_inferred_link`, `reject_inferred_link`; also the uncalled `record_feedback` function); `hasID`, `requirementID`, `projectID`, `action`, `reward`, `inferenceState`, `overconfidencePenaltyApplied`, `reviewer` (null when written by `record_feedback`), `timestamp`
+- `FeedbackEvent` — written when a person reviews a suggestion (`promote_inferred_link`, `modify_inferred_link`, `reject_inferred_link`; also the uncalled `record_feedback` function); `hasID`, `requirementID`, `projectID`, `action`, `reward`, `inferenceState`, `overconfidencePenaltyApplied`, `rlAction` (the action credited), `reviewer` (null when written by `record_feedback`), `timestamp`
 
 Relationship types:
 
@@ -208,7 +208,19 @@ python3 -m unittest discover -s thesis-extension/tests -v
 
 ## Reinforcement learning
 
-The RL agent in `reinforcemnt-learning.py` learns from the feedback recorded when a person reviews a suggestion. The Q-table is saved to `.rl-model.json` and loaded automatically when `sr8-mcp.py` starts. `sr8-mcp`, `ollama-mcp` and `scripts/review-links.py` each hold their own in-memory copy, so every save goes through `locked_update`: it locks `.rl-model.json.lock`, reloads the latest file, applies only that process's change and writes atomically, so no process overwrites another's learning. It adjusts confidence scores on inferred project links (`write_inferred_project_link`) based on prior feedback signals.
+`reinforcemnt-learning.py` provides tabular Q-learning for two separate problems, stored in one `.rl-model.json` (`schema_version` 3) with a section each: `problem_a` and `problem_b`, each holding its own `config` (epsilon, alpha, gamma), `q_table` and `episode_rewards`. Exploration decay in one problem never affects the other.
+
+- **Problem A: retrieval strategy (`ollama-mcp`).** States `adr_lookup` / `general_lookup`; actions `graph_first` / `documents_first` / `hybrid`; discount factor 0.9.
+- **Problem B: inference confidence (`sr8-mcp`).** When `write_inferred_project_link` writes a suggestion, the agent picks `increase_confidence` (+0.1), `keep_confidence` or `decrease_confidence` (−0.1) for the state `inference_<strong|weak>_<yes|no>_<high|mid|low>`:
+  - `strong`: at least 3 requirements from the same ADR are already assigned to a project;
+  - `yes`: the candidate project already holds at least one assigned requirement from the same ADR;
+  - the band of the caller's confidence (`CONFIDENCE_BANDS`): high > 0.7, mid > 0.4, low ≤ 0.4.
+
+  The suggestion stores `baseConfidence`, the adjusted `confidence`, `rlAction` and `inferenceState`. When a person confirms (+1.0), modifies (+0.5) or rejects (−1.0, or −2.0 if the stored confidence was above 0.8) it, Q(`inferenceState`, `rlAction`) is updated. Each suggestion is a one-step decision, so Problem B uses discount factor 0.0: Q ← Q + α(r − Q). Suggestions written before `rlAction` existed do not update the Q-table (`rl_updated: false`).
+- **Cold-start prior.** If `problem_b` has no inference states, `sr8-mcp` seeds them from `train_inference_agent()` (seed 99, 1000 single-step episodes) using `INFERENCE_PRIOR_REWARD_MODEL`, a hand-designed reward model, not data. Print its Q-table with `python3 thesis-extension/reinforcemnt-learning.py --inference-table`.
+- **Version 2 files** (one shared agent) are migrated automatically on the first save: `inference_*` states go to `problem_b` (with the new single-step config), everything else plus the old config and `episode_rewards` to `problem_a`. To migrate explicitly: `python3 thesis-extension/reinforcemnt-learning.py --migrate thesis-extension/.rl-model.json`.
+
+The model file is loaded automatically when `sr8-mcp.py` starts. `sr8-mcp`, `ollama-mcp` and `scripts/review-links.py` each hold their own in-memory copy, so every save goes through `locked_update`: it locks `.rl-model.json.lock`, reloads the latest file, applies only that process's change and writes atomically, so no process overwrites another's learning.
 
 Run the built-in self-test:
 

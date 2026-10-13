@@ -39,11 +39,11 @@ Then restart the Ollama client so the server reloads with no saved model.
 
 > Show me the current RL policy.
 
-**Expected response:** `get_rl_policy` is called and returns a report that includes all 12 inference states (`inference_strong_yes_high` through `inference_weak_no_low`) with non-zero Q-values. The greedy action for `inference_strong_*` states should be `increase_confidence`; for `inference_weak_no_*` states it should be `decrease_confidence`.
+**Expected response:** `get_rl_policy` is called and returns a report that includes all 12 inference states (`inference_strong_yes_high` through `inference_weak_no_low`), a discount factor of 0.0, and the cold-start prior's Q-values. Compare them with `python3 thesis-extension/reinforcemnt-learning.py --inference-table`, which trains the same prior offline (seed 99). Its greedy actions are `increase_confidence` for every `inference_strong_*` state except `inference_strong_yes_mid` (`keep_confidence`, because `increase_confidence` was never explored there), `keep_confidence` for `inference_weak_yes_*` and `inference_weak_no_mid`, and `decrease_confidence` for `inference_weak_no_high` and `inference_weak_no_low`.
 
 **Pass criteria:**
 - 12 inference states listed in the policy table
-- No state shows all Q-values as `+0.000`
+- No state shows all Q-values as `+0.000` (a single `0.000` is an action the prior never tried)
 - `inference_strong_yes_high` greedy action is `increase_confidence`
 - `inference_weak_no_low` greedy action is `decrease_confidence`
 
@@ -73,7 +73,7 @@ Then restart the Ollama client so the server reloads with no saved model.
 
 ## Test 3 — FIX 1: Richer 12-state inference encoding on `write_inferred_project_link`
 
-**What it tests:** When a suggestedProject relationship is written, the server queries Neo4j for context (similar assigned requirements, ADR population), computes one of the 12 `inference_*` state strings, and stores it on the relationship as `inferenceState`.
+**What it tests:** When a suggestedProject relationship is written, the server queries Neo4j for context (how many requirements from the same ADR are already assigned, and whether the candidate project already holds one of them), computes one of the 12 `inference_*` state strings, lets the agent choose an action, and stores `inferenceState`, `rlAction`, `baseConfidence` and the adjusted `confidence` on the relationship.
 
 **Step 3a — Find an unassigned requirement:**
 
@@ -97,18 +97,21 @@ This calls `write_inferred_project_link`. The response JSON should contain:
 {
   "original_confidence": 0.65,
   "adjusted_confidence": ...,
-  "inference_state": "inference_strong_yes_mid"
+  "rl_action": "increase_confidence | keep_confidence | decrease_confidence",
+  "inference_state": "inference_<strong|weak>_<yes|no>_mid",
+  "same_adr_assigned": ...,
+  "project_has_same_adr": true
 }
 ```
 
 **Step 3d — Verify the relationship was stored correctly:**
 
-> Run this Cypher query: MATCH (r)-[rel:suggestedProject]->(p) RETURN r.hasID, p.projectID, rel.confidence, rel.inferenceState LIMIT 5
+> Run this Cypher query: MATCH (r)-[rel:suggestedProject]->(p) RETURN r.hasID, p.projectID, rel.baseConfidence, rel.confidence, rel.rlAction, rel.inferenceState LIMIT 5
 
 **Pass criteria:**
 - `inference_state` in the `write_inferred_project_link` response is one of the 12 valid strings (not `"inference"`)
-- `adjusted_confidence` differs from `original_confidence` by ±0.1 (agent nudged it)
-- `rel.inferenceState` is populated in the Cypher query result
+- `adjusted_confidence` equals `original_confidence` + 0.1, + 0 or − 0.1 for `rl_action` increase / keep / decrease (clamped to [0, 1])
+- `rel.inferenceState`, `rel.rlAction` and `rel.baseConfidence` are populated in the Cypher query result
 
 ---
 
@@ -288,9 +291,11 @@ spec = importlib.util.spec_from_loader("sr8_mcp", loader)
 mod = importlib.util.module_from_spec(spec)
 loader.exec_module(mod)
 
-# Fire 35 feedback events directly via _rl_update (bypasses Neo4j write)
+# Fire 35 feedback events directly via _rl_update (bypasses Neo4j write):
+# reward 1.0 for the action increase_confidence in this state.
+# Note: this writes to thesis-extension/.rl-model.json (migrating it to schema version 3).
 for i in range(35):
-    mod._rl_update("confirmed", 1.0, state="inference_strong_yes_high")
+    mod._rl_update(1.0, "inference_strong_yes_high", "increase_confidence")
 
 print("35 updates sent")
 
@@ -307,7 +312,7 @@ EOF
 > Show me the current RL policy.
 
 **Pass criteria:**
-- Q-values for `inference_strong_yes_high` are higher for `increase_confidence` than before step 7b
+- Q-values for `inference_strong_yes_high` are higher for `increase_confidence` than before step 7b, and approach 1.0 (the reward) but never exceed it
 - The script in 7b prints without error and shows non-zero Q-values
 - `.rl-model.json` modification time is updated
 
@@ -343,7 +348,7 @@ reject link [req_id] -> [project_id] because end-to-end test
 | Fix | Tool | Field to check | Expected value |
 |-----|------|----------------|----------------|
 | FIX 1 | `write_inferred_project_link` | `inference_state` | one of 12 `inference_*` strings |
-| FIX 1 | `write_inferred_project_link` | `adjusted_confidence` | differs from `original_confidence` by ±0.1 |
+| FIX 1 | `write_inferred_project_link` | `rl_action`, `adjusted_confidence` | chosen action; original +0.1 / 0 / −0.1 |
 | FIX 2 | `get_inferred_links` | `recommended` | `true` when confidence ≥ 0.6 |
 | FIX 2 | `get_inferred_links` | `warning` | `"low confidence — review carefully"` when confidence < 0.4 |
 | FIX 3 | typed `reject link` | reward | `-2.0` when confidence > 0.8, with "overconfidence penalty" |

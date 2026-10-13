@@ -59,15 +59,17 @@ class _RLBridge:
             spec.loader.exec_module(module)
 
             self._transition_cls = getattr(module, "Transition")
-            self._locked_update = getattr(module, "locked_update")
-            q_learning_cls = getattr(module, "QLearningAgent")
+            # ollama-mcp only reads and writes Problem A (retrieval strategy) in the model
+            # file; Problem B (sr8-mcp's inference confidence) has its own section and config.
+            problem = getattr(module, "PROBLEM_A")
+            locked_update = getattr(module, "locked_update")
+            self._locked_update = lambda path, apply: locked_update(path, apply, problem)
 
             model_path = Path(self._model_path)
+            self._agent = getattr(module, "load_problem")(model_path, problem)
             if model_path.exists():
-                self._agent = q_learning_cls.load(model_path)
                 print(f"[rl] loaded model from {self._model_path}")
             else:
-                self._agent = q_learning_cls()
                 print("[rl] initialized new model")
 
             self.enabled = True

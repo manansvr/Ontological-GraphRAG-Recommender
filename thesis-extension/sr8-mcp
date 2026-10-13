@@ -42,6 +42,18 @@ WRITE_KEYWORDS = {
     " load csv",
 }
 
+# Confidence bands for the inference state, highest first: a confidence belongs to the
+# first band whose lower bound it exceeds, otherwise to "low".
+#   high: > 0.7    mid: > 0.4 and <= 0.7    low: <= 0.4
+CONFIDENCE_BANDS: tuple[tuple[str, float], ...] = (("high", 0.7), ("mid", 0.4))
+
+# Same-ADR requirements already assigned (to any project) needed for "strong" evidence.
+STRONG_EVIDENCE_MIN_ASSIGNED = 3
+
+# Problem B actions; the adjustment each applies to the caller's confidence.
+_RL_ACTIONS = ["increase_confidence", "keep_confidence", "decrease_confidence"]
+_RL_ACTION_DELTA = {"increase_confidence": 0.1, "keep_confidence": 0.0, "decrease_confidence": -0.1}
+
 # All 12 contextual inference states produced by _inference_state().
 _INFERENCE_STATES = [
     f"inference_{ev}_{pop}_{cb}"
@@ -301,14 +313,16 @@ def _load_rl_agent() -> Any:
         spec.loader.exec_module(module)
 
         _rl_transition_cls = getattr(module, "Transition")
-        q_cls = getattr(module, "QLearningAgent")
         replay_cls = getattr(module, "ReplayBuffer")
-        _rl_locked_update = getattr(module, "locked_update")
+        problem = getattr(module, "PROBLEM_B")
+        locked_update = getattr(module, "locked_update")
+        # sr8-mcp only ever reads and writes Problem B (inference confidence) in the model file.
+        _rl_locked_update = lambda path, apply: locked_update(path, apply, problem)  # noqa: E731
 
         # FIX 4: initialise the live replay buffer (capacity 500).
         _rl_replay_buffer = replay_cls(capacity=500)
 
-        _rl_agent = q_cls.load(_RL_MODEL_PATH) if _RL_MODEL_PATH.exists() else q_cls()
+        _rl_agent = getattr(module, "load_problem")(_RL_MODEL_PATH, problem)
 
         # FIX 6: merge pre-trained inference priors if no inference states exist yet.
         has_inference = any(s in _rl_agent.q_table for s in _INFERENCE_STATES)
@@ -334,53 +348,69 @@ def _load_rl_agent() -> Any:
     return _rl_agent
 
 
-# FIX 1: helper that maps observable context to one of 12 state strings.
-def _inference_state(similar_count: int, adr_populated: bool, base_confidence: float) -> str:
-    evidence = "strong" if similar_count >= 3 else "weak"
-    populated = "yes" if adr_populated else "no"
-    conf_band = "high" if base_confidence > 0.7 else "mid" if base_confidence > 0.4 else "low"
-    return f"inference_{evidence}_{populated}_{conf_band}"
+def _confidence_band(confidence: float) -> str:
+    for band, lower_bound in CONFIDENCE_BANDS:
+        if confidence > lower_bound:
+            return band
+    return "low"
+
+
+# FIX 1: maps observable context to one of 12 state strings. The three features are
+# independent: any evidence level can occur with or without the candidate project
+# already holding a requirement from the same ADR.
+def _inference_state(same_adr_assigned: int, project_has_same_adr: bool, base_confidence: float) -> str:
+    """Return inference_<strong|weak>_<yes|no>_<high|mid|low>.
+
+    same_adr_assigned: requirements from the same ADR already assignedToProject (to any
+        project); strong if >= STRONG_EVIDENCE_MIN_ASSIGNED.
+    project_has_same_adr: the candidate project already holds at least one
+        assignedToProject requirement from the same ADR (yes/no).
+    base_confidence: the caller's confidence, banded by CONFIDENCE_BANDS.
+    """
+    evidence = "strong" if same_adr_assigned >= STRONG_EVIDENCE_MIN_ASSIGNED else "weak"
+    project = "yes" if project_has_same_adr else "no"
+    return f"inference_{evidence}_{project}_{_confidence_band(base_confidence)}"
 
 
 # FIX 1: now accepts the contextual state instead of always using "inference".
-def _rl_adjust_confidence(base: float, state: str) -> float:
-    """Nudge a confidence score using the Q-learning agent's policy for the given contextual state."""
+def _rl_adjust_confidence(base: float, state: str) -> tuple[float, str | None]:
+    """Choose a Problem B action for the state and apply it to the caller's confidence.
+
+    Returns (adjusted_confidence, action). The action must be stored with the suggestion
+    (rlAction) so that the reviewer's feedback later credits exactly this action.
+    action is None when the RL agent is unavailable, in which case base is returned.
+    """
     agent = _load_rl_agent()
     if not agent:
-        return base
-    actions = ["increase_confidence", "keep_confidence", "decrease_confidence"]
+        return base, None
     try:
-        action = agent.choose_action(state, actions)
-        if action == "increase_confidence":
-            return min(1.0, base + 0.1)
-        if action == "decrease_confidence":
-            return max(0.0, base - 0.1)
+        action = agent.choose_action(state, _RL_ACTIONS)
     except Exception:
-        pass
-    return base
+        return base, None
+    return min(1.0, max(0.0, base + _RL_ACTION_DELTA[action])), action
 
 
-# FIX 1 + FIX 4 + FIX 5: accepts state, runs replay, uses locked save.
-def _rl_update(feedback_action: str, reward: float, state: str = "inference") -> None:
-    """Update the RL agent from a human-feedback event, run a replay batch, and persist.
+# FIX 1 + FIX 4 + FIX 5: credits the stored action, runs replay, uses locked save.
+def _rl_update(reward: float, state: str | None, rl_action: str | None) -> bool:
+    """Update Q(state, rl_action) from a reviewer's decision, run a replay batch, and persist.
+
+    state and rl_action are the inferenceState and rlAction stored on the suggestion when
+    it was written, so the reward credits the action the agent actually took. Problem B is
+    single-step (discount_factor 0.0): Q <- Q + alpha * (reward - Q).
 
     The update is applied to the latest saved model (via locked_update), not to this
     process's possibly stale in-memory copy, which is then replaced by the result.
+    Returns True if the Q-table was updated; False if the suggestion has no stored
+    action (written before rlAction existed, or while RL was unavailable) or RL is off.
     """
     global _rl_agent
+    if not state or rl_action not in _RL_ACTIONS:
+        return False
     agent = _load_rl_agent()
     if not agent or _rl_transition_cls is None or _rl_locked_update is None:
-        return
+        return False
     try:
-        actions = ["increase_confidence", "keep_confidence", "decrease_confidence"]
-        rl_map = {
-            "confirmed": "increase_confidence",
-            "rejected": "decrease_confidence",
-            "modified": "keep_confidence",
-            "ignored": "decrease_confidence",
-        }
-        rl_action = rl_map.get(feedback_action, "keep_confidence")
-        t = _rl_transition_cls(state, rl_action, reward, state, actions)
+        t = _rl_transition_cls(state, rl_action, reward, state, [])  # one-step: no next state
 
         # FIX 4: accumulate in the live replay buffer; batch-update when full enough.
         if _rl_replay_buffer is not None:
@@ -393,8 +423,9 @@ def _rl_update(feedback_action: str, reward: float, state: str = "inference") ->
             latest.decay_exploration()
 
         _rl_agent = _rl_locked_update(_RL_MODEL_PATH, apply)  # FIX 5
+        return True
     except Exception:
-        pass
+        return False
 
 
 def _validate_against_schema(
@@ -483,6 +514,7 @@ def _suggestions_for_pair(tx: Any, requirement_id: str, project_id: str) -> list
         RETURN s.status AS status,
                s.confidence AS confidence,
                s.inferenceState AS inference_state,
+               s.rlAction AS rl_action,
                s.inferredAt AS inferred_at,
                s.reviewedBy AS reviewed_by,
                toString(s.reviewedAt) AS reviewed_at,
@@ -520,11 +552,18 @@ def _record_feedback_internal(
     Acts only on the pending suggestedProject relationship (status IS NULL). If the pair
     has no pending suggestion, raises _FeedbackRefused carrying the earlier decision, so
     a decision can never be counted twice and no FeedbackEvent is written.
-    Reads confidence and inferenceState from the pending suggestion first, so callers
-    must invoke it before they change that relationship. When action is 'rejected' and
-    the stored confidence was >0.8, PENALTY_OVERCONFIDENT replaces the reward. The
-    caller commits the transaction and then calls _rl_update with the returned
-    reward_applied and inference_state.
+    Reads confidence, inferenceState and rlAction from the pending suggestion first, so
+    callers must invoke it before they change that relationship.
+
+    Reward: the caller's reward (confirmed 1.0, modified 0.5, rejected -1.0), except that
+    rejecting a suggestion whose stored (RL-adjusted) confidence was > 0.8 applies
+    PENALTY_OVERCONFIDENT = -2.0 instead, recorded as overconfidencePenaltyApplied = true.
+
+    Credit: the reward is for the action the agent actually chose when the suggestion was
+    written (rlAction), in the state it was written in (inferenceState); both are returned
+    and stored on the FeedbackEvent. The caller commits the transaction and only then
+    calls _rl_update(reward_applied, inference_state, rl_action), so a rolled-back
+    decision never changes the Q-table.
     """
     suggestions = _suggestions_for_pair(tx, requirement_id, project_id)
     pending = [s for s in suggestions if s.get("status") is None]
@@ -546,6 +585,7 @@ def _record_feedback_internal(
     # suggestedProject relationship so we can auto-apply the overconfidence penalty.
     stored_confidence: float | None = pending[0].get("confidence")
     inferred_state: str = pending[0].get("inference_state") or "inference"
+    rl_action: str | None = pending[0].get("rl_action")
 
     actual_reward = reward
     overconfidence_penalty_applied = False
@@ -564,6 +604,7 @@ def _record_feedback_internal(
             fe.reward = $reward,
             fe.inferenceState = $inference_state,
             fe.overconfidencePenaltyApplied = $penalty_applied,
+            fe.rlAction = $rl_action,
             fe.reviewer = $reviewer,
             fe.timestamp = datetime()
     """,
@@ -574,6 +615,7 @@ def _record_feedback_internal(
         reward=actual_reward,
         inference_state=inferred_state,
         penalty_applied=overconfidence_penalty_applied,
+        rl_action=rl_action,
         reviewer=reviewer,
     )
 
@@ -597,6 +639,7 @@ def _record_feedback_internal(
         "reward_applied": actual_reward,
         "overconfidence_penalty_applied": overconfidence_penalty_applied,
         "inference_state": inferred_state,
+        "rl_action": rl_action,
     }
 
 
@@ -1733,10 +1776,17 @@ def write_inferred_project_link(
 ) -> str:
     """Write a suggestedProject relationship from an unassigned requirement to a project.
 
-    NEVER creates assignedToProject — only suggestedProject. The confidence score is
-    nudged by the RL agent's contextual policy before being stored. The computed
-    inference state is stored on the relationship so the feedback recorded when a
-    person reviews the suggestion can retrieve it.
+    NEVER creates assignedToProject — only suggestedProject. The caller's confidence is
+    nudged by the RL agent's contextual policy (Problem B) before being stored. Stored on
+    the relationship: baseConfidence (the caller's value), confidence (after adjustment),
+    rlAction (the action the agent chose: increase/keep/decrease_confidence, ±0.1 or 0)
+    and inferenceState, so the reviewer's feedback later credits exactly that action in
+    that state.
+
+    The state is inference_<strong|weak>_<yes|no>_<high|mid|low>: strong if at least 3
+    requirements from the same ADR are already assignedToProject (to any project); yes if
+    the candidate project already holds at least one assignedToProject requirement from
+    the same ADR; and the band of the caller's confidence (high > 0.7, mid > 0.4, low <= 0.4).
 
     A suggestion a reviewer has promoted, modified or rejected is never changed:
     - Requirement already assignedToProject to this project: nothing is written;
@@ -1841,9 +1891,9 @@ def write_inferred_project_link(
             "schema_validation": schema_validation,
         }, indent=2)
 
-    # FIX 1: gather context to compute a richer state before calling the agent.
-    similar_count = 0
-    adr_populated = False
+    # FIX 1: gather context to compute the state before calling the agent.
+    same_adr_assigned = 0
+    project_has_same_adr = False
     try:
         with _neo4j_driver() as driver:
             with driver.session() as session:
@@ -1851,22 +1901,20 @@ def write_inferred_project_link(
                     MATCH (r:ExtractedEssentialRequirement {hasID: $req_id})
                     OPTIONAL MATCH (a:AustralianDesignRule)-[:hasExternalEssentialRequirement]->(r)
                     OPTIONAL MATCH (a)-[:hasExternalEssentialRequirement]->(sim:ExtractedEssentialRequirement)
-                    WHERE sim.hasID <> $req_id AND (sim)-[:assignedToProject]->()
-                    WITH a, count(DISTINCT sim) AS similar_count
-                    OPTIONAL MATCH (a)-[:hasExternalEssentialRequirement]
-                                   ->(any_r:ExtractedEssentialRequirement)
-                                   -[:assignedToProject]->(:Project)
-                    RETURN similar_count,
-                           CASE WHEN count(DISTINCT any_r) > 0 THEN true ELSE false END AS adr_populated
-                """, req_id=requirement_id).single()
+                                   -[:assignedToProject]->(sp:Project)
+                    WHERE sim.hasID <> $req_id
+                    RETURN count(DISTINCT sim) AS same_adr_assigned,
+                           count(DISTINCT CASE WHEN sp.projectID = $project_id THEN sim END) > 0
+                               AS project_has_same_adr
+                """, req_id=requirement_id, project_id=project_id).single()
                 if ctx:
-                    similar_count = ctx["similar_count"] or 0
-                    adr_populated = bool(ctx["adr_populated"])
+                    same_adr_assigned = ctx["same_adr_assigned"] or 0
+                    project_has_same_adr = bool(ctx["project_has_same_adr"])
     except Exception:
         pass
 
-    infer_state = _inference_state(similar_count, adr_populated, confidence)
-    adjusted_confidence = _rl_adjust_confidence(confidence, infer_state)
+    infer_state = _inference_state(same_adr_assigned, project_has_same_adr, confidence)
+    adjusted_confidence, rl_action = _rl_adjust_confidence(confidence, infer_state)
 
     if write_mode == "revised":
         write_query = """
@@ -1877,6 +1925,8 @@ def write_inferred_project_link(
             rel.previousReasoning  = rel.reasoning,
             rel.revisionCount      = coalesce(rel.revisionCount, 0) + 1
         SET rel.confidence     = $confidence,
+            rel.baseConfidence = $base_confidence,
+            rel.rlAction       = $rl_action,
             rel.reasoning      = $reasoning,
             rel.inferredBy     = 'Ollama-MCP',
             rel.inferredAt     = datetime(),
@@ -1893,6 +1943,8 @@ def write_inferred_project_link(
         WHERE size([(r)-[x:suggestedProject]->(p) WHERE x.status IS NULL | x]) = 0
         CREATE (r)-[rel:suggestedProject]->(p)
         SET rel.confidence     = $confidence,
+            rel.baseConfidence = $base_confidence,
+            rel.rlAction       = $rl_action,
             rel.reasoning      = $reasoning,
             rel.inferredBy     = 'Ollama-MCP',
             rel.inferredAt     = datetime(),
@@ -1912,6 +1964,8 @@ def write_inferred_project_link(
                         req_id=requirement_id,
                         project_id=project_id,
                         confidence=adjusted_confidence,
+                        base_confidence=confidence,
+                        rl_action=rl_action,
                         reasoning=reasoning,
                         inference_state=infer_state,
                         resubmission_of=resubmission_of,
@@ -1929,7 +1983,10 @@ def write_inferred_project_link(
         "project_id": row["project_id"],
         "original_confidence": confidence,
         "adjusted_confidence": adjusted_confidence,
+        "rl_action": rl_action,
         "inference_state": infer_state,
+        "same_adr_assigned": same_adr_assigned,
+        "project_has_same_adr": project_has_same_adr,
         "reasoning": reasoning,
         "revision_count": row["revision_count"],
         "resubmission_of": str(resubmission_of) if resubmission_of is not None else None,
@@ -2065,7 +2122,9 @@ def promote_inferred_link(
     except Exception as exc:
         return json.dumps({"error": str(exc)}, indent=2)
 
-    _rl_update(action, feedback["reward_applied"], state=feedback["inference_state"])
+    feedback["rl_updated"] = _rl_update(
+        feedback["reward_applied"], feedback["inference_state"], feedback["rl_action"],
+    )
 
     return json.dumps({
         "status": "promoted",
@@ -2138,7 +2197,9 @@ def reject_inferred_link(requirement_id: str, project_id: str, reviewer: str, re
     except Exception as exc:
         return json.dumps({"error": str(exc)}, indent=2)
 
-    _rl_update("rejected", feedback["reward_applied"], state=feedback["inference_state"])
+    feedback["rl_updated"] = _rl_update(
+        feedback["reward_applied"], feedback["inference_state"], feedback["rl_action"],
+    )
 
     return json.dumps({
         "status": "rejected",
@@ -2227,7 +2288,9 @@ def modify_inferred_link(
     except Exception as exc:
         return json.dumps({"error": str(exc)}, indent=2)
 
-    _rl_update("modified", feedback["reward_applied"], state=feedback["inference_state"])
+    feedback["rl_updated"] = _rl_update(
+        feedback["reward_applied"], feedback["inference_state"], feedback["rl_action"],
+    )
 
     return json.dumps({
         "status": "modified",
@@ -2542,7 +2605,9 @@ def record_feedback(
     except Exception as exc:
         return json.dumps({"error": str(exc)}, indent=2)
 
-    _rl_update(action, feedback["reward_applied"], state=feedback["inference_state"])
+    feedback["rl_updated"] = _rl_update(
+        feedback["reward_applied"], feedback["inference_state"], feedback["rl_action"],
+    )
 
     return json.dumps({
         "status": "recorded",
@@ -2553,6 +2618,8 @@ def record_feedback(
         "reward_applied": feedback["reward_applied"],
         "overconfidence_penalty_applied": feedback["overconfidence_penalty_applied"],
         "inference_state": feedback["inference_state"],
+        "rl_action": feedback["rl_action"],
+        "rl_updated": feedback["rl_updated"],
     }, indent=2)
 
 
@@ -2606,10 +2673,13 @@ def get_feedback_stats() -> str:
 
 @mcp.tool()
 def get_rl_policy() -> str:
-    """Report the current RL agent policy for inference confidence-adjustment states.
+    """Report the current RL agent policy for inference confidence-adjustment states (Problem B).
+
+    Problem B is stored separately from ollama-mcp's retrieval learning (Problem A), with
+    its own epsilon and a single-step update (discount factor 0.0).
 
     Returns a human-readable summary covering:
-    - Current exploration rate (epsilon)
+    - Current exploration rate (epsilon) and discount factor
     - Q-values and greedy action for each known inference state
     - Total feedback events recorded and average reward
     - Whether the agent has converged (epsilon <= 0.05)
@@ -2625,10 +2695,11 @@ def get_rl_policy() -> str:
     epsilon = agent.config.exploration_rate
     converged = epsilon <= 0.05
     lines.append(f"Exploration rate (epsilon) : {epsilon:.4f}")
+    lines.append(f"Discount factor            : {agent.config.discount_factor} (single-step)")
     lines.append(f"Converged                  : {'Yes' if converged else 'No'} (threshold: 0.05)")
     lines.append("")
 
-    actions = ["increase_confidence", "keep_confidence", "decrease_confidence"]
+    actions = _RL_ACTIONS
     inference_keys = sorted(s for s in _INFERENCE_STATES if s in agent.q_table)
     if not inference_keys:
         lines.append("No inference states in Q-table yet.")
