@@ -200,7 +200,7 @@ python3 -m unittest discover -s thesis-extension/tests -v
 
 ## Reinforcement learning
 
-The RL agent in `reinforcemnt-learning.py` learns from the feedback recorded when a person reviews a suggestion. The Q-table is saved to `.rl-model.json` and loaded automatically when `sr8-mcp.py` starts. It adjusts confidence scores on inferred project links (`write_inferred_project_link`) based on prior feedback signals.
+The RL agent in `reinforcemnt-learning.py` learns from the feedback recorded when a person reviews a suggestion. The Q-table is saved to `.rl-model.json` and loaded automatically when `sr8-mcp.py` starts. `sr8-mcp`, `ollama-mcp` and `scripts/review-links.py` each hold their own in-memory copy, so every save goes through `locked_update`: it locks `.rl-model.json.lock`, reloads the latest file, applies only that process's change and writes atomically, so no process overwrites another's learning. It adjusts confidence scores on inferred project links (`write_inferred_project_link`) based on prior feedback signals.
 
 Run the built-in self-test:
 

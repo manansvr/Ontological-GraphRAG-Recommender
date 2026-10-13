@@ -1,5 +1,4 @@
 #!/usr/bin/env python3
-import fcntl
 import os
 import re
 import json
@@ -274,22 +273,16 @@ _rl_agent: Any = None
 _rl_agent_loaded: bool = False
 _rl_transition_cls: Any = None
 _rl_replay_buffer: Any = None  # FIX 4: module-level ReplayBuffer (capacity 500)
+_rl_locked_update: Any = None  # reinforcemnt-learning.locked_update
 
-
-# FIX 5: file-locked save to prevent concurrent write corruption between
-# sr8-mcp and ollama-mcp which share the same .rl-model.json.
-def _safe_agent_save(agent: Any, path: Path) -> None:
-    lock_path = str(path) + ".lock"
-    with open(lock_path, "w") as lock_file:
-        try:
-            fcntl.flock(lock_file, fcntl.LOCK_EX)
-            agent.save(path)
-        finally:
-            fcntl.flock(lock_file, fcntl.LOCK_UN)
+# FIX 5: .rl-model.json is shared with ollama-mcp and scripts/review-links.py, each
+# holding its own in-memory agent. Every save goes through locked_update, which
+# reloads the latest file under <file>.lock and applies only this process's change,
+# so no process overwrites another's updates with a stale copy.
 
 
 def _load_rl_agent() -> Any:
-    global _rl_agent, _rl_agent_loaded, _rl_transition_cls, _rl_replay_buffer
+    global _rl_agent, _rl_agent_loaded, _rl_transition_cls, _rl_replay_buffer, _rl_locked_update
     if _rl_agent_loaded:
         return _rl_agent
     _rl_agent_loaded = True
@@ -310,6 +303,7 @@ def _load_rl_agent() -> Any:
         _rl_transition_cls = getattr(module, "Transition")
         q_cls = getattr(module, "QLearningAgent")
         replay_cls = getattr(module, "ReplayBuffer")
+        _rl_locked_update = getattr(module, "locked_update")
 
         # FIX 4: initialise the live replay buffer (capacity 500).
         _rl_replay_buffer = replay_cls(capacity=500)
@@ -321,10 +315,19 @@ def _load_rl_agent() -> Any:
         if not has_inference:
             train_inference_fn = getattr(module, "train_inference_agent")
             pretrained = train_inference_fn()
-            for state, actions in pretrained.q_table.items():
-                if state.startswith("inference_"):
-                    _rl_agent.q_table[state] = dict(actions)
-            _safe_agent_save(_rl_agent, _RL_MODEL_PATH)
+            priors = {
+                state: dict(actions)
+                for state, actions in pretrained.q_table.items()
+                if state.startswith("inference_")
+            }
+
+            def merge_priors(agent: Any) -> None:
+                # Re-checked on the freshly loaded file: another process may have merged them.
+                if not any(s in agent.q_table for s in _INFERENCE_STATES):
+                    for state, actions in priors.items():
+                        agent.q_table[state] = dict(actions)
+
+            _rl_agent = _rl_locked_update(_RL_MODEL_PATH, merge_priors)
 
     except Exception:
         _rl_agent = None
@@ -359,9 +362,14 @@ def _rl_adjust_confidence(base: float, state: str) -> float:
 
 # FIX 1 + FIX 4 + FIX 5: accepts state, runs replay, uses locked save.
 def _rl_update(feedback_action: str, reward: float, state: str = "inference") -> None:
-    """Update the RL agent from a human-feedback event, run a replay batch, and persist."""
+    """Update the RL agent from a human-feedback event, run a replay batch, and persist.
+
+    The update is applied to the latest saved model (via locked_update), not to this
+    process's possibly stale in-memory copy, which is then replaced by the result.
+    """
+    global _rl_agent
     agent = _load_rl_agent()
-    if not agent or _rl_transition_cls is None:
+    if not agent or _rl_transition_cls is None or _rl_locked_update is None:
         return
     try:
         actions = ["increase_confidence", "keep_confidence", "decrease_confidence"]
@@ -373,16 +381,18 @@ def _rl_update(feedback_action: str, reward: float, state: str = "inference") ->
         }
         rl_action = rl_map.get(feedback_action, "keep_confidence")
         t = _rl_transition_cls(state, rl_action, reward, state, actions)
-        agent.update(t)
 
         # FIX 4: accumulate in the live replay buffer; batch-update when full enough.
         if _rl_replay_buffer is not None:
             _rl_replay_buffer.push(t)
-            if len(_rl_replay_buffer) >= 32:
-                agent.replay(_rl_replay_buffer, batch_size=32)
 
-        agent.decay_exploration()
-        _safe_agent_save(agent, _RL_MODEL_PATH)  # FIX 5
+        def apply(latest: Any) -> None:
+            latest.update(t)
+            if _rl_replay_buffer is not None and len(_rl_replay_buffer) >= 32:
+                latest.replay(_rl_replay_buffer, batch_size=32)
+            latest.decay_exploration()
+
+        _rl_agent = _rl_locked_update(_RL_MODEL_PATH, apply)  # FIX 5
     except Exception:
         pass
 

@@ -37,6 +37,7 @@ class _RLBridge:
         self.enabled = False
         self._agent: Any = None
         self._transition_cls: Any = None
+        self._locked_update: Any = None
         self._model_path = _rl_model_path()
 
         if not _rl_enabled():
@@ -58,6 +59,7 @@ class _RLBridge:
             spec.loader.exec_module(module)
 
             self._transition_cls = getattr(module, "Transition")
+            self._locked_update = getattr(module, "locked_update")
             q_learning_cls = getattr(module, "QLearningAgent")
 
             model_path = Path(self._model_path)
@@ -87,9 +89,15 @@ class _RLBridge:
             return
         try:
             transition = self._transition_cls(state, action, reward, next_state, next_actions)
-            self._agent.update(transition)
-            self._agent.decay_exploration()
-            self._agent.save(self._model_path)
+
+            def apply(latest: Any) -> None:
+                latest.update(transition)
+                latest.decay_exploration()
+
+            # Apply this turn's update to the latest saved model under the shared lock,
+            # so feedback saved meanwhile by sr8-mcp or a review command is not overwritten
+            # by this process's in-memory copy; then use the result as the new copy.
+            self._agent = self._locked_update(self._model_path, apply)
         except Exception as exc:
             print(f"[rl] update/save failed: {exc}")
 

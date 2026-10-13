@@ -16,10 +16,12 @@ from __future__ import annotations
 import argparse
 from collections import deque
 from dataclasses import dataclass, asdict
+import fcntl
 import json
+import os
 import random
 from pathlib import Path
-from typing import Deque, Dict, Iterable, List, Tuple
+from typing import Callable, Deque, Dict, Iterable, List, Tuple
 
 
 State = str
@@ -131,13 +133,17 @@ class QLearningAgent:
         return policy
 
     def save(self, file_path: str | Path) -> None:
+        """Write the model as JSON atomically (temp file + rename), so readers never see a partial file."""
         payload = {
             "schema_version": 2,
             "config": asdict(self.config),
             "q_table": self.q_table,
             "episode_rewards": self.episode_rewards,
         }
-        Path(file_path).write_text(json.dumps(payload, indent=2), encoding="utf-8")
+        path = Path(file_path)
+        tmp_path = path.with_name(f"{path.name}.tmp{os.getpid()}")
+        tmp_path.write_text(json.dumps(payload, indent=2), encoding="utf-8")
+        os.replace(tmp_path, path)
 
     @classmethod
     def load(cls, file_path: str | Path) -> "QLearningAgent":
@@ -153,6 +159,28 @@ class QLearningAgent:
             self.q_table[state] = {}
         for action in actions:
             self.q_table[state].setdefault(action, self.config.optimistic_initial_q)
+
+
+def locked_update(file_path: str | Path, apply: Callable[[QLearningAgent], None]) -> QLearningAgent:
+    """Apply a change to the saved model without discarding other processes' updates.
+
+    sr8-mcp, ollama-mcp and scripts/review-links.py each keep their own in-memory
+    QLearningAgent loaded from the same JSON file. Saving an in-memory copy would
+    overwrite everything the others saved since it was loaded. Instead this takes an
+    exclusive lock on <file>.lock, reloads the latest saved model, applies the change,
+    saves it and returns the updated agent; callers should use that as their new
+    in-memory copy.
+    """
+    path = Path(file_path)
+    with open(f"{path}.lock", "w") as lock_file:
+        fcntl.flock(lock_file, fcntl.LOCK_EX)
+        try:
+            agent = QLearningAgent.load(path) if path.exists() else QLearningAgent()
+            apply(agent)
+            agent.save(path)
+            return agent
+        finally:
+            fcntl.flock(lock_file, fcntl.LOCK_UN)
 
 
 class RetrievalBanditEnvironment:

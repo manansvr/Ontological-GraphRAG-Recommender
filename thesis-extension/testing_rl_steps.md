@@ -231,7 +231,7 @@ The model has no review tool, so it should say it cannot; no `[tool] reject_infe
 
 ## Test 6 — FIX 5: File lock is created during saves
 
-**What it tests:** `_safe_agent_save` creates a `.rl-model.json.lock` file while the save is in progress, preventing concurrent writes from `ollama-mcp` and `sr8-mcp`.
+**What it tests:** Every save goes through `locked_update` in `reinforcemnt-learning.py`, which takes `.rl-model.json.lock`, reloads the latest saved model, applies only the current change and writes the file atomically. This stops `ollama-mcp`, `sr8-mcp` and review commands from overwriting each other's updates with stale in-memory copies. The overwrite scenario itself is covered offline by `tests/test_rl_persistence.py`.
 
 This cannot be easily observed through Ollama alone, but the lock file's existence can be confirmed after any feedback event.
 
@@ -247,7 +247,7 @@ ls -la thesis-extension/.rl-model.json*
 
 **Pass criteria:**
 - `.rl-model.json` exists and has a recent modification timestamp (updated by the rejection in Test 5)
-- `.rl-model.json.lock` exists (created by `_safe_agent_save`; may be 0 bytes, which is expected)
+- `.rl-model.json.lock` exists (created by `locked_update`; may be 0 bytes, which is expected)
 - The JSON file is valid: `python3 -m json.tool thesis-extension/.rl-model.json > /dev/null && echo valid`
 
 ---
