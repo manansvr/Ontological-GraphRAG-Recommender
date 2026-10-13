@@ -71,10 +71,23 @@ class FakeRecord(dict):
         return dict(self)
 
 
+EER_LABELS = ["ExtractedEssentialRequirement", "ExtractedRequirement", "Requirement"]
+DEFAULT_SCHEMA = {  # relationships.csv rows: name -> (SourceLabel, TargetLabel)
+    "suggestedProject": ("ExtractedEssentialRequirement", "Project"),
+    "affectsRequirement": ("ChangeImpactReport", "Requirement"),
+    "affectsProject": ("ChangeImpactReport", "Project"),
+}
+DEFAULT_SUBCLASS_OF = {  # SchemaLabel -[:SUBCLASS_OF*1..]-> ancestors
+    "ExtractedEssentialRequirement": ["ExtractedRequirement", "Requirement"],
+    "ExtractedRequirement": ["Requirement"],
+}
+
+
 class FakeGraph:
     """Answers queries by matching a distinctive substring; records every query run."""
 
-    def __init__(self, assignments=None, suggestions=None, write_row=None, write_returns_nothing=False):
+    def __init__(self, assignments=None, suggestions=None, write_row=None, write_returns_nothing=False,
+                 schema=None, subclass_of=None, requirement_labels=None, project_labels=None):
         self.assignments = assignments if assignments is not None else [
             {"assigned_project": None, "source": None}
         ]
@@ -82,13 +95,30 @@ class FakeGraph:
         self.write_row = write_row or {"req_id": "REQ-1", "project_id": "SRP8-045",
                                        "revision_count": None, "already_assigned": False}
         self.write_returns_nothing = write_returns_nothing
+        self.schema = DEFAULT_SCHEMA if schema is None else schema
+        self.subclass_of = DEFAULT_SUBCLASS_OF if subclass_of is None else subclass_of
+        self.requirement_labels = requirement_labels or EER_LABELS
+        self.project_labels = project_labels or ["Project"]
         self.queries = []
         self.commits = 0
 
     def run(self, query, **params):
         self.queries.append((query, params))
         if "AS assigned_project" in query:
-            return FakeResult(self.assignments)
+            return FakeResult([dict({"source_labels": self.requirement_labels,
+                                     "target_labels": self.project_labels}, **row) for row in self.assignments])
+        if "count(s) AS total" in query:
+            return FakeResult([{"total": len(self.schema)}])
+        if "r.sourceLabel AS source_label" in query:
+            declared = self.schema.get(params["rel_type"])
+            return FakeResult([{"source_label": declared[0], "target_label": declared[1]}] if declared else [])
+        if "AS ancestors" in query:
+            found = {a for label in params["labels"] for a in self.subclass_of.get(label, [])}
+            return FakeResult([{"ancestors": sorted(found)}])
+        if "MATCH (r:ExtractedEssentialRequirement {hasID: id})" in query:
+            return FakeResult([{"labels": self.requirement_labels}] if params["ids"] else [])
+        if "MATCH (p:Project {projectID: id})" in query:
+            return FakeResult([{"labels": self.project_labels}] if params["ids"] else [])
         if "s.rejectionReason AS rejection_reason" in query:
             return FakeResult(self.suggestions)
         if "AS adr_populated" in query:
@@ -371,6 +401,122 @@ class ModifyTests(Base):
         out = json.loads(sr8.modify_inferred_link("REQ-1", "SRP8-045", "SRP8-046", "alice"))
         self.assertEqual(out["previous_decision"]["status"], "rejected")
         self.assertEqual(graph.ran("suggested.modifiedTo"), [])
+
+
+
+# ── Schema-layer validation ──────────────────────────────────────────────────
+
+class SchemaValidationTests(Base):
+    def validate(self, graph, rel_type, source, target):
+        return sr8._validate_against_schema(rel_type, source, target, tx=FakeTx(graph))
+
+    def test_allowed_pair_passes(self):
+        ok, reason = self.validate(FakeGraph(), "suggestedProject", EER_LABELS, ["Project"])
+        self.assertTrue(ok, reason)
+        self.assertIn("declared in schema", reason)
+
+    def test_declared_label_matches_through_subclass_ancestor(self):
+        # affectsRequirement targets Requirement; the node only carries the subclass label.
+        ok, reason = self.validate(FakeGraph(), "affectsRequirement", ["ChangeImpactReport"],
+                                   ["ExtractedEssentialRequirement"])
+        self.assertTrue(ok, reason)
+        self.assertIn("target matches Requirement", reason)
+
+    def test_wrong_target_label_is_refused(self):
+        ok, reason = self.validate(FakeGraph(), "suggestedProject", EER_LABELS, ["Department"])
+        self.assertFalse(ok)
+        self.assertIn("requires target label Project", reason)
+
+    def test_wrong_source_label_is_refused(self):
+        ok, reason = self.validate(FakeGraph(), "suggestedProject", ["Component"], ["Project"])
+        self.assertFalse(ok)
+        self.assertIn("requires source label", reason)
+
+    def test_empty_schema_is_refused(self):
+        ok, reason = self.validate(FakeGraph(schema={}), "suggestedProject", EER_LABELS, ["Project"])
+        self.assertFalse(ok)
+        self.assertIn("Schema layer is not loaded", reason)
+
+    def test_undeclared_relationship_is_refused(self):
+        ok, reason = self.validate(FakeGraph(), "inventedRelation", EER_LABELS, ["Project"])
+        self.assertFalse(ok)
+        self.assertIn("not declared", reason)
+
+    def test_alternatives_and_all_wildcard(self):
+        graph = FakeGraph(schema={"interface": ("System|Subsystem", "System|Subsystem"),
+                                  "documentedIn": ("All", "Document")})
+        self.assertTrue(self.validate(graph, "interface", ["Subsystem"], ["System"])[0])
+        self.assertTrue(self.validate(graph, "documentedIn", ["Anything"], ["Document"])[0])
+        self.assertFalse(self.validate(graph, "documentedIn", ["Anything"], ["Project"])[0])
+
+    # write_inferred_project_link
+
+    def call_write(self):
+        return json.loads(sr8.write_inferred_project_link("REQ-1", "SRP8-045", 0.65, "same ADR"))
+
+    def test_write_records_schema_validation_on_edge_and_response(self):
+        graph = self.use(FakeGraph())
+        out = self.call_write()
+        self.assertTrue(out["schema_validation"]["ok"])
+        query, _ = graph.ran("CREATE (r)-[rel:suggestedProject]")[0]
+        self.assertIn("rel.schemaValidated = true", query)
+        self.assertIn("rel.schemaCheckedAt = datetime()", query)
+
+    def test_revision_also_records_schema_validation(self):
+        graph = self.use(FakeGraph(suggestions=[pending()]))
+        self.call_write()
+        self.assertIn("rel.schemaValidated = true", graph.ran("rel.previousConfidence")[0][0])
+
+    def test_write_refused_for_wrong_target_label(self):
+        graph = self.use(FakeGraph(project_labels=["Department"]))
+        out = self.call_write()
+        self.assertIn("Schema validation failed", out["error"])
+        self.assertFalse(out["schema_validation"]["ok"])
+        self.no_suggestion_written()
+        self.assertEqual(self.rl_adjust_calls, [])
+        self.assertEqual(graph.commits, 0)
+
+    def test_write_refused_when_schema_not_loaded(self):
+        self.use(FakeGraph(schema={}))
+        out = self.call_write()
+        self.assertIn("Schema layer is not loaded", out["error"])
+        self.no_suggestion_written()
+
+    # write_change_impact_report
+
+    def call_cir(self, reqs=("REQ-1",), projs=("SRP8-045",)):
+        return json.loads(sr8.write_change_impact_report("wheel diameter change", list(reqs), list(projs), "medium"))
+
+    def test_change_impact_report_validates_both_relationship_types(self):
+        graph = self.use(FakeGraph())
+        out = self.call_cir()
+        self.assertEqual(out["status"], "created")
+        self.assertTrue(out["schema_validation"]["affectsRequirement"]["ok"])
+        self.assertTrue(out["schema_validation"]["affectsProject"]["ok"])
+        self.assertEqual(len(graph.ran("MERGE (cir:ChangeImpactReport")), 1)
+        self.assertEqual(graph.commits, 1)
+
+    def test_change_impact_report_refused_when_schema_not_loaded(self):
+        graph = self.use(FakeGraph(schema={}))
+        out = self.call_cir()
+        self.assertIn("Schema layer is not loaded", out["error"])
+        self.assertEqual(graph.ran("MERGE (cir:ChangeImpactReport"), [])
+        self.assertEqual(graph.ran("MERGE (cir)-["), [])
+        self.assertEqual(graph.commits, 0)
+
+    def test_change_impact_report_refused_for_wrong_target_label(self):
+        graph = self.use(FakeGraph(project_labels=["Department"]))
+        out = self.call_cir()
+        self.assertFalse(out["schema_validation"]["affectsProject"]["ok"])
+        self.assertEqual(graph.ran("MERGE (cir:ChangeImpactReport"), [])
+        self.assertEqual(graph.commits, 0)
+
+    def test_change_impact_report_without_links_needs_no_schema(self):
+        graph = self.use(FakeGraph(schema={}))
+        out = self.call_cir(reqs=(), projs=())
+        self.assertEqual(out["status"], "created")
+        self.assertEqual(out["schema_validation"], {})
+        self.assertEqual(graph.commits, 1)
 
 
 if __name__ == "__main__":

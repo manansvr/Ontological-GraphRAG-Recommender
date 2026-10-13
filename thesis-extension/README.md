@@ -130,10 +130,18 @@ Relationship types:
 
 - `hasExternalEssentialRequirement` — ADR → Requirement
 - `assignedToProject` — Requirement → Project (confirmed). `source = 'extracted'` when created by `extract-ADR.py`; `source = 'inferred'` when created by `promote_inferred_link`, or `'inferred-modified'` (plus `modifiedFromProject`, `modificationReason`) when a reviewer assigned a different project through `modify_inferred_link`; both also store `promotedAt`, `promotedBy` (the reviewer), `promotedFromConfidence`, `inferenceReasoning`, `inferredBy`, `inferredAt` and `inferenceState`
-- `suggestedProject` — Requirement → Project (machine inference, written by `write_inferred_project_link`). Never deleted: a pending suggestion has no `status`; after review it has `status = 'promoted'`, `'modified'` or `'rejected'`, `reviewedBy`, `reviewedAt`, for modifications `modifiedTo` and `modificationReason`, and for rejections `rejectionReason`. A revised pending suggestion also has `previousConfidence`, `previousReasoning` and `revisionCount`; a resubmitted one has `resubmissionOf` (the reviewed suggestion's `inferredAt`). `get_inferred_links` and `get_unassigned_requirements` hide reviewed suggestions unless `include_reviewed=True`
+- `suggestedProject` — Requirement → Project (machine inference, written by `write_inferred_project_link`). Never deleted: a pending suggestion has no `status`; after review it has `status = 'promoted'`, `'modified'` or `'rejected'`, `reviewedBy`, `reviewedAt`, for modifications `modifiedTo` and `modificationReason`, and for rejections `rejectionReason`. A revised pending suggestion also has `previousConfidence`, `previousReasoning` and `revisionCount`; a resubmitted one has `resubmissionOf` (the reviewed suggestion's `inferredAt`). Every written suggestion has `schemaValidated = true` and `schemaCheckedAt`. `get_inferred_links` and `get_unassigned_requirements` hide reviewed suggestions unless `include_reviewed=True`
 - `partOfAssembly` — Project → Assembly
 - `hasClause` — ADR → Clause
 - `affectsRequirement` / `affectsProject` — ChangeImpactReport → Requirement / Project
+
+### Schema validation
+
+`write_inferred_project_link` and `write_change_impact_report` check each relationship they create against the schema layer before writing (`_validate_against_schema`). The relationship type must exist as a `SchemaRelationship` node (imported from `thesis-ontology/csv/relationships.csv`), and its `sourceLabel` and `targetLabel` must be among the node's labels or their `SUBCLASS_OF` ancestors (`A|B` means either; `All` matches any node). The check fails closed: if the schema layer has not been loaded, or the relationship type is not declared, nothing is written and the response's `schema_validation` gives the reason. Load the schema once before using these tools:
+
+```bash
+cd thesis-ontology && python3 scripts/import.py --password <neo4j password>
+```
 - `recordedFor` — FeedbackEvent → Requirement / Project
 
 ## Reviewing inferred links

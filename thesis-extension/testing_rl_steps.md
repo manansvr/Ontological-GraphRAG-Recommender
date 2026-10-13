@@ -9,6 +9,8 @@ Tests for the 7 RL fixes implemented in `sr8-mcp`. Each test uses the Ollama cha
 ```bash
 # Terminal 1 — start Neo4j (if not already running)
 # Neo4j must be running at bolt://localhost:7687
+# The schema layer must be loaded, or write_inferred_project_link refuses every write:
+#   cd thesis-ontology && python3 scripts/import.py --password <neo4j password>
 
 # Terminal 2 — start Ollama
 ollama serve

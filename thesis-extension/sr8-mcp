@@ -397,6 +397,72 @@ def _rl_update(feedback_action: str, reward: float, state: str = "inference") ->
         pass
 
 
+def _validate_against_schema(
+    rel_type: str,
+    source_labels: list[str],
+    target_labels: list[str],
+    tx: Any = None,
+) -> tuple[bool, str]:
+    """Check a relationship against the schema layer loaded by thesis-ontology/scripts/import.py.
+
+    Looks up (:SchemaRelationship {name: rel_type}) and checks its sourceLabel and
+    targetLabel (copied from relationships.csv) against the actual node labels. A declared
+    label matches if it is one of the node's labels or an ancestor of one of them via
+    SUBCLASS_OF* between SchemaLabel nodes. 'A|B' declares alternatives; 'All' matches any
+    node. Fails closed: if no SchemaRelationship nodes exist, or rel_type is not declared,
+    the result is (False, reason). Pass tx to run inside an existing transaction.
+    Returns (ok, reason).
+    """
+    if tx is None:
+        with _neo4j_driver() as driver:
+            with driver.session() as session:
+                return _validate_against_schema(rel_type, source_labels, target_labels, tx=session)
+
+    total = tx.run("MATCH (s:SchemaRelationship) RETURN count(s) AS total").single()
+    if not total or not total["total"]:
+        return False, (
+            "Schema layer is not loaded (no SchemaRelationship nodes); run "
+            "thesis-ontology/scripts/import.py before writing relationships."
+        )
+
+    declared = tx.run("""
+        MATCH (r:SchemaRelationship {name: $rel_type})
+        RETURN r.sourceLabel AS source_label, r.targetLabel AS target_label
+    """, rel_type=rel_type).single()
+    if not declared:
+        return False, f"Relationship type '{rel_type}' is not declared in the schema layer."
+
+    matched = {}
+    for side, declared_labels, node_labels in (
+        ("source", declared["source_label"], source_labels),
+        ("target", declared["target_label"], target_labels),
+    ):
+        allowed = {label.strip() for label in (declared_labels or "").split("|") if label.strip()}
+        if not allowed:
+            return False, f"Relationship type '{rel_type}' has no {side} label declared in the schema layer."
+        if "All" in allowed:
+            matched[side] = "All"
+            continue
+        ancestors_row = tx.run("""
+            MATCH (l:SchemaLabel) WHERE l.name IN $labels
+            MATCH (l)-[:SUBCLASS_OF*1..]->(a:SchemaLabel)
+            RETURN collect(DISTINCT a.name) AS ancestors
+        """, labels=list(node_labels)).single()
+        ancestors = set(ancestors_row["ancestors"]) if ancestors_row else set()
+        hits = allowed & (set(node_labels) | ancestors)
+        if not hits:
+            return False, (
+                f"'{rel_type}' requires {side} label {declared_labels}; node has labels "
+                f"{sorted(node_labels)} (ancestors: {sorted(ancestors) or 'none'})."
+            )
+        matched[side] = ", ".join(sorted(hits))
+
+    return True, (
+        f"'{rel_type}' declared in schema: source matches {matched['source']}, "
+        f"target matches {matched['target']}."
+    )
+
+
 class _FeedbackRefused(Exception):
     """Raised inside a transaction when a pair has no pending suggestion; payload is the JSON error to return."""
 
@@ -1683,6 +1749,12 @@ def write_inferred_project_link(
       previousConfidence, previousReasoning and incrementing revisionCount.
     - Requirement assigned to a different project: the suggestion is written and the
       response includes a warning.
+
+    Before anything is written the relationship is checked against the schema layer
+    (_validate_against_schema with labels(r) and labels(p)); if suggestedProject is not
+    declared for those labels, or the schema is not loaded, nothing is written. Written
+    suggestions store schemaValidated = true and schemaCheckedAt, and the response
+    includes schema_validation.
     """
     if not requirement_id.strip() or not project_id.strip():
         return json.dumps({"error": "requirement_id and project_id must not be empty."}, indent=2)
@@ -1694,7 +1766,8 @@ def write_inferred_project_link(
     MATCH (r:ExtractedEssentialRequirement {hasID: $req_id})
     MATCH (target:Project {projectID: $project_id})
     OPTIONAL MATCH (r)-[a:assignedToProject]->(p:Project)
-    RETURN p.projectID AS assigned_project, a.source AS source
+    RETURN p.projectID AS assigned_project, a.source AS source,
+           labels(r) AS source_labels, labels(target) AS target_labels
     """
     try:
         with _neo4j_driver() as driver:
@@ -1704,6 +1777,14 @@ def write_inferred_project_link(
                         assignments_query, req_id=requirement_id, project_id=project_id,
                     )]
                     suggestions = _suggestions_for_pair(tx, requirement_id, project_id)
+                    schema_ok, schema_reason = (False, "")
+                    if assignments:
+                        schema_ok, schema_reason = _validate_against_schema(
+                            "suggestedProject",
+                            assignments[0].get("source_labels") or [],
+                            assignments[0].get("target_labels") or [],
+                            tx=tx,
+                        )
     except Exception as exc:
         return json.dumps({"error": str(exc)}, indent=2)
 
@@ -1753,6 +1834,13 @@ def write_inferred_project_link(
     else:
         write_mode = "created"
 
+    schema_validation = {"ok": schema_ok, "reason": schema_reason}
+    if not schema_ok:
+        return json.dumps({
+            "error": f"Schema validation failed; nothing written. {schema_reason}",
+            "schema_validation": schema_validation,
+        }, indent=2)
+
     # FIX 1: gather context to compute a richer state before calling the agent.
     similar_count = 0
     adr_populated = False
@@ -1792,7 +1880,9 @@ def write_inferred_project_link(
             rel.reasoning      = $reasoning,
             rel.inferredBy     = 'Ollama-MCP',
             rel.inferredAt     = datetime(),
-            rel.inferenceState = $inference_state
+            rel.inferenceState = $inference_state,
+            rel.schemaValidated = true,
+            rel.schemaCheckedAt = datetime()
         RETURN r.hasID AS req_id, p.projectID AS project_id, rel.revisionCount AS revision_count
         """
     else:
@@ -1807,7 +1897,9 @@ def write_inferred_project_link(
             rel.inferredBy     = 'Ollama-MCP',
             rel.inferredAt     = datetime(),
             rel.inferenceState = $inference_state,
-            rel.resubmissionOf = $resubmission_of
+            rel.resubmissionOf = $resubmission_of,
+            rel.schemaValidated = true,
+            rel.schemaCheckedAt = datetime()
         RETURN r.hasID AS req_id, p.projectID AS project_id, rel.revisionCount AS revision_count
         """
 
@@ -1842,6 +1934,7 @@ def write_inferred_project_link(
         "revision_count": row["revision_count"],
         "resubmission_of": str(resubmission_of) if resubmission_of is not None else None,
         "warning": warning,
+        "schema_validation": schema_validation,
     }, indent=2)
 
 
@@ -2287,46 +2380,80 @@ def write_change_impact_report(
     affected_project_ids: list[str],
     risk_summary: str,
 ) -> str:
-    """Create a ChangeImpactReport node in Neo4j linked to all affected requirements and projects."""
+    """Create a ChangeImpactReport node in Neo4j linked to all affected requirements and projects.
+
+    Every affectsRequirement and affectsProject relationship is first checked against the
+    schema layer (_validate_against_schema with the ChangeImpactReport label and the
+    target node's labels). If any check fails, or the schema is not loaded, nothing is
+    written and the error includes schema_validation. IDs that match no node are skipped.
+    """
     if not change_description.strip():
         return json.dumps({"error": "change_description must not be empty."}, indent=2)
 
     ts = datetime.now(timezone.utc).strftime("%Y%m%d%H%M%S%f")
     report_id = f"CIR-{ts}"
+    schema_validation: dict[str, dict[str, Any]] = {}
 
     try:
         with _neo4j_driver() as driver:
             with driver.session() as session:
-                session.run("""
-                    MERGE (cir:ChangeImpactReport {hasID: $cir_id})
-                    SET cir.changeDescription = $change_description,
-                        cir.riskSummary = $risk_summary,
-                        cir.createdAt = datetime(),
-                        cir.affectedRequirementCount = $req_count,
-                        cir.affectedProjectCount = $proj_count
-                """,
-                    cir_id=report_id,
-                    change_description=change_description,
-                    risk_summary=risk_summary,
-                    req_count=len(affected_requirement_ids),
-                    proj_count=len(affected_project_ids),
-                )
+                with session.begin_transaction() as tx:
+                    targets = {
+                        "affectsRequirement": [record.data() for record in tx.run("""
+                            UNWIND $ids AS id
+                            MATCH (r:ExtractedEssentialRequirement {hasID: id})
+                            RETURN DISTINCT labels(r) AS labels
+                        """, ids=affected_requirement_ids)],
+                        "affectsProject": [record.data() for record in tx.run("""
+                            UNWIND $ids AS id
+                            MATCH (p:Project {projectID: id})
+                            RETURN DISTINCT labels(p) AS labels
+                        """, ids=affected_project_ids)],
+                    }
+                    for rel_type, rows in targets.items():
+                        for row in rows:
+                            ok, reason = _validate_against_schema(
+                                rel_type, ["ChangeImpactReport"], row["labels"], tx=tx,
+                            )
+                            schema_validation[rel_type] = {"ok": ok, "reason": reason}
+                            if not ok:
+                                return json.dumps({
+                                    "error": f"Schema validation failed; nothing written. {reason}",
+                                    "schema_validation": schema_validation,
+                                }, indent=2)
 
-                for req_id in affected_requirement_ids:
-                    session.run("""
-                        MATCH (cir:ChangeImpactReport {hasID: $cir_id})
-                        OPTIONAL MATCH (r:ExtractedEssentialRequirement {hasID: $req_id})
-                        WITH cir, r WHERE r IS NOT NULL
-                        MERGE (cir)-[:affectsRequirement]->(r)
-                    """, cir_id=report_id, req_id=req_id)
+                    tx.run("""
+                        MERGE (cir:ChangeImpactReport {hasID: $cir_id})
+                        SET cir.changeDescription = $change_description,
+                            cir.riskSummary = $risk_summary,
+                            cir.createdAt = datetime(),
+                            cir.affectedRequirementCount = $req_count,
+                            cir.affectedProjectCount = $proj_count
+                    """,
+                        cir_id=report_id,
+                        change_description=change_description,
+                        risk_summary=risk_summary,
+                        req_count=len(affected_requirement_ids),
+                        proj_count=len(affected_project_ids),
+                    )
 
-                for proj_id in affected_project_ids:
-                    session.run("""
-                        MATCH (cir:ChangeImpactReport {hasID: $cir_id})
-                        OPTIONAL MATCH (p:Project {projectID: $proj_id})
-                        WITH cir, p WHERE p IS NOT NULL
-                        MERGE (cir)-[:affectsProject]->(p)
-                    """, cir_id=report_id, proj_id=proj_id)
+                    for req_id in affected_requirement_ids:
+                        tx.run("""
+                            MATCH (cir:ChangeImpactReport {hasID: $cir_id})
+                            OPTIONAL MATCH (r:ExtractedEssentialRequirement {hasID: $req_id})
+                            WITH cir, r WHERE r IS NOT NULL
+                            MERGE (cir)-[:affectsRequirement]->(r)
+                        """, cir_id=report_id, req_id=req_id)
+
+                    for proj_id in affected_project_ids:
+                        tx.run("""
+                            MATCH (cir:ChangeImpactReport {hasID: $cir_id})
+                            OPTIONAL MATCH (p:Project {projectID: $proj_id})
+                            WITH cir, p WHERE p IS NOT NULL
+                            MERGE (cir)-[:affectsProject]->(p)
+                        """, cir_id=report_id, proj_id=proj_id)
+
+                    tx.commit()
 
     except Exception as exc:
         return json.dumps({"error": str(exc)}, indent=2)
@@ -2338,6 +2465,7 @@ def write_change_impact_report(
         "affected_requirement_count": len(affected_requirement_ids),
         "affected_project_count": len(affected_project_ids),
         "risk_summary": risk_summary,
+        "schema_validation": schema_validation,
     }, indent=2)
 
 
