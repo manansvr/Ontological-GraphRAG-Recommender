@@ -223,6 +223,26 @@ class InferencePriorTests(unittest.TestCase):
             for q in actions.values():
                 self.assertTrue(-1.0 <= q <= 1.0)                           # rewards are clipped to [-1, 1]
 
+    def test_every_state_action_pair_is_visited(self):
+        prior = rl.train_inference_agent()
+        untouched = [(s, a) for s in rl.INFERENCE_STATES for a in rl.INFERENCE_ACTIONS
+                     if prior.q_table[s].get(a, 0.0) == 0.0]   # optimistic_initial_q is 0.0
+        self.assertEqual(untouched, [])
+
+    def test_greedy_action_matches_the_reward_models_best_action(self):
+        prior = rl.train_inference_agent()
+        for state in rl.INFERENCE_STATES:
+            model = rl.INFERENCE_PRIOR_REWARD_MODEL[rl.inference_prior_category(state)]
+            best = max(model, key=lambda action: model[action][0])
+            self.assertEqual(prior.greedy_action(state, rl.INFERENCE_ACTIONS), best, state)
+
+    def test_coverage_phase_is_180_updates_before_the_episodes(self):
+        # Coverage only: no episodes, so every Q-value comes from exactly 5 samples per pair.
+        prior = rl.train_inference_agent(episodes=0)
+        self.assertEqual(len(prior.episode_rewards), 0)
+        self.assertEqual(sum(len(q) for q in prior.q_table.values()), 36)
+        self.assertEqual(prior.config.exploration_rate, rl.inference_config().exploration_rate)
+
     def test_reward_model_is_a_named_constant(self):
         self.assertEqual(set(rl.INFERENCE_PRIOR_REWARD_MODEL), {"strong", "moderate", "weak"})
         self.assertIn("NOT learned from data", RL_PATH.read_text(encoding="utf-8"))

@@ -39,11 +39,11 @@ Then restart the Ollama client so the server reloads with no saved model.
 
 > Show me the current RL policy.
 
-**Expected response:** `get_rl_policy` is called and returns a report that includes all 12 inference states (`inference_strong_yes_high` through `inference_weak_no_low`), a discount factor of 0.0, and the cold-start prior's Q-values. Compare them with `python3 thesis-extension/reinforcemnt-learning.py --inference-table`, which trains the same prior offline (seed 99). Its greedy actions are `increase_confidence` for every `inference_strong_*` state except `inference_strong_yes_mid` (`keep_confidence`, because `increase_confidence` was never explored there), `keep_confidence` for `inference_weak_yes_*` and `inference_weak_no_mid`, and `decrease_confidence` for `inference_weak_no_high` and `inference_weak_no_low`.
+**Expected response:** `get_rl_policy` is called and returns a report that includes all 12 inference states (`inference_strong_yes_high` through `inference_weak_no_low`), a discount factor of 0.0, and the cold-start prior's Q-values. Compare them with `python3 thesis-extension/reinforcemnt-learning.py --inference-table`, which trains the same prior offline (seed 99). Its greedy actions are `increase_confidence` for every `inference_strong_*` state, `keep_confidence` for `inference_weak_yes_*` and `inference_weak_no_mid`, and `decrease_confidence` for `inference_weak_no_high` and `inference_weak_no_low`. Every state-action pair is visited, so no Q-value is exactly `0.000`.
 
 **Pass criteria:**
 - 12 inference states listed in the policy table
-- No state shows all Q-values as `+0.000` (a single `0.000` is an action the prior never tried)
+- No Q-value is exactly `+0.000` (the prior visits every state-action pair)
 - `inference_strong_yes_high` greedy action is `increase_confidence`
 - `inference_weak_no_low` greedy action is `decrease_confidence`
 

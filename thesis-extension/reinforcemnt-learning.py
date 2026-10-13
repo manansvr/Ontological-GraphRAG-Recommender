@@ -376,18 +376,40 @@ def train_inference_agent(
     replay_batch_size: int = 16,
     replay_every: int = 5,
     seed: int = 99,
+    coverage_samples: int = 5,
 ) -> QLearningAgent:
     """Pre-train the Problem B agent on the 12 inference confidence-adjustment states.
 
     Produces a cold-start prior so the live system does not begin from uniform
-    randomness. Single-step: each episode is one (state, action, reward) decision and
-    the update is Q <- Q + alpha * (r - Q), using inference_config() (discount_factor
-    0.0). States are sampled uniformly from INFERENCE_STATES; rewards are drawn from
+    randomness. Single-step: each update is Q <- Q + alpha * (r - Q), using
+    inference_config() (discount_factor 0.0). Rewards are drawn from
     INFERENCE_PRIOR_REWARD_MODEL (designer-specified, not data) and clipped to [-1, 1].
+
+    Two phases, after random.seed(seed):
+    1. Coverage: for every state and every action, coverage_samples rewards are drawn
+       and Q is updated (12 x 3 x 5 = 180 updates by default). Without this, epsilon-greedy
+       exploration (epsilon 0.15 decaying to 0.02, about 83 visits per state) left some
+       state-action pairs untried, so they kept their initial value of 0.0 and could win
+       or lose the greedy choice for no reason (e.g. inference_strong_yes_mid ended up
+       greedy on keep_confidence because increase_confidence was never tried). No pair
+       should keep its untried initial value. These updates do not decay epsilon, are not
+       added to the replay buffer and are not counted in episode_rewards.
+    2. Episodes: the original episodes epsilon-greedy steps, with states sampled
+       uniformly from INFERENCE_STATES, replay every replay_every steps and epsilon decay.
     """
     random.seed(seed)
     agent = QLearningAgent(config=inference_config())
     buffer = ReplayBuffer(capacity=2000)
+
+    # Phase 1: visit every state-action pair (see docstring).
+    for state in INFERENCE_STATES:
+        for action in INFERENCE_ACTIONS:
+            mean, noise = INFERENCE_PRIOR_REWARD_MODEL[inference_prior_category(state)][action]
+            for _ in range(coverage_samples):
+                reward = max(-1.0, min(1.0, random.gauss(mean, noise)))
+                agent.update(Transition(state, action, reward, state, []))
+
+    # Phase 2: epsilon-greedy episodes (unchanged).
 
     for episode in range(1, episodes + 1):
         state = random.choice(INFERENCE_STATES)
@@ -470,7 +492,7 @@ if __name__ == "__main__":
         run_self_test()
     elif args.inference_table:
         prior = train_inference_agent()
-        print(f"Problem B cold-start prior: train_inference_agent(episodes=1000, seed=99), "
+        print(f"Problem B cold-start prior: train_inference_agent(coverage 12x3x5 = 180 updates, then episodes=1000, seed=99), "
               f"discount_factor={prior.config.discount_factor}, final epsilon={prior.config.exploration_rate:.4f}")
         print(format_q_table(prior, INFERENCE_STATES, INFERENCE_ACTIONS))
     elif args.migrate:
