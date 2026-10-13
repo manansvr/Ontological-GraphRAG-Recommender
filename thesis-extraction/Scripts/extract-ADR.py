@@ -266,6 +266,8 @@ def write_project_links(session, adr_id: str, req_id: str,
                          project_id: str, rel_project: str, rel_dept: str):
     """
     Links Requirement → Project (not ADR → Project).
+    New assignedToProject edges get source = 'extracted' (links promoted from
+    sr8-mcp suggestions carry source = 'inferred').
     This creates the 3-level hierarchy:
       AustralianDesignRule
         → ExtractedEssentialRequirement
@@ -284,7 +286,8 @@ def write_project_links(session, adr_id: str, req_id: str,
             session.run("""
                 MATCH (r:ExtractedEssentialRequirement {hasID: $rid})
                 MATCH (p:Project {projectID: $pid})
-                MERGE (r)-[:assignedToProject]->(p)
+                MERGE (r)-[rel:assignedToProject]->(p)
+                ON CREATE SET rel.source = 'extracted'
             """, rid=req_id, pid=project_id)
 
         # Also keep ADR → Project for completeness (used in analytics queries)

@@ -108,7 +108,7 @@ Reads `thesis-extraction/csv/ADR*-Requirements.csv` and writes `ADR-mapping.csv`
 | Cypher passthrough | `query_knowledge_graph` (read-only MATCH queries only) |
 | Compliance gaps | `get_compliance_gaps`, `get_verification_progress`, `get_highest_risk_gaps` |
 | Interface risk | `get_cross_assembly_requirements`, `get_assembly_dependencies`, `get_shared_requirements`, `get_interface_risk_report` |
-| Inference | `get_unassigned_requirements`, `get_similar_assigned_requirements`, `write_inferred_project_link`, `get_inferred_links`, `promote_inferred_link` |
+| Inference | `get_unassigned_requirements`, `get_similar_assigned_requirements`, `write_inferred_project_link`, `get_inferred_links`, `promote_inferred_link`, `reject_inferred_link` |
 | Change impact | `get_requirements_by_keyword`, `get_requirement_chain`, `get_reverification_scope`, `write_change_impact_report`, `get_change_impact_reports` |
 | RL / feedback | `record_feedback`, `get_feedback_stats`, `get_rl_policy` |
 
@@ -122,17 +122,39 @@ Node labels used by the MCP tools:
 - `Project` — an SR8 project area; `projectID`, `projectName`
 - `Assembly` (or any node with `assemblyID`) — e.g. `ASM-FRONT-AXLE`, `ASM-STEERING`, `ASM-REAR-AXLE`
 - `ChangeImpactReport` — written by `write_change_impact_report`; `hasID`, `changeDescription`, `riskSummary`, `createdAt`
-- `FeedbackEvent` — written by `record_feedback`; `hasID`, `action`, `reward`, `timestamp`
+- `FeedbackEvent` — written by `record_feedback`, `promote_inferred_link` and `reject_inferred_link`; `hasID`, `requirementID`, `projectID`, `action`, `reward`, `inferenceState`, `overconfidencePenaltyApplied`, `reviewer` (null when written by `record_feedback`), `timestamp`
 
 Relationship types:
 
 - `hasExternalEssentialRequirement` — ADR → Requirement
-- `assignedToProject` — Requirement → Project (confirmed)
-- `suggestedProject` — Requirement → Project (inferred; promoted by `promote_inferred_link`)
+- `assignedToProject` — Requirement → Project (confirmed). `source = 'extracted'` when created by `extract-ADR.py`; `source = 'inferred'` when created by `promote_inferred_link`, which also stores `promotedAt`, `promotedBy` (the reviewer), `promotedFromConfidence`, `inferenceReasoning`, `inferredBy`, `inferredAt` and `inferenceState`
+- `suggestedProject` — Requirement → Project (machine inference, written by `write_inferred_project_link`). Never deleted: a pending suggestion has no `status`; after review it has `status = 'promoted'` or `'rejected'`, `reviewedBy`, `reviewedAt`, and for rejections `rejectionReason`. `get_inferred_links` and `get_unassigned_requirements` hide reviewed suggestions unless `include_reviewed=True`
 - `partOfAssembly` — Project → Assembly
 - `hasClause` — ADR → Clause
 - `affectsRequirement` / `affectsProject` — ChangeImpactReport → Requirement / Project
 - `recordedFor` — FeedbackEvent → Requirement / Project
+
+## Reviewing inferred links
+
+`promote_inferred_link(requirement_id, project_id, reviewer, action="confirmed")` and `reject_inferred_link(requirement_id, project_id, reviewer, reason)` both require a non-empty `reviewer`. In one transaction each records a `FeedbackEvent` (reading the confidence and inference state from the suggestion before it changes, so the overconfidence penalty applies to rejections of suggestions with confidence > 0.8) and marks the suggestion as reviewed. `action` for promotion is `confirmed` (reward 1.0) or `modified` (reward 0.5). Do not call `record_feedback` as well for the same decision.
+
+Auditing the three kinds of project link:
+
+```cypher
+// Grounded links from the ADR checklists
+MATCH (r:ExtractedEssentialRequirement)-[a:assignedToProject {source: 'extracted'}]->(p:Project)
+RETURN r.hasID, p.projectID;
+
+// Pending machine inferences
+MATCH (r:ExtractedEssentialRequirement)-[s:suggestedProject]->(p:Project)
+WHERE s.status IS NULL
+RETURN r.hasID, p.projectID, s.confidence, s.inferenceState, s.reasoning;
+
+// Human-confirmed inferences
+MATCH (r:ExtractedEssentialRequirement)-[a:assignedToProject {source: 'inferred'}]->(p:Project)
+MATCH (r)-[s:suggestedProject {status: 'promoted'}]->(p)
+RETURN r.hasID, p.projectID, a.promotedBy, a.promotedAt, a.promotedFromConfidence, s.reviewedBy, s.reviewedAt;
+```
 
 ## Reinforcement learning
 

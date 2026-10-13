@@ -9,6 +9,8 @@ Two scripts, two sources, one neo4j graph.
 | `extract-ADR.py` | `CSV/*.csv` (8 ADR files) | AustralianDesignRule, Clause, ExtractedEssentialRequirement, Project (stub), Department |
 | `run-extraction.py` | orchestrates both | runs extract-ADR.py first, then extract_projects.py |
 
+`extract-ADR.py` sets `source = 'extracted'` on each `assignedToProject` edge it creates (`ON CREATE SET`, so edges that already exist are not changed). Edges promoted from inferred suggestions by the sr8-mcp `promote_inferred_link` tool carry `source = 'inferred'` instead.
+
 ---
 
 ## Prerequisites

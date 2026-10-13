@@ -382,6 +382,99 @@ def _rl_update(feedback_action: str, reward: float, state: str = "inference") ->
         pass
 
 
+def _record_feedback_internal(
+    tx: Any,
+    requirement_id: str,
+    project_id: str,
+    action: str,
+    reward: float,
+    reviewer: str | None = None,
+) -> dict[str, Any]:
+    """Write a FeedbackEvent inside an open Neo4j transaction.
+
+    Shared by record_feedback, promote_inferred_link and reject_inferred_link.
+    Reads confidence and inferenceState from the suggestedProject relationship first,
+    so callers must invoke it before they change that relationship. When action is
+    'rejected' and the stored confidence was >0.8, PENALTY_OVERCONFIDENT replaces the
+    reward. The caller commits the transaction and then calls _rl_update with the
+    returned reward_applied and inference_state.
+    """
+    # FIX 3: fetch stored confidence and inference state from the suggestedProject
+    # relationship so we can auto-apply the overconfidence penalty.
+    state_row = tx.run("""
+        MATCH (r:ExtractedEssentialRequirement {hasID: $req_id})
+              -[rel:suggestedProject]->(p:Project {projectID: $proj_id})
+        RETURN rel.confidence AS confidence,
+               rel.inferenceState AS inference_state
+    """, req_id=requirement_id, proj_id=project_id).single()
+    stored_confidence: float | None = state_row["confidence"] if state_row else None
+    inferred_state: str = (state_row["inference_state"] if state_row else None) or "inference"
+
+    actual_reward = reward
+    overconfidence_penalty_applied = False
+    if action == "rejected" and stored_confidence is not None and stored_confidence > 0.8:
+        actual_reward = PENALTY_OVERCONFIDENT
+        overconfidence_penalty_applied = True
+
+    ts = datetime.now(timezone.utc).strftime("%Y%m%d%H%M%S%f")
+    fe_id = f"FE-{ts}"
+
+    tx.run("""
+        MERGE (fe:FeedbackEvent {hasID: $feid})
+        SET fe.requirementID = $req_id,
+            fe.projectID = $proj_id,
+            fe.action = $action,
+            fe.reward = $reward,
+            fe.inferenceState = $inference_state,
+            fe.overconfidencePenaltyApplied = $penalty_applied,
+            fe.reviewer = $reviewer,
+            fe.timestamp = datetime()
+    """,
+        feid=fe_id,
+        req_id=requirement_id,
+        proj_id=project_id,
+        action=action,
+        reward=actual_reward,
+        inference_state=inferred_state,
+        penalty_applied=overconfidence_penalty_applied,
+        reviewer=reviewer,
+    )
+
+    tx.run("""
+        MATCH (fe:FeedbackEvent {hasID: $feid})
+        OPTIONAL MATCH (r:ExtractedEssentialRequirement {hasID: $req_id})
+        WITH fe, r WHERE r IS NOT NULL
+        MERGE (fe)-[:recordedFor]->(r)
+    """, feid=fe_id, req_id=requirement_id)
+
+    tx.run("""
+        MATCH (fe:FeedbackEvent {hasID: $feid})
+        OPTIONAL MATCH (p:Project {projectID: $proj_id})
+        WITH fe, p WHERE p IS NOT NULL
+        MERGE (fe)-[:recordedFor]->(p)
+    """, feid=fe_id, proj_id=project_id)
+
+    return {
+        "feedback_id": fe_id,
+        "action": action,
+        "reward_applied": actual_reward,
+        "overconfidence_penalty_applied": overconfidence_penalty_applied,
+        "inference_state": inferred_state,
+    }
+
+
+def _pending_suggestion_status(tx: Any, requirement_id: str, project_id: str) -> tuple[bool, str | None]:
+    """Return (exists, status) for the suggestedProject relationship between a requirement and a project."""
+    row = tx.run("""
+        MATCH (r:ExtractedEssentialRequirement {hasID: $req_id})
+              -[s:suggestedProject]->(p:Project {projectID: $proj_id})
+        RETURN s.status AS status
+    """, req_id=requirement_id, proj_id=project_id).single()
+    if not row:
+        return False, None
+    return True, row["status"]
+
+
 # ── Document tools ─────────────────────────────────────────────────────────────
 
 @mcp.tool()
@@ -1421,10 +1514,13 @@ def get_interface_risk_report() -> str:
 # ── Phase 4: Requirement propagation inference ─────────────────────────────────
 
 @mcp.tool()
-def get_unassigned_requirements() -> str:
+def get_unassigned_requirements(include_reviewed: bool = False) -> str:
     """Call when user asks about gaps, missing assignments, or extending the knowledge base.
 
     Returns all ExtractedEssentialRequirement nodes that have no assignedToProject relationship.
+    Each result lists its existing suggestedProject links under 'suggestions'. By default only
+    pending suggestions (no status) are listed; suggestions already promoted or rejected by a
+    reviewer are left out unless include_reviewed=True.
     After calling this, call get_similar_assigned_requirements for each result,
     then write_inferred_project_link. Only promote links where confidence >= 0.6.
     """
@@ -1433,20 +1529,24 @@ def get_unassigned_requirements() -> str:
     WHERE NOT (r)-[:assignedToProject]->()
     OPTIONAL MATCH (a:AustralianDesignRule)-[:hasExternalEssentialRequirement]->(r)
     OPTIONAL MATCH (a)-[:hasClause]->(c:Clause)
+    WITH r, a, collect(DISTINCT c.hasID) AS clause_ids
     RETURN r.hasID AS req_id,
            r.requirementName AS req_name,
            r.requirementDescription AS req_description,
            r.isApplicable AS is_applicable,
            a.hasID AS adr_id,
            a.hasName AS adr_name,
-           collect(DISTINCT c.hasID) AS clause_ids
-    ORDER BY a.hasID, r.hasID
+           clause_ids,
+           [(r)-[s:suggestedProject]->(sp:Project)
+             WHERE $include_reviewed OR s.status IS NULL
+             | {project_id: sp.projectID, confidence: s.confidence, status: s.status}] AS suggestions
+    ORDER BY adr_id, req_id
     """
 
     try:
         with _neo4j_driver() as driver:
             with driver.session() as session:
-                rows = [record.data() for record in session.run(query)]
+                rows = [record.data() for record in session.run(query, include_reviewed=include_reviewed)]
     except Exception as exc:
         return json.dumps({"error": str(exc)}, indent=2)
 
@@ -1582,14 +1682,19 @@ def write_inferred_project_link(
 
 
 @mcp.tool()
-def get_inferred_links() -> str:
-    """Return all suggestedProject relationships sorted by confidence (highest first).
+def get_inferred_links(include_reviewed: bool = False) -> str:
+    """Return suggestedProject relationships sorted by confidence (highest first).
+
+    By default only pending suggestions (no status) are returned. Suggestions a reviewer
+    has promoted or rejected keep their status, reviewedBy, reviewedAt and (for rejections)
+    rejectionReason; pass include_reviewed=True to include them.
 
     Each entry includes a 'recommended' flag (true if confidence >= 0.6) and a
     'warning' field for low-confidence suggestions that require careful review.
     """
     query = """
     MATCH (r:ExtractedEssentialRequirement)-[rel:suggestedProject]->(p:Project)
+    WHERE $include_reviewed OR rel.status IS NULL
     OPTIONAL MATCH (a:AustralianDesignRule)-[:hasExternalEssentialRequirement]->(r)
     RETURN r.hasID AS req_id,
            r.requirementName AS req_name,
@@ -1600,6 +1705,10 @@ def get_inferred_links() -> str:
            rel.inferredBy AS inferred_by,
            toString(rel.inferredAt) AS inferred_at,
            rel.inferenceState AS inference_state,
+           rel.status AS status,
+           rel.reviewedBy AS reviewed_by,
+           toString(rel.reviewedAt) AS reviewed_at,
+           rel.rejectionReason AS rejection_reason,
            a.hasID AS adr_id
     ORDER BY rel.confidence DESC
     """
@@ -1607,7 +1716,7 @@ def get_inferred_links() -> str:
     try:
         with _neo4j_driver() as driver:
             with driver.session() as session:
-                rows = [record.data() for record in session.run(query)]
+                rows = [record.data() for record in session.run(query, include_reviewed=include_reviewed)]
     except Exception as exc:
         return json.dumps({"error": str(exc)}, indent=2)
 
@@ -1621,43 +1730,163 @@ def get_inferred_links() -> str:
 
 
 @mcp.tool()
-def promote_inferred_link(requirement_id: str, project_id: str) -> str:
-    """Convert a suggestedProject relationship into a confirmed assignedToProject relationship.
+def promote_inferred_link(
+    requirement_id: str,
+    project_id: str,
+    reviewer: str,
+    action: str = "confirmed",
+) -> str:
+    """Confirm a pending suggestedProject relationship as an assignedToProject relationship.
 
-    Adds promotedAt timestamp and promotedBy: 'human-review'. The suggestedProject
-    relationship is removed once promoted.
+    reviewer (required, non-empty) identifies the person who reviewed the suggestion.
+    action must be 'confirmed' (reward 1.0) or 'modified' (reward 0.5).
+
+    In one transaction this:
+    1. records a FeedbackEvent (with reviewer) using the confidence and inference state
+       stored on the suggestion, and
+    2. creates assignedToProject with source='inferred', promotedAt, promotedBy=reviewer,
+       promotedFromConfidence, inferenceReasoning, inferredBy, inferredAt and
+       inferenceState copied from the suggestion. If an assignedToProject relationship
+       already exists it is left unchanged and already_assigned=true is returned.
+    3. keeps the suggestedProject relationship and sets status='promoted', reviewedAt
+       and reviewedBy on it.
+    The RL agent is then updated. Do not call record_feedback for the same decision.
+    Only pending suggestions (no status) can be promoted.
     """
     if not requirement_id.strip() or not project_id.strip():
         return json.dumps({"error": "requirement_id and project_id must not be empty."}, indent=2)
+    reviewer = reviewer.strip()
+    if not reviewer:
+        return json.dumps({"error": "reviewer must not be empty."}, indent=2)
+    rewards = {"confirmed": REWARD_CONFIRMED, "modified": REWARD_MODIFIED}
+    if action not in rewards:
+        return json.dumps({"error": f"action must be one of {sorted(rewards)}."}, indent=2)
 
-    query = """
+    promote_query = """
     MATCH (r:ExtractedEssentialRequirement {hasID: $req_id})
-    MATCH (p:Project {projectID: $project_id})
-    MATCH (r)-[suggested:suggestedProject]->(p)
+          -[suggested:suggestedProject]->(p:Project {projectID: $project_id})
+    WHERE suggested.status IS NULL
+    OPTIONAL MATCH (r)-[existing:assignedToProject]->(p)
+    WITH r, p, suggested, count(existing) > 0 AS already_assigned
     MERGE (r)-[confirmed:assignedToProject]->(p)
-    SET confirmed.promotedAt = datetime(),
-        confirmed.promotedBy = 'human-review',
-        confirmed.promotedFromConfidence = suggested.confidence
-    DELETE suggested
+    ON CREATE SET confirmed.source                 = 'inferred',
+                  confirmed.promotedAt             = datetime(),
+                  confirmed.promotedBy             = $reviewer,
+                  confirmed.promotedFromConfidence = suggested.confidence,
+                  confirmed.inferenceReasoning     = suggested.reasoning,
+                  confirmed.inferredBy             = suggested.inferredBy,
+                  confirmed.inferredAt             = suggested.inferredAt,
+                  confirmed.inferenceState         = suggested.inferenceState
+    SET suggested.status     = 'promoted',
+        suggested.reviewedAt = datetime(),
+        suggested.reviewedBy = $reviewer
+    RETURN r.hasID AS req_id, p.projectID AS project_id, already_assigned
+    """
+
+    try:
+        with _neo4j_driver() as driver:
+            with driver.session() as session:
+                with session.begin_transaction() as tx:
+                    exists, status = _pending_suggestion_status(tx, requirement_id, project_id)
+                    if not exists:
+                        return json.dumps({
+                            "error": f"No suggestedProject relationship found between '{requirement_id}' and '{project_id}'.",
+                        }, indent=2)
+                    if status is not None:
+                        return json.dumps({
+                            "error": f"Suggestion between '{requirement_id}' and '{project_id}' was already reviewed (status '{status}').",
+                        }, indent=2)
+                    feedback = _record_feedback_internal(
+                        tx, requirement_id, project_id, action, rewards[action], reviewer=reviewer,
+                    )
+                    row = tx.run(
+                        promote_query, req_id=requirement_id, project_id=project_id, reviewer=reviewer,
+                    ).single()
+                    tx.commit()
+    except Exception as exc:
+        return json.dumps({"error": str(exc)}, indent=2)
+
+    _rl_update(action, feedback["reward_applied"], state=feedback["inference_state"])
+
+    return json.dumps({
+        "status": "promoted",
+        "req_id": row["req_id"],
+        "project_id": row["project_id"],
+        "reviewer": reviewer,
+        "already_assigned": row["already_assigned"],
+        "feedback": feedback,
+        "message": (
+            "assignedToProject already existed and was left unchanged; suggestion marked promoted."
+            if row["already_assigned"] else
+            "assignedToProject created with source='inferred'; suggestion kept with status='promoted'."
+        ),
+    }, indent=2)
+
+
+@mcp.tool()
+def reject_inferred_link(requirement_id: str, project_id: str, reviewer: str, reason: str) -> str:
+    """Reject a pending suggestedProject relationship.
+
+    reviewer (required, non-empty) identifies the person who reviewed the suggestion;
+    reason is stored as rejectionReason.
+
+    In one transaction this records a 'rejected' FeedbackEvent (reward -1.0, or
+    PENALTY_OVERCONFIDENT=-2.0 when the stored confidence was >0.8) and sets
+    status='rejected', reviewedBy, reviewedAt and rejectionReason on the suggestion.
+    The suggestion is not deleted. The RL agent is then updated.
+    Do not call record_feedback for the same decision.
+    """
+    if not requirement_id.strip() or not project_id.strip():
+        return json.dumps({"error": "requirement_id and project_id must not be empty."}, indent=2)
+    reviewer = reviewer.strip()
+    if not reviewer:
+        return json.dumps({"error": "reviewer must not be empty."}, indent=2)
+
+    reject_query = """
+    MATCH (r:ExtractedEssentialRequirement {hasID: $req_id})
+          -[suggested:suggestedProject]->(p:Project {projectID: $project_id})
+    WHERE suggested.status IS NULL
+    SET suggested.status          = 'rejected',
+        suggested.reviewedAt      = datetime(),
+        suggested.reviewedBy      = $reviewer,
+        suggested.rejectionReason = $reason
     RETURN r.hasID AS req_id, p.projectID AS project_id
     """
 
     try:
         with _neo4j_driver() as driver:
             with driver.session() as session:
-                row = session.run(query, req_id=requirement_id, project_id=project_id).single()
-                if not row:
-                    return json.dumps({
-                        "error": f"No suggestedProject relationship found between '{requirement_id}' and '{project_id}'.",
-                    }, indent=2)
-                return json.dumps({
-                    "status": "promoted",
-                    "req_id": row["req_id"],
-                    "project_id": row["project_id"],
-                    "message": "suggestedProject converted to assignedToProject with promotedBy='human-review'.",
-                }, indent=2)
+                with session.begin_transaction() as tx:
+                    exists, status = _pending_suggestion_status(tx, requirement_id, project_id)
+                    if not exists:
+                        return json.dumps({
+                            "error": f"No suggestedProject relationship found between '{requirement_id}' and '{project_id}'.",
+                        }, indent=2)
+                    if status is not None:
+                        return json.dumps({
+                            "error": f"Suggestion between '{requirement_id}' and '{project_id}' was already reviewed (status '{status}').",
+                        }, indent=2)
+                    feedback = _record_feedback_internal(
+                        tx, requirement_id, project_id, "rejected", REWARD_REJECTED, reviewer=reviewer,
+                    )
+                    row = tx.run(
+                        reject_query, req_id=requirement_id, project_id=project_id,
+                        reviewer=reviewer, reason=reason,
+                    ).single()
+                    tx.commit()
     except Exception as exc:
         return json.dumps({"error": str(exc)}, indent=2)
+
+    _rl_update("rejected", feedback["reward_applied"], state=feedback["inference_state"])
+
+    return json.dumps({
+        "status": "rejected",
+        "req_id": row["req_id"],
+        "project_id": row["project_id"],
+        "reviewer": reviewer,
+        "rejection_reason": reason,
+        "feedback": feedback,
+    }, indent=2)
 
 
 # ── Phase 5: Change impact analysis ───────────────────────────────────────────
@@ -1900,89 +2129,34 @@ def record_feedback(
     When action is 'rejected' and the stored confidence was >0.8, the penalty
     PENALTY_OVERCONFIDENT=-2.0 is applied automatically — do not pass it manually.
     The FeedbackEvent node records overconfidencePenaltyApplied=true for audit.
+
+    promote_inferred_link and reject_inferred_link record feedback themselves (with the
+    reviewer); do not also call record_feedback for a decision made through them.
     """
     valid_actions = {"confirmed", "rejected", "modified", "ignored"}
     if action not in valid_actions:
         return json.dumps({"error": f"action must be one of {sorted(valid_actions)}."}, indent=2)
 
-    # FIX 3: fetch stored confidence and inference state from the suggestedProject
-    # relationship so we can auto-apply the overconfidence penalty.
-    stored_confidence: float | None = None
-    inferred_state: str = "inference"
     try:
         with _neo4j_driver() as driver:
             with driver.session() as session:
-                state_row = session.run("""
-                    MATCH (r:ExtractedEssentialRequirement {hasID: $req_id})
-                          -[rel:suggestedProject]->(p:Project {projectID: $proj_id})
-                    RETURN rel.confidence AS confidence,
-                           rel.inferenceState AS inference_state
-                """, req_id=requirement_id, proj_id=project_id).single()
-                if state_row:
-                    stored_confidence = state_row["confidence"]
-                    inferred_state = state_row["inference_state"] or "inference"
-    except Exception:
-        pass
-
-    actual_reward = reward
-    overconfidence_penalty_applied = False
-    if action == "rejected" and stored_confidence is not None and stored_confidence > 0.8:
-        actual_reward = PENALTY_OVERCONFIDENT
-        overconfidence_penalty_applied = True
-
-    ts = datetime.now(timezone.utc).strftime("%Y%m%d%H%M%S%f")
-    fe_id = f"FE-{ts}"
-
-    try:
-        with _neo4j_driver() as driver:
-            with driver.session() as session:
-                session.run("""
-                    MERGE (fe:FeedbackEvent {hasID: $feid})
-                    SET fe.requirementID = $req_id,
-                        fe.projectID = $proj_id,
-                        fe.action = $action,
-                        fe.reward = $reward,
-                        fe.inferenceState = $inference_state,
-                        fe.overconfidencePenaltyApplied = $penalty_applied,
-                        fe.timestamp = datetime()
-                """,
-                    feid=fe_id,
-                    req_id=requirement_id,
-                    proj_id=project_id,
-                    action=action,
-                    reward=actual_reward,
-                    inference_state=inferred_state,
-                    penalty_applied=overconfidence_penalty_applied,
-                )
-
-                session.run("""
-                    MATCH (fe:FeedbackEvent {hasID: $feid})
-                    OPTIONAL MATCH (r:ExtractedEssentialRequirement {hasID: $req_id})
-                    WITH fe, r WHERE r IS NOT NULL
-                    MERGE (fe)-[:recordedFor]->(r)
-                """, feid=fe_id, req_id=requirement_id)
-
-                session.run("""
-                    MATCH (fe:FeedbackEvent {hasID: $feid})
-                    OPTIONAL MATCH (p:Project {projectID: $proj_id})
-                    WITH fe, p WHERE p IS NOT NULL
-                    MERGE (fe)-[:recordedFor]->(p)
-                """, feid=fe_id, proj_id=project_id)
-
+                with session.begin_transaction() as tx:
+                    feedback = _record_feedback_internal(tx, requirement_id, project_id, action, reward)
+                    tx.commit()
     except Exception as exc:
         return json.dumps({"error": str(exc)}, indent=2)
 
-    _rl_update(action, actual_reward, state=inferred_state)
+    _rl_update(action, feedback["reward_applied"], state=feedback["inference_state"])
 
     return json.dumps({
         "status": "recorded",
-        "feedback_id": fe_id,
+        "feedback_id": feedback["feedback_id"],
         "requirement_id": requirement_id,
         "project_id": project_id,
         "action": action,
-        "reward_applied": actual_reward,
-        "overconfidence_penalty_applied": overconfidence_penalty_applied,
-        "inference_state": inferred_state,
+        "reward_applied": feedback["reward_applied"],
+        "overconfidence_penalty_applied": feedback["overconfidence_penalty_applied"],
+        "inference_state": feedback["inference_state"],
     }, indent=2)
 
 
