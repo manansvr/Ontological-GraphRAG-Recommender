@@ -12,6 +12,7 @@ Run from the repository root:
 import __future__
 import json
 import sys
+import tempfile
 import types
 import unittest
 from pathlib import Path
@@ -189,6 +190,10 @@ class Base(unittest.TestCase):
         self.graph = graph
         self.rl_updates = []
         self.rl_adjust_calls = []
+        log_dir = tempfile.TemporaryDirectory()
+        self.addCleanup(log_dir.cleanup)
+        self.inference_log = Path(log_dir.name) / "inference.jsonl"
+        sr8._INFERENCE_LOG_PATH = self.inference_log
         sr8._neo4j_driver = lambda: FakeDriver(graph)
         def record_update(reward, state, rl_action):
             self.rl_updates.append((reward, state, rl_action))
@@ -626,6 +631,67 @@ class InferenceStateTests(unittest.TestCase):
         produced = {sr8._inference_state(n, p, c) for n in (0, 3) for p in (True, False) for c in (0.9, 0.5, 0.1)}
         self.assertEqual(produced, set(sr8._INFERENCE_STATES))
         self.assertEqual(len(produced), 12)
+
+
+
+# ── logs/inference.jsonl ─────────────────────────────────────────────────────
+
+class InferenceLogTests(Base):
+    def lines(self):
+        return [json.loads(line) for line in self.inference_log.read_text(encoding="utf-8").splitlines()]
+
+    def test_suggestion_write_is_logged(self):
+        self.use(FakeGraph())
+        sr8._rl_adjust_confidence = lambda base, state: (0.75, "increase_confidence")
+        sr8.write_inferred_project_link("REQ-1", "SRP8-045", 0.65, "same ADR")
+        [line] = self.lines()
+        self.assertEqual((line["event"], line["outcome"], line["write_mode"]), ("suggest", "written", "created"))
+        self.assertEqual((line["requirement_id"], line["project_id"]), ("REQ-1", "SRP8-045"))
+        self.assertEqual((line["base_confidence"], line["adjusted_confidence"]), (0.65, 0.75))
+        self.assertEqual((line["inference_state"], line["rl_action"]), ("inference_weak_no_mid", "increase_confidence"))
+        self.assertTrue(line["schema_validation"]["ok"])
+        self.assertIsNone(line["reviewer"])
+
+    def test_refused_write_is_logged_with_schema_result(self):
+        self.use(FakeGraph(schema={}))
+        sr8.write_inferred_project_link("REQ-1", "SRP8-045", 0.65, "same ADR")
+        [line] = self.lines()
+        self.assertEqual(line["outcome"], "error")
+        self.assertFalse(line["schema_validation"]["ok"])
+        self.assertEqual(line["base_confidence"], 0.65)
+
+    def test_review_event_is_logged_with_reward_reviewer_and_confidences(self):
+        suggestion = dict(pending(confidence=0.85, state="inference_weak_no_high", rl_action="keep_confidence"),
+                          base_confidence=0.85, schema_validated=True)
+        self.use(FakeGraph(suggestions=[suggestion]))
+        sr8.reject_inferred_link("REQ-1", "SRP8-045", "bob", "wrong subsystem")
+        [line] = self.lines()
+        self.assertEqual((line["event"], line["outcome"], line["reviewer"], line["reason"]),
+                         ("reject", "rejected", "bob", "wrong subsystem"))
+        self.assertEqual((line["reward"], line["overconfidence_penalty_applied"]), (-2.0, True))
+        self.assertEqual((line["base_confidence"], line["adjusted_confidence"]), (0.85, 0.85))
+        self.assertEqual((line["inference_state"], line["rl_action"]), ("inference_weak_no_high", "keep_confidence"))
+        self.assertEqual(line["schema_validation"], {"stored_on_suggestion": True})
+
+    def test_refused_review_is_logged_with_previous_decision(self):
+        self.use(FakeGraph(suggestions=[reviewed("rejected")]))
+        sr8.promote_inferred_link("REQ-1", "SRP8-045", "alice")
+        [line] = self.lines()
+        self.assertEqual((line["event"], line["outcome"], line["reviewer"]), ("promote", "error", "alice"))
+        self.assertEqual(line["previous_decision"]["status"], "rejected")
+
+    def test_modify_logs_both_projects(self):
+        self.use(FakeGraph(suggestions=[pending()],
+                           write_row={"req_id": "REQ-1", "project_id": "SRP8-046", "already_assigned": False}))
+        sr8.modify_inferred_link("REQ-1", "SRP8-045", "SRP8-046", "alice", "rear axle")
+        [line] = self.lines()
+        self.assertEqual((line["project_id"], line["new_project_id"], line["reward"]), ("SRP8-045", "SRP8-046", 0.5))
+
+    def test_log_is_append_only(self):
+        self.use(FakeGraph())
+        for _ in range(3):
+            sr8.write_inferred_project_link("REQ-1", "SRP8-045", 0.65, "same ADR")
+        self.assertEqual(len(self.lines()), 3)
 
 
 if __name__ == "__main__":

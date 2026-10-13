@@ -5,3 +5,5 @@ __pycache__/
 .DS_Store
 # lock file created by reinforcemnt-learning.locked_update
 .rl-model.json.lock
+# per-turn and inference logs written by ollama-mcp and sr8-mcp
+logs/

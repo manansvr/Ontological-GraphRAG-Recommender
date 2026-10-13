@@ -7,6 +7,9 @@ import json
 import os
 import re
 import sys
+import time
+import uuid
+from datetime import datetime, timezone
 from pathlib import Path
 from typing import Any
 
@@ -22,8 +25,97 @@ def _rl_enabled() -> bool:
     return os.getenv("RL_ENABLED", "true").lower() == "true"
 
 
+EXTENSION_DIR = Path(__file__).resolve().parent
+
+
+TURN_LOG_PATH = EXTENSION_DIR / "logs" / "turns.jsonl"
+
+
+def _append_jsonl(path: Path, record: dict[str, Any]) -> None:
+    """Append one JSON line; logging failures are reported but never interrupt the chat."""
+    try:
+        path.parent.mkdir(parents=True, exist_ok=True)
+        with path.open("a", encoding="utf-8") as f:
+            f.write(json.dumps(record, ensure_ascii=False, default=str) + "\n")
+    except Exception as exc:
+        print(f"[log] could not write {path}: {exc}")
+
+
+def _new_turn(session_id: str, model: str, question: str) -> dict[str, Any]:
+    """Start the per-turn log record written to logs/turns.jsonl when the turn ends."""
+    return {
+        "timestamp": datetime.now(timezone.utc).isoformat(),
+        "session_id": session_id,
+        "question": question,
+        "route": None,
+        "rl_state": None,
+        "rl_action": None,
+        "forced_strategy": None,  # no strategy-forcing option exists yet; always null
+        "model": model,
+        "tool_calls": [],
+        "reward_components": None,
+        "evidence_appended": False,
+        "answer": None,
+        "latency_ms": None,
+        "llm_calls": 0,
+        "_started": time.perf_counter(),
+    }
+
+
+def _finish_turn(turn: dict[str, Any], path: Path | None = None) -> None:
+    turn["latency_ms"] = round((time.perf_counter() - turn.pop("_started")) * 1000, 1)
+    _append_jsonl(path or TURN_LOG_PATH, turn)
+
+
+def _classify_tool_result(result: Any, text: str) -> str:
+    """'error' (MCP error or JSON with an "error" key), 'empty' (no text, or JSON whose lists
+    are all empty / count is 0) or 'ok'."""
+    if getattr(result, "isError", False):
+        return "error"
+    if not text.strip() or text.strip() in {"{}", "[]"}:
+        return "empty"
+    try:
+        payload = json.loads(text)
+    except Exception:
+        return "ok"
+    if isinstance(payload, dict):
+        if payload.get("error"):
+            return "error"
+        if payload.get("count") == 0:
+            return "empty"
+        lists = [v for v in payload.values() if isinstance(v, list)]
+        if lists and all(not v for v in lists):
+            return "empty"
+    elif isinstance(payload, list) and not payload:
+        return "empty"
+    return "ok"
+
+
+async def _call_tool_logged(session: Any, turn: dict[str, Any], name: str, args: dict[str, Any]) -> Any:
+    """session.call_tool, recording name, args, status and duration on the turn record."""
+    started = time.perf_counter()
+    entry: dict[str, Any] = {"name": name, "args": args}
+    try:
+        result = await session.call_tool(name, args)
+    except Exception as exc:
+        entry.update(status="error", error=str(exc)[:500],
+                     duration_ms=round((time.perf_counter() - started) * 1000, 1))
+        turn["tool_calls"].append(entry)
+        raise
+    text = "\n".join(t for t in (getattr(part, "text", None) for part in result.content) if t)
+    entry.update(status=_classify_tool_result(result, text),
+                 duration_ms=round((time.perf_counter() - started) * 1000, 1))
+    turn["tool_calls"].append(entry)
+    return result
+
+
 def _rl_model_path() -> str:
-    return os.getenv("RL_MODEL_PATH", ".rl-model.json")
+    """RL model file. A relative RL_MODEL_PATH (default .rl-model.json) is resolved against
+    the thesis-extension folder, not the current working directory, so ollama-mcp and
+    sr8-mcp (which keeps .rl-model.json next to itself) use the same file wherever the
+    client is started from."""
+    path = Path(os.getenv("RL_MODEL_PATH", ".rl-model.json")).expanduser()
+    return str(path if path.is_absolute() else EXTENSION_DIR / path)
 
 
 class _RLBridge:
@@ -471,6 +563,7 @@ async def run_chat(model: str, server_command: str, server_args: list[str]) -> N
             messages: list[dict[str, Any]] = [{"role": "system", "content": system_prompt}]
             rl_bridge = _RLBridge()
             reviewer = ""  # asked for on the first typed review command
+            session_id = uuid.uuid4().hex  # groups this run's turns in logs/turns.jsonl
 
             print("Connected. Type your prompt, or /exit to quit.")
             print(REVIEW_USAGE)
@@ -486,137 +579,292 @@ async def run_chat(model: str, server_command: str, server_args: list[str]) -> N
                 if user_input.lower() in {"/exit", "exit", "quit"}:
                     break
 
-                # Typed review commands (people only): never sent to the model, and the
-                # functions they call are not MCP tools the model could invoke.
-                review_command = _parse_review_command(user_input)
-                if review_command is not None:
-                    if review_command["kind"] == "usage":
-                        print(f"\n{REVIEW_USAGE}")
-                        continue
-                    if not reviewer:
-                        reviewer = input("Reviewer name (recorded on every review decision this session): ").strip()
-                        if not reviewer:
-                            print("\nNo reviewer name given; nothing recorded.")
+                # One record per user turn, written to logs/turns.jsonl however the turn ends.
+                turn = _new_turn(session_id, model, user_input)
+                try:
+                    # Typed review commands (people only): never sent to the model, and the
+                    # functions they call are not MCP tools the model could invoke.
+                    review_command = _parse_review_command(user_input)
+                    if review_command is not None:
+                        turn["route"] = f"review_{review_command['kind']}"
+                        if review_command["kind"] == "usage":
+                            print(f"\n{REVIEW_USAGE}")
+                            turn["answer"] = REVIEW_USAGE
                             continue
-                    try:
-                        print(f"\n[review] {_run_review_command(review_command, reviewer)}")
-                    except Exception as exc:
-                        print(f"\n[review] failed: {exc}")
-                    continue
-
-                # Deterministic path for count+list requirement questions by ADR/SRP ID.
-                if _is_count_requirements_question(user_input):
-                    rule_id = _extract_rule_id_from_question(user_input)
-                    if rule_id:
-                        print(f"\n[tool] get_adr_requirements({{'adr_id': '{rule_id}', 'limit': {GRAPH_LIMIT}}})")
-                        tool_result = await session.call_tool("get_adr_requirements", {"adr_id": rule_id, "limit": GRAPH_LIMIT})
-
-                        tool_text_parts: list[str] = []
-                        for part in tool_result.content:
-                            text = getattr(part, "text", None)
-                            if text:
-                                tool_text_parts.append(text)
-                        tool_text = "\n".join(tool_text_parts) if tool_text_parts else "{}"
-
+                        if not reviewer:
+                            reviewer = input("Reviewer name (recorded on every review decision this session): ").strip()
+                            if not reviewer:
+                                print("\nNo reviewer name given; nothing recorded.")
+                                turn["answer"] = "No reviewer name given; nothing recorded."
+                                continue
                         try:
-                            payload = json.loads(tool_text)
-                        except Exception:
-                            payload = {"adr_id": rule_id, "count": 0, "requirements": [], "evidence_refs": []}
-
-                        content = _format_requirements_listing(payload)
-                        print(f"\nAssistant: {content}")
-                        messages.append({"role": "user", "content": user_input})
-                        messages.append({"role": "assistant", "content": content})
+                            turn["answer"] = _run_review_command(review_command, reviewer)
+                            print(f"\n[review] {turn['answer']}")
+                        except Exception as exc:
+                            turn["answer"] = f"failed: {exc}"
+                            print(f"\n[review] failed: {exc}")
                         continue
 
-                # Deterministic path for reference queries by ADR/SRP ID.
-                if _is_reference_question(user_input):
-                    rule_id = _extract_rule_id_from_question(user_input)
-                    if rule_id:
-                        print(f"\n[tool] get_adr_requirements({{'adr_id': '{rule_id}', 'limit': {GRAPH_LIMIT}}})")
-                        req_result = await session.call_tool("get_adr_requirements", {"adr_id": rule_id, "limit": GRAPH_LIMIT})
+                    # Deterministic path for count+list requirement questions by ADR/SRP ID.
+                    if _is_count_requirements_question(user_input):
+                        rule_id = _extract_rule_id_from_question(user_input)
+                        if rule_id:
+                            turn["route"] = "count_requirements"
+                            print(f"\n[tool] get_adr_requirements({{'adr_id': '{rule_id}', 'limit': {GRAPH_LIMIT}}})")
+                            tool_result = await _call_tool_logged(session, turn, "get_adr_requirements", {"adr_id": rule_id, "limit": GRAPH_LIMIT})
 
-                        req_text_parts: list[str] = []
-                        for part in req_result.content:
-                            text = getattr(part, "text", None)
-                            if text:
-                                req_text_parts.append(text)
-                        req_text = "\n".join(req_text_parts) if req_text_parts else "{}"
+                            tool_text_parts: list[str] = []
+                            for part in tool_result.content:
+                                text = getattr(part, "text", None)
+                                if text:
+                                    tool_text_parts.append(text)
+                            tool_text = "\n".join(tool_text_parts) if tool_text_parts else "{}"
 
-                        try:
-                            req_payload = json.loads(req_text)
-                        except Exception:
-                            req_payload = {"adr_id": rule_id, "count": 0, "evidence_refs": []}
+                            try:
+                                payload = json.loads(tool_text)
+                            except Exception:
+                                payload = {"adr_id": rule_id, "count": 0, "requirements": [], "evidence_refs": []}
 
-                        normalized_rule = req_payload.get("adr_id", rule_id)
-                        print(f"\n[tool] search_local_documents({{'query': '{normalized_rule}', 'max_files': {DOC_MAX_FILES}, 'max_hits_per_file': {DOC_MAX_HITS}}})")
-                        doc_result = await session.call_tool(
+                            content = _format_requirements_listing(payload)
+                            print(f"\nAssistant: {content}")
+                            turn["answer"] = content
+                            messages.append({"role": "user", "content": user_input})
+                            messages.append({"role": "assistant", "content": content})
+                            continue
+
+                    # Deterministic path for reference queries by ADR/SRP ID.
+                    if _is_reference_question(user_input):
+                        rule_id = _extract_rule_id_from_question(user_input)
+                        if rule_id:
+                            turn["route"] = "reference"
+                            print(f"\n[tool] get_adr_requirements({{'adr_id': '{rule_id}', 'limit': {GRAPH_LIMIT}}})")
+                            req_result = await _call_tool_logged(session, turn, "get_adr_requirements", {"adr_id": rule_id, "limit": GRAPH_LIMIT})
+
+                            req_text_parts: list[str] = []
+                            for part in req_result.content:
+                                text = getattr(part, "text", None)
+                                if text:
+                                    req_text_parts.append(text)
+                            req_text = "\n".join(req_text_parts) if req_text_parts else "{}"
+
+                            try:
+                                req_payload = json.loads(req_text)
+                            except Exception:
+                                req_payload = {"adr_id": rule_id, "count": 0, "evidence_refs": []}
+
+                            normalized_rule = req_payload.get("adr_id", rule_id)
+                            print(f"\n[tool] search_local_documents({{'query': '{normalized_rule}', 'max_files': {DOC_MAX_FILES}, 'max_hits_per_file': {DOC_MAX_HITS}}})")
+                            doc_result = await _call_tool_logged(session, turn, 
+                                "search_local_documents",
+                                {"query": normalized_rule, "max_files": DOC_MAX_FILES, "max_hits_per_file": DOC_MAX_HITS},
+                            )
+
+                            doc_text_parts: list[str] = []
+                            for part in doc_result.content:
+                                text = getattr(part, "text", None)
+                                if text:
+                                    doc_text_parts.append(text)
+                            doc_text = "\n".join(doc_text_parts) if doc_text_parts else "{}"
+
+                            try:
+                                doc_payload = json.loads(doc_text)
+                            except Exception:
+                                doc_payload = {"matches": []}
+
+                            content = _format_reference_listing(rule_id, req_payload, doc_payload)
+                            print(f"\nAssistant: {content}")
+                            turn["answer"] = content
+                            messages.append({"role": "user", "content": user_input})
+                            messages.append({"role": "assistant", "content": content})
+                            continue
+
+                    design_guidance = _design_guidance_redirect(user_input)
+                    if design_guidance:
+                        turn["route"] = "design_guidance"
+                        print(
+                            f"\n[tool] search_local_documents({{'query': '{design_guidance['query']}', 'max_files': 5, 'max_hits_per_file': 3}})"
+                        )
+                        design_result = await _call_tool_logged(session, turn, 
                             "search_local_documents",
-                            {"query": normalized_rule, "max_files": DOC_MAX_FILES, "max_hits_per_file": DOC_MAX_HITS},
+                            {"query": design_guidance["query"], "max_files": 5, "max_hits_per_file": 3},
                         )
 
+                        design_text_parts: list[str] = []
+                        for part in design_result.content:
+                            text = getattr(part, "text", None)
+                            if text:
+                                design_text_parts.append(text)
+                        design_text = "\n".join(design_text_parts) if design_text_parts else "{}"
+
+                        messages.append({"role": "user", "content": user_input})
+                        messages.append({"role": "tool", "name": "search_local_documents", "content": design_text})
+                        tool_used_this_turn = True
+                        evidence_refs_this_turn = _extract_evidence_refs(design_text)
+
+                        for _ in range(6):
+                            result = _post_chat(model=model, messages=messages, tools=tools)
+                            turn["llm_calls"] += 1
+                            assistant_message = result.get("message", {})
+                            tool_calls = assistant_message.get("tool_calls", [])
+
+                            if not tool_calls:
+                                content = assistant_message.get("content", "")
+                                if _strict_context_only() and not tool_used_this_turn:
+                                    content = "I do not have enough context in the indexed sources to answer that."
+                                elif _strict_context_only() and _require_explicit_citations():
+                                    if not _has_explicit_citation(content):
+                                        if evidence_refs_this_turn:
+                                            refs_text = "; ".join(evidence_refs_this_turn[:3])
+                                            content = f"{content.strip()}\n\nEvidence: {refs_text}"
+                                            turn["evidence_appended"] = True
+                                        else:
+                                            content = "I do not have enough context in the indexed sources to answer that."
+
+                                if design_guidance["redirect"] not in content:
+                                    content = f"{content.strip()}\n\n{design_guidance['redirect']}"
+
+                                print(f"\nAssistant: {content}")
+                                turn["answer"] = content
+                                messages.append({"role": "assistant", "content": content})
+                                break
+
+                            messages.append(
+                                {
+                                    "role": "assistant",
+                                    "content": assistant_message.get("content", ""),
+                                    "tool_calls": tool_calls,
+                                }
+                            )
+
+                            for call in tool_calls:
+                                fn = call.get("function", {})
+                                tool_name = fn.get("name")
+                                args = fn.get("arguments", {})
+
+                                if isinstance(args, str):
+                                    try:
+                                        args = json.loads(args)
+                                    except Exception:
+                                        args = {}
+
+                                print(f"\n[tool] {tool_name}({args})")
+                                tool_result = await _call_tool_logged(session, turn, tool_name, args)
+                                tool_used_this_turn = True
+
+                                tool_text_parts: list[str] = []
+                                for part in tool_result.content:
+                                    text = getattr(part, "text", None)
+                                    if text:
+                                        tool_text_parts.append(text)
+                                tool_text = "\n".join(tool_text_parts) if tool_text_parts else str(tool_result)
+                                refs = _extract_evidence_refs(tool_text)
+                                if refs:
+                                    evidence_refs_this_turn.extend(refs)
+
+                                messages.append(
+                                    {
+                                        "role": "tool",
+                                        "name": tool_name,
+                                        "content": tool_text,
+                                    }
+                                )
+                        else:
+                            print("\nAssistant: I hit the tool-call loop limit. Please rephrase and try again.")
+                            turn["answer"] = "I hit the tool-call loop limit. Please rephrase and try again."
+                        continue
+
+                    messages.append({"role": "user", "content": user_input})
+                    tool_used_this_turn = False
+                    evidence_refs_this_turn: list[str] = []
+
+                    # RL-guided prefetch stage for standard questions.
+                    rl_state, rl_actions = _rl_state_and_actions(user_input)
+                    rl_action = rl_bridge.choose_action(rl_state, rl_actions)
+                    turn.update(route="rl_prefetch", rl_state=rl_state, rl_action=rl_action)
+                    if rl_action:
+                        print(f"\n[rl] state={rl_state} action={rl_action}")
+
+                    rule_id = _extract_rule_id_from_question(user_input)
+
+                    if rl_action in {"documents_first", "hybrid"}:
+                        doc_query = rule_id or user_input
+                        print(f"\n[tool] search_local_documents({{'query': '{doc_query}', 'max_files': {DOC_MAX_FILES}, 'max_hits_per_file': {DOC_MAX_HITS}}})")
+                        doc_result = await _call_tool_logged(session, turn, 
+                            "search_local_documents",
+                            {"query": doc_query, "max_files": DOC_MAX_FILES, "max_hits_per_file": DOC_MAX_HITS},
+                        )
                         doc_text_parts: list[str] = []
                         for part in doc_result.content:
                             text = getattr(part, "text", None)
                             if text:
                                 doc_text_parts.append(text)
                         doc_text = "\n".join(doc_text_parts) if doc_text_parts else "{}"
+                        refs = _extract_evidence_refs(doc_text)
+                        if refs:
+                            evidence_refs_this_turn.extend(refs)
+                        messages.append({"role": "tool", "name": "search_local_documents", "content": doc_text})
+                        tool_used_this_turn = True
 
-                        try:
-                            doc_payload = json.loads(doc_text)
-                        except Exception:
-                            doc_payload = {"matches": []}
-
-                        content = _format_reference_listing(rule_id, req_payload, doc_payload)
-                        print(f"\nAssistant: {content}")
-                        messages.append({"role": "user", "content": user_input})
-                        messages.append({"role": "assistant", "content": content})
-                        continue
-
-                design_guidance = _design_guidance_redirect(user_input)
-                if design_guidance:
-                    print(
-                        f"\n[tool] search_local_documents({{'query': '{design_guidance['query']}', 'max_files': 5, 'max_hits_per_file': 3}})"
-                    )
-                    design_result = await session.call_tool(
-                        "search_local_documents",
-                        {"query": design_guidance["query"], "max_files": 5, "max_hits_per_file": 3},
-                    )
-
-                    design_text_parts: list[str] = []
-                    for part in design_result.content:
-                        text = getattr(part, "text", None)
-                        if text:
-                            design_text_parts.append(text)
-                    design_text = "\n".join(design_text_parts) if design_text_parts else "{}"
-
-                    messages.append({"role": "user", "content": user_input})
-                    messages.append({"role": "tool", "name": "search_local_documents", "content": design_text})
-                    tool_used_this_turn = True
-                    evidence_refs_this_turn = _extract_evidence_refs(design_text)
+                    if rl_action in {"graph_first", "hybrid"} and rule_id:
+                        print(f"\n[tool] get_adr_requirements({{'adr_id': '{rule_id}', 'limit': {GRAPH_LIMIT}}})")
+                        graph_result = await _call_tool_logged(session, turn, 
+                            "get_adr_requirements",
+                            {"adr_id": rule_id, "limit": GRAPH_LIMIT},
+                        )
+                        graph_text_parts: list[str] = []
+                        for part in graph_result.content:
+                            text = getattr(part, "text", None)
+                            if text:
+                                graph_text_parts.append(text)
+                        graph_text = "\n".join(graph_text_parts) if graph_text_parts else "{}"
+                        refs = _extract_evidence_refs(graph_text)
+                        if refs:
+                            evidence_refs_this_turn.extend(refs)
+                        messages.append({"role": "tool", "name": "get_adr_requirements", "content": graph_text})
+                        tool_used_this_turn = True
 
                     for _ in range(6):
                         result = _post_chat(model=model, messages=messages, tools=tools)
+                        turn["llm_calls"] += 1
                         assistant_message = result.get("message", {})
                         tool_calls = assistant_message.get("tool_calls", [])
 
                         if not tool_calls:
-                            content = assistant_message.get("content", "")
+                            # Keep the model's own answer: the reward is computed from it, not
+                            # from the version with appended evidence or a substituted fallback.
+                            raw_content = assistant_message.get("content", "")
+                            content = raw_content
+                            fallback_substituted = False
                             if _strict_context_only() and not tool_used_this_turn:
-                                content = "I do not have enough context in the indexed sources to answer that."
+                                content = FALLBACK_ANSWER
+                                fallback_substituted = True
                             elif _strict_context_only() and _require_explicit_citations():
                                 if not _has_explicit_citation(content):
                                     if evidence_refs_this_turn:
                                         refs_text = "; ".join(evidence_refs_this_turn[:3])
                                         content = f"{content.strip()}\n\nEvidence: {refs_text}"
+                                        turn["evidence_appended"] = True
                                     else:
-                                        content = "I do not have enough context in the indexed sources to answer that."
-
-                            if design_guidance["redirect"] not in content:
-                                content = f"{content.strip()}\n\n{design_guidance['redirect']}"
-
+                                        content = FALLBACK_ANSWER
+                                        fallback_substituted = True
                             print(f"\nAssistant: {content}")
+                            turn["answer"] = content
                             messages.append({"role": "assistant", "content": content})
+
+                            # RL update from this completed turn. reward_components is kept for
+                            # per-turn outcome logging.
+                            reward_components = _rl_reward(
+                                raw_content, tool_used_this_turn, evidence_refs_this_turn, fallback_substituted,
+                            )
+                            turn["reward_components"] = reward_components
+                            if _rl_learnable(rl_actions):
+                                rl_bridge.update_and_save(
+                                    state=rl_state,
+                                    action=rl_action,
+                                    reward=reward_components["total"],
+                                    next_state=rl_state,
+                                    next_actions=rl_actions,
+                                )
                             break
 
                         messages.append(
@@ -639,7 +887,7 @@ async def run_chat(model: str, server_command: str, server_args: list[str]) -> N
                                     args = {}
 
                             print(f"\n[tool] {tool_name}({args})")
-                            tool_result = await session.call_tool(tool_name, args)
+                            tool_result = await _call_tool_logged(session, turn, tool_name, args)
                             tool_used_this_turn = True
 
                             tool_text_parts: list[str] = []
@@ -661,139 +909,9 @@ async def run_chat(model: str, server_command: str, server_args: list[str]) -> N
                             )
                     else:
                         print("\nAssistant: I hit the tool-call loop limit. Please rephrase and try again.")
-                    continue
-
-                messages.append({"role": "user", "content": user_input})
-                tool_used_this_turn = False
-                evidence_refs_this_turn: list[str] = []
-
-                # RL-guided prefetch stage for standard questions.
-                rl_state, rl_actions = _rl_state_and_actions(user_input)
-                rl_action = rl_bridge.choose_action(rl_state, rl_actions)
-                if rl_action:
-                    print(f"\n[rl] state={rl_state} action={rl_action}")
-
-                rule_id = _extract_rule_id_from_question(user_input)
-
-                if rl_action in {"documents_first", "hybrid"}:
-                    doc_query = rule_id or user_input
-                    print(f"\n[tool] search_local_documents({{'query': '{doc_query}', 'max_files': {DOC_MAX_FILES}, 'max_hits_per_file': {DOC_MAX_HITS}}})")
-                    doc_result = await session.call_tool(
-                        "search_local_documents",
-                        {"query": doc_query, "max_files": DOC_MAX_FILES, "max_hits_per_file": DOC_MAX_HITS},
-                    )
-                    doc_text_parts: list[str] = []
-                    for part in doc_result.content:
-                        text = getattr(part, "text", None)
-                        if text:
-                            doc_text_parts.append(text)
-                    doc_text = "\n".join(doc_text_parts) if doc_text_parts else "{}"
-                    refs = _extract_evidence_refs(doc_text)
-                    if refs:
-                        evidence_refs_this_turn.extend(refs)
-                    messages.append({"role": "tool", "name": "search_local_documents", "content": doc_text})
-                    tool_used_this_turn = True
-
-                if rl_action in {"graph_first", "hybrid"} and rule_id:
-                    print(f"\n[tool] get_adr_requirements({{'adr_id': '{rule_id}', 'limit': {GRAPH_LIMIT}}})")
-                    graph_result = await session.call_tool(
-                        "get_adr_requirements",
-                        {"adr_id": rule_id, "limit": GRAPH_LIMIT},
-                    )
-                    graph_text_parts: list[str] = []
-                    for part in graph_result.content:
-                        text = getattr(part, "text", None)
-                        if text:
-                            graph_text_parts.append(text)
-                    graph_text = "\n".join(graph_text_parts) if graph_text_parts else "{}"
-                    refs = _extract_evidence_refs(graph_text)
-                    if refs:
-                        evidence_refs_this_turn.extend(refs)
-                    messages.append({"role": "tool", "name": "get_adr_requirements", "content": graph_text})
-                    tool_used_this_turn = True
-
-                for _ in range(6):
-                    result = _post_chat(model=model, messages=messages, tools=tools)
-                    assistant_message = result.get("message", {})
-                    tool_calls = assistant_message.get("tool_calls", [])
-
-                    if not tool_calls:
-                        # Keep the model's own answer: the reward is computed from it, not
-                        # from the version with appended evidence or a substituted fallback.
-                        raw_content = assistant_message.get("content", "")
-                        content = raw_content
-                        fallback_substituted = False
-                        if _strict_context_only() and not tool_used_this_turn:
-                            content = FALLBACK_ANSWER
-                            fallback_substituted = True
-                        elif _strict_context_only() and _require_explicit_citations():
-                            if not _has_explicit_citation(content):
-                                if evidence_refs_this_turn:
-                                    refs_text = "; ".join(evidence_refs_this_turn[:3])
-                                    content = f"{content.strip()}\n\nEvidence: {refs_text}"
-                                else:
-                                    content = FALLBACK_ANSWER
-                                    fallback_substituted = True
-                        print(f"\nAssistant: {content}")
-                        messages.append({"role": "assistant", "content": content})
-
-                        # RL update from this completed turn. reward_components is kept for
-                        # per-turn outcome logging.
-                        reward_components = _rl_reward(
-                            raw_content, tool_used_this_turn, evidence_refs_this_turn, fallback_substituted,
-                        )
-                        if _rl_learnable(rl_actions):
-                            rl_bridge.update_and_save(
-                                state=rl_state,
-                                action=rl_action,
-                                reward=reward_components["total"],
-                                next_state=rl_state,
-                                next_actions=rl_actions,
-                            )
-                        break
-
-                    messages.append(
-                        {
-                            "role": "assistant",
-                            "content": assistant_message.get("content", ""),
-                            "tool_calls": tool_calls,
-                        }
-                    )
-
-                    for call in tool_calls:
-                        fn = call.get("function", {})
-                        tool_name = fn.get("name")
-                        args = fn.get("arguments", {})
-
-                        if isinstance(args, str):
-                            try:
-                                args = json.loads(args)
-                            except Exception:
-                                args = {}
-
-                        print(f"\n[tool] {tool_name}({args})")
-                        tool_result = await session.call_tool(tool_name, args)
-                        tool_used_this_turn = True
-
-                        tool_text_parts: list[str] = []
-                        for part in tool_result.content:
-                            text = getattr(part, "text", None)
-                            if text:
-                                tool_text_parts.append(text)
-                        tool_text = "\n".join(tool_text_parts) if tool_text_parts else str(tool_result)
-                        refs = _extract_evidence_refs(tool_text)
-                        if refs:
-                            evidence_refs_this_turn.extend(refs)
-
-                        messages.append(
-                            {
-                                "role": "tool",
-                                "name": tool_name,
-                                "content": tool_text,
-                            }
-                        )
-                else:
-                    print("\nAssistant: I hit the tool-call loop limit. Please rephrase and try again.")
+                        turn["answer"] = "I hit the tool-call loop limit. Please rephrase and try again."
+                finally:
+                    _finish_turn(turn)
 
 
 def parse_args() -> argparse.Namespace:

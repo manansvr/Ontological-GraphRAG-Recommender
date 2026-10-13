@@ -220,7 +220,7 @@ python3 -m unittest discover -s thesis-extension/tests -v
 - **Cold-start prior.** If `problem_b` has no inference states, `sr8-mcp` seeds them from `train_inference_agent()` (seed 99, 1000 single-step episodes) using `INFERENCE_PRIOR_REWARD_MODEL`, a hand-designed reward model, not data. Print its Q-table with `python3 thesis-extension/reinforcemnt-learning.py --inference-table`.
 - **Version 2 files** (one shared agent) are migrated automatically on the first save: `inference_*` states go to `problem_b` (with the new single-step config), everything else plus the old config and `episode_rewards` to `problem_a`. To migrate explicitly: `python3 thesis-extension/reinforcemnt-learning.py --migrate thesis-extension/.rl-model.json`.
 
-The model file is loaded automatically when `sr8-mcp.py` starts. `sr8-mcp`, `ollama-mcp` and `scripts/review-links.py` each hold their own in-memory copy, so every save goes through `locked_update`: it locks `.rl-model.json.lock`, reloads the latest file, applies only that process's change and writes atomically, so no process overwrites another's learning.
+The model file is loaded automatically when `sr8-mcp.py` starts. Both processes use `thesis-extension/.rl-model.json`: `sr8-mcp` keeps it next to itself, and `ollama-mcp` resolves a relative `RL_MODEL_PATH` (default `.rl-model.json`) against the `thesis-extension` folder, not the current working directory. `ollama-mcp` only ever writes `problem_a` and `sr8-mcp` only `problem_b`, both through `locked_update`. `sr8-mcp`, `ollama-mcp` and `scripts/review-links.py` each hold their own in-memory copy, so every save goes through `locked_update`: it locks `.rl-model.json.lock`, reloads the latest file, applies only that process's change and writes atomically, so no process overwrites another's learning.
 
 Run the built-in self-test:
 
@@ -235,3 +235,23 @@ python3 thesis-extension/reinforcemnt-learning.py --self-test
 - All Neo4j writes in the MCP tools use MERGE, never CREATE.
 - Set `STRICT_CONTEXT_ONLY=false` in `.env` to allow non-contextual model responses.
 - Set `OCR_ENABLED=false` to disable the tesseract OCR fallback for scanned PDFs.
+
+## Logs
+
+Both programs append one JSON object per line to `thesis-extension/logs/` (created on first write, ignored by git). Logging never interrupts the chat or a tool call.
+
+**`logs/turns.jsonl`** (`ollama-mcp`, one line per user turn, however the turn ends):
+
+| Field | Meaning |
+|---|---|
+| `timestamp`, `session_id`, `model` | UTC start time; one id per `ollama-mcp` run; Ollama model |
+| `question` | what the user typed |
+| `route` | `review_confirm` / `review_reject` / `review_usage`, `count_requirements`, `reference`, `design_guidance` or `rl_prefetch` |
+| `rl_state`, `rl_action` | Problem A state and chosen strategy (`rl_prefetch` only) |
+| `forced_strategy` | always `null` (no option to force a strategy exists yet) |
+| `tool_calls` | each call's `name`, `args`, `status` (`ok`, `empty` or `error`) and `duration_ms` |
+| `reward_components` | `tool_used`, `model_cited`, `evidence_available`, `fallback_used`, `total` (`rl_prefetch` only) |
+| `evidence_appended` | the client appended `Evidence:` because the model did not cite |
+| `answer`, `latency_ms`, `llm_calls` | text shown to the user, turn duration, number of Ollama chat calls |
+
+**`logs/inference.jsonl`** (`sr8-mcp`, one line per `write_inferred_project_link` call and per review event: `promote`, `modify`, `reject`, `record_feedback`, including refused ones): `event`, `outcome`, `error`, `requirement_id`, `project_id` (and `new_project_id` for modify), `base_confidence`, `adjusted_confidence`, `inference_state`, `rl_action`, `reward`, `overconfidence_penalty_applied`, `rl_updated`, `reviewer`, `reason`, `schema_validation` (the write-time check, or the `schemaValidated` flag stored on the suggestion for review events), `write_mode` and `previous_decision`.

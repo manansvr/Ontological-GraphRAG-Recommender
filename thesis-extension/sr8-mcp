@@ -3,6 +3,8 @@ import os
 import re
 import json
 import csv
+import functools
+import inspect
 import subprocess
 import sys
 import importlib.util as _importlib_util
@@ -27,6 +29,8 @@ mcp = FastMCP("sr8-knowledge-mcp")
 
 _PROJECT_ROOT = Path(__file__).resolve().parent.parent
 _RL_MODEL_PATH = Path(__file__).resolve().parent / ".rl-model.json"
+# Append-only log of every suggestion write and review decision (one JSON object per line).
+_INFERENCE_LOG_PATH = Path(__file__).resolve().parent / "logs" / "inference.jsonl"
 
 DEFAULT_DOC_EXTENSIONS = {".md", ".txt", ".csv", ".owl", ".cypher", ".pdf", ".docx"}
 WRITE_KEYWORDS = {
@@ -279,6 +283,71 @@ def _load_adr_mapping() -> tuple[dict[str, Any], dict[str, list[dict]]]:
     return mapping_json, csv_by_adr
 
 
+# ── Inference event log ────────────────────────────────────────────────────────
+
+def _log_inference(event: str, raw_result: str, args: dict[str, Any]) -> None:
+    """Append one line to logs/inference.jsonl for a suggestion write or review event.
+
+    Built from the call's arguments and its JSON result, so refusals (schema failure,
+    already reviewed, ...) are logged too. Logging failures never affect the call.
+    """
+    try:
+        try:
+            out = json.loads(raw_result)
+        except Exception:
+            out = {"error": "result was not JSON"}
+        feedback = out.get("feedback") if isinstance(out.get("feedback"), dict) else out
+        schema_validation = out.get("schema_validation")
+        if schema_validation is None and "schema_validated" in feedback:
+            schema_validation = {"stored_on_suggestion": feedback.get("schema_validated")}
+        record = {
+            "timestamp": datetime.now(timezone.utc).isoformat(),
+            "event": event,
+            "requirement_id": args.get("requirement_id"),
+            "project_id": args.get("project_id") or args.get("suggested_project_id"),
+            "new_project_id": args.get("new_project_id"),
+            "action": args.get("action"),
+            "outcome": out.get("status") or ("error" if "error" in out else None),
+            "error": out.get("error"),
+            "base_confidence": out.get("original_confidence", feedback.get("base_confidence", args.get("confidence"))),
+            "adjusted_confidence": out.get("adjusted_confidence", feedback.get("stored_confidence")),
+            "inference_state": out.get("inference_state", feedback.get("inference_state")),
+            "rl_action": out.get("rl_action", feedback.get("rl_action")),
+            "reward": feedback.get("reward_applied"),
+            "overconfidence_penalty_applied": feedback.get("overconfidence_penalty_applied"),
+            "rl_updated": feedback.get("rl_updated"),
+            "reviewer": args.get("reviewer"),
+            "reason": args.get("reason"),
+            "schema_validation": schema_validation,
+            "write_mode": out.get("write_mode"),
+            "previous_decision": out.get("previous_decision"),
+        }
+        _INFERENCE_LOG_PATH.parent.mkdir(parents=True, exist_ok=True)
+        with _INFERENCE_LOG_PATH.open("a", encoding="utf-8") as f:
+            f.write(json.dumps(record, ensure_ascii=False, default=str) + "\n")
+    except Exception:
+        pass
+
+
+def _logs_inference(event: str):
+    """Decorator for review functions (not MCP tools): log each call via _log_inference."""
+    def decorate(fn):
+        signature = inspect.signature(fn)
+
+        @functools.wraps(fn)
+        def wrapper(*args: Any, **kwargs: Any) -> str:
+            raw = fn(*args, **kwargs)
+            try:
+                bound = signature.bind(*args, **kwargs)
+                bound.apply_defaults()
+                _log_inference(event, raw, dict(bound.arguments))
+            except Exception:
+                pass
+            return raw
+        return wrapper
+    return decorate
+
+
 # ── RL agent bridge ────────────────────────────────────────────────────────────
 
 _rl_agent: Any = None
@@ -515,6 +584,8 @@ def _suggestions_for_pair(tx: Any, requirement_id: str, project_id: str) -> list
                s.confidence AS confidence,
                s.inferenceState AS inference_state,
                s.rlAction AS rl_action,
+               s.baseConfidence AS base_confidence,
+               s.schemaValidated AS schema_validated,
                s.inferredAt AS inferred_at,
                s.reviewedBy AS reviewed_by,
                toString(s.reviewedAt) AS reviewed_at,
@@ -640,6 +711,9 @@ def _record_feedback_internal(
         "overconfidence_penalty_applied": overconfidence_penalty_applied,
         "inference_state": inferred_state,
         "rl_action": rl_action,
+        "base_confidence": pending[0].get("base_confidence"),
+        "stored_confidence": stored_confidence,
+        "schema_validated": pending[0].get("schema_validated"),
     }
 
 
@@ -1766,8 +1840,7 @@ def get_similar_assigned_requirements(requirement_id: str) -> str:
     }, indent=2)
 
 
-@mcp.tool()
-def write_inferred_project_link(
+def _write_inferred_project_link(
     requirement_id: str,
     project_id: str,
     confidence: float,
@@ -1995,6 +2068,27 @@ def write_inferred_project_link(
     }, indent=2)
 
 
+def write_inferred_project_link(
+    requirement_id: str,
+    project_id: str,
+    confidence: float,
+    reasoning: str,
+    resubmit: bool = False,
+) -> str:
+    raw = _write_inferred_project_link(requirement_id, project_id, confidence, reasoning, resubmit)
+    _log_inference("suggest", raw, {
+        "requirement_id": requirement_id, "project_id": project_id,
+        "confidence": confidence, "resubmit": resubmit,
+    })
+    return raw
+
+
+# The MCP tool is the logging wrapper, described by the implementation's docstring
+# (set before registration because FastMCP reads it then).
+write_inferred_project_link.__doc__ = _write_inferred_project_link.__doc__
+write_inferred_project_link = mcp.tool()(write_inferred_project_link)
+
+
 @mcp.tool()
 def get_inferred_links(include_reviewed: bool = False) -> str:
     """Return suggestedProject relationships sorted by confidence (highest first).
@@ -2045,6 +2139,7 @@ def get_inferred_links(include_reviewed: bool = False) -> str:
 
 # Not an MCP tool: only people may review suggestions (see scripts/review-links.py
 # and the typed "confirm link" / "reject link" commands in ollama-mcp).
+@_logs_inference("promote")
 def promote_inferred_link(
     requirement_id: str,
     project_id: str,
@@ -2143,6 +2238,7 @@ def promote_inferred_link(
 
 # Not an MCP tool: only people may review suggestions (see scripts/review-links.py
 # and the typed "confirm link" / "reject link" commands in ollama-mcp).
+@_logs_inference("reject")
 def reject_inferred_link(requirement_id: str, project_id: str, reviewer: str, reason: str) -> str:
     """Reject a pending suggestedProject relationship.
 
@@ -2212,6 +2308,7 @@ def reject_inferred_link(requirement_id: str, project_id: str, reviewer: str, re
 
 
 # Not an MCP tool: only people may review suggestions (see scripts/review-links.py).
+@_logs_inference("modify")
 def modify_inferred_link(
     requirement_id: str,
     suggested_project_id: str,
@@ -2563,6 +2660,7 @@ def get_change_impact_reports() -> str:
 # ── Phase 6: RL / feedback tools ──────────────────────────────────────────────
 
 # Not an MCP tool: feedback must come from a person, not the LLM.
+@_logs_inference("record_feedback")
 def record_feedback(
     requirement_id: str,
     project_id: str,
@@ -2620,6 +2718,8 @@ def record_feedback(
         "inference_state": feedback["inference_state"],
         "rl_action": feedback["rl_action"],
         "rl_updated": feedback["rl_updated"],
+        "base_confidence": feedback["base_confidence"],
+        "stored_confidence": feedback["stored_confidence"],
     }, indent=2)
 
 
