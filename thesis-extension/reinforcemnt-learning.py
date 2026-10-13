@@ -13,8 +13,9 @@ It provides a more complete tabular Q-learning toolkit with:
 Two separate learning problems share one model file (.rl-model.json, schema version 3):
 
 - Problem A, "problem_a": retrieval-strategy selection in ollama-mcp
-  (states adr_lookup / general_lookup; actions graph_first / documents_first / hybrid).
-  Multi-step Q-learning config (discount_factor 0.9).
+  (state adr_lookup; actions graph_first / documents_first / hybrid). Multi-step
+  Q-learning config (discount_factor 0.9). No synthetic prior: it learns only from live
+  turns. general_lookup has a single action, so ollama-mcp does not update it.
 - Problem B, "problem_b": inference-confidence adjustment in sr8-mcp
   (12 states inference_<strong|weak>_<yes|no>_<high|mid|low>; actions
   increase_confidence / keep_confidence / decrease_confidence). Each suggestion is a
@@ -322,60 +323,14 @@ def migrate_model_file(file_path: str | Path) -> bool:
             fcntl.flock(lock_file, fcntl.LOCK_UN)
 
 
-class RetrievalBanditEnvironment:
-    """Toy environment to simulate retrieval strategy feedback.
-
-    The "hybrid" strategy is best for ADR questions in this synthetic setup.
-    """
-
-    def __init__(self) -> None:
-        self.state = "adr_question"
-        self.actions = ["graph_first", "documents_first", "hybrid"]
-        self.reward_model = {
-            "graph_first": (0.2, 0.35),
-            "documents_first": (0.35, 0.35),
-            "hybrid": (0.75, 0.25),
-        }
-
-    def reset(self) -> Tuple[State, List[Action]]:
-        return self.state, self.actions[:]
-
-    def step(self, action: Action) -> Tuple[float, State, List[Action]]:
-        mean, noise = self.reward_model[action]
-        reward = random.gauss(mean, noise)
-        reward = max(-1.0, min(1.0, reward))
-        next_state = self.state
-        next_actions = self.actions[:]
-        return reward, next_state, next_actions
-
-
-def train_agent(
-    episodes: int = 600,
-    replay_batch_size: int = 16,
-    replay_every: int = 5,
-    seed: int = 42,
-) -> QLearningAgent:
-    random.seed(seed)
-    env = RetrievalBanditEnvironment()
-    agent = QLearningAgent()
-    buffer = ReplayBuffer(capacity=2000)
-
-    for episode in range(1, episodes + 1):
-        state, actions = env.reset()
-        action = agent.choose_action(state, actions)
-        reward, next_state, next_actions = env.step(action)
-
-        transition = Transition(state, action, reward, next_state, next_actions)
-        buffer.push(transition)
-        agent.update(transition)
-
-        if episode % replay_every == 0:
-            agent.replay(buffer, replay_batch_size)
-
-        agent.episode_rewards.append(reward)
-        agent.decay_exploration()
-
-    return agent
+# Problem A (retrieval strategy) deliberately has NO synthetic prior. The earlier toy
+# environment trained a state ("adr_question") that ollama-mcp never produces and made up
+# rewards for graph_first / documents_first / hybrid; its Q-values could not transfer to the
+# live states (adr_lookup, general_lookup) and its training also decayed Problem A's epsilon.
+# Problem A therefore learns only from live ollama-mcp turns. Its saved adr_lookup
+# Q-values were reset to 0.0 (they had been learned under an earlier reward that counted
+# client-appended evidence as a citation), its epsilon to the default 0.15, and its
+# episode_rewards (all from the toy environment) cleared.
 
 
 # Designer-specified cold-start prior for Problem B, NOT learned from data: hand-chosen
@@ -464,79 +419,53 @@ def format_q_table(agent: QLearningAgent, states: List[State], actions: List[Act
     return "\n".join(lines)
 
 
-def evaluate_policy(agent: QLearningAgent, episodes: int = 200, seed: int = 7) -> Dict[str, float]:
-    random.seed(seed)
-    env = RetrievalBanditEnvironment()
-    state, actions = env.reset()
-
-    greedy = agent.greedy_action(state, actions)
-    rewards = []
-    for _ in range(episodes):
-        reward, _, _ = env.step(greedy)
-        rewards.append(reward)
-
-    avg_reward = sum(rewards) / len(rewards)
-    return {
-        "greedy_action": greedy,
-        "avg_reward": avg_reward,
-    }
-
-
 def run_self_test() -> None:
-    """Run a deterministic smoke/regression test for this module."""
-    agent = train_agent(episodes=700, seed=123)
-    report = evaluate_policy(agent, episodes=300, seed=456)
+    """Run a deterministic smoke/regression test of the learner (no model file is touched).
 
-    # Verify learned strategy and Q ordering for this toy setup.
-    state = "adr_question"
-    actions = ["graph_first", "documents_first", "hybrid"]
-    q_values = {a: agent.q_value(state, a) for a in actions}
+    Uses a three-armed toy bandit with neutral names that match no real state, so nothing
+    it learns could be mistaken for a prior. Also checks the Problem B cold-start prior.
+    """
+    import tempfile
 
-    assert report["greedy_action"] == "hybrid", f"unexpected greedy action: {report['greedy_action']}"
-    assert q_values["hybrid"] >= q_values["documents_first"], "hybrid should outrank documents_first"
-    assert q_values["hybrid"] >= q_values["graph_first"], "hybrid should outrank graph_first"
-    assert report["avg_reward"] > 0.45, f"average reward too low: {report['avg_reward']:.3f}"
+    random.seed(123)
+    arms = ["arm_low", "arm_mid", "arm_high"]
+    means = {"arm_low": 0.2, "arm_mid": 0.35, "arm_high": 0.75}
+    agent = QLearningAgent(config=RLConfig(discount_factor=0.0))
+    for _ in range(700):
+        arm = agent.choose_action("self_test", arms)
+        reward = max(-1.0, min(1.0, random.gauss(means[arm], 0.3)))
+        agent.update(Transition("self_test", arm, reward, "self_test", []))
+        agent.decay_exploration()
+    greedy = agent.greedy_action("self_test", arms)
+    assert greedy == "arm_high", f"unexpected greedy action: {greedy}"
 
-    # Verify save/load round trip.
-    tmp_path = Path(".rl-self-test.json")
-    agent.save(tmp_path)
-    reloaded = QLearningAgent.load(tmp_path)
-    tmp_path.unlink(missing_ok=True)
-    assert reloaded.q_table == agent.q_table, "q_table mismatch after save/load"
+    # Save/load round trip in a temporary directory.
+    with tempfile.TemporaryDirectory() as tmp:
+        tmp_path = Path(tmp) / "self-test.json"
+        agent.save(tmp_path)
+        assert QLearningAgent.load(tmp_path).q_table == agent.q_table, "q_table mismatch after save/load"
+
+    prior = train_inference_agent()
+    assert prior.config.discount_factor == 0.0, "Problem B prior must be single-step"
+    assert set(prior.q_table) == set(INFERENCE_STATES), "Problem B prior must cover all 12 states"
 
     print("SELF-TEST PASSED")
-    print(f"greedy_action={report['greedy_action']} avg_reward={report['avg_reward']:.3f}")
+    print(f"greedy_action={greedy} q={agent.q_table['self_test'][greedy]:.3f}")
 
 
-def run_demo(save_path: str | None = None, episodes: int = 600) -> None:
-    agent = train_agent(episodes=episodes)
-    report = evaluate_policy(agent)
-
-    print("Training complete")
-    print(f"episodes={episodes}")
-    print(f"final_exploration_rate={agent.config.exploration_rate:.4f}")
-    print(f"greedy_action={report['greedy_action']}")
-    print(f"avg_reward={report['avg_reward']:.3f}")
-
-    if save_path:
-        agent.save(save_path)
-        print(f"saved_model={save_path}")
-
-
-def parse_args() -> argparse.Namespace:
+def build_parser() -> argparse.ArgumentParser:
     parser = argparse.ArgumentParser(description="Extended Q-learning helper for thesis-extension")
     parser.add_argument("--self-test", action="store_true", help="Run built-in tests")
-    parser.add_argument("--episodes", type=int, default=600, help="Training episodes for demo")
-    parser.add_argument("--save", type=str, default="", help="Optional JSON path to save trained model")
     parser.add_argument("--inference-table", action="store_true",
                         help="Train the Problem B cold-start prior (seed 99, 1000 episodes) and print its Q-table")
     parser.add_argument("--migrate", type=str, default="", metavar="PATH",
                         help="Rewrite a version-2 model file as version 3 (problem_a / problem_b)")
-    return parser.parse_args()
+    return parser
 
 
 if __name__ == "__main__":
-    args = parse_args()
+    parser = build_parser()
+    args = parser.parse_args()
     if args.self_test:
         run_self_test()
     elif args.inference_table:
@@ -548,4 +477,4 @@ if __name__ == "__main__":
         changed = migrate_model_file(args.migrate)
         print(f"{args.migrate}: {'migrated to schema version 3' if changed else 'already schema version 3'}")
     else:
-        run_demo(save_path=args.save or None, episodes=args.episodes)
+        parser.print_help()

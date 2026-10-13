@@ -3,3 +3,5 @@ __pycache__/
 *.pyo
 .venv/
 .DS_Store
+# lock file created by reinforcemnt-learning.locked_update
+.rl-model.json.lock
