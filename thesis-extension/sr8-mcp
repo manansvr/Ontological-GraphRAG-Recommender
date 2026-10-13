@@ -28,7 +28,21 @@ PENALTY_OVERCONFIDENT = -2.0  # applied automatically when confidence > 0.8 and 
 mcp = FastMCP("sr8-knowledge-mcp")
 
 _PROJECT_ROOT = Path(__file__).resolve().parent.parent
-_RL_MODEL_PATH = Path(__file__).resolve().parent / ".rl-model.json"
+
+
+def _load_rl_model_path_helper() -> Any:
+    """Load rl_model_path.py by file path: the RL_MODEL_PATH rule shared with ollama-mcp."""
+    spec = _importlib_util.spec_from_file_location(
+        "rl_model_path", Path(__file__).resolve().with_name("rl_model_path.py"),
+    )
+    module = _importlib_util.module_from_spec(spec)
+    spec.loader.exec_module(module)
+    return module
+
+
+# RL_MODEL_PATH unset/empty -> thesis-extension/.rl-model.json; relative -> resolved
+# against thesis-extension/; absolute -> as given. Same rule as ollama-mcp.
+_RL_MODEL_PATH = _load_rl_model_path_helper().resolve_rl_model_path()
 # Append-only log of every suggestion write and review decision (one JSON object per line).
 _INFERENCE_LOG_PATH = Path(__file__).resolve().parent / "logs" / "inference.jsonl"
 

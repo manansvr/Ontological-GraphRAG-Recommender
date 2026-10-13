@@ -139,13 +139,34 @@ class ModelPathTests(unittest.TestCase):
             os.environ["RL_MODEL_PATH"] = str(Path(tmp) / "abs.json")
             self.assertEqual(Path(ollama._rl_model_path()), Path(tmp) / "abs.json")
 
-    def test_default_matches_the_file_sr8_mcp_uses(self):
+    def test_both_processes_resolve_the_same_path(self):
+        """sr8-mcp (module constant, read at import) and ollama-mcp resolve RL_MODEL_PATH identically."""
+        import test_inference_review
         ollama = test_review_access._load_ollama()
-        os.environ.pop("RL_MODEL_PATH", None)
-        sr8_default = (EXT_DIR / ".rl-model.json")  # sr8-mcp: Path(__file__).parent / ".rl-model.json"
-        self.assertEqual(Path(ollama._rl_model_path()), sr8_default)
-        self.assertIn('_RL_MODEL_PATH = Path(__file__).resolve().parent / ".rl-model.json"',
-                      (EXT_DIR / "sr8-mcp").read_text(encoding="utf-8"))
+        with tempfile.TemporaryDirectory() as tmp:
+            os.chdir(tmp)  # a different working directory must not matter
+            absolute = Path(tmp) / "elsewhere" / "model.json"
+            cases = {
+                "unset": (None, EXT_DIR / ".rl-model.json"),
+                "relative": ("models/shared.json", EXT_DIR / "models" / "shared.json"),
+                "empty": ("", EXT_DIR / ".rl-model.json"),
+                "absolute": (str(absolute), absolute),
+            }
+            for name, (value, expected) in cases.items():
+                if value is None:
+                    os.environ.pop("RL_MODEL_PATH", None)
+                else:
+                    os.environ["RL_MODEL_PATH"] = value
+                sr8 = test_inference_review._load_sr8()
+                self.assertEqual(Path(sr8._RL_MODEL_PATH), expected, f"sr8-mcp, {name}")
+                self.assertEqual(Path(ollama._rl_model_path()), expected, f"ollama-mcp, {name}")
+
+    def test_both_processes_use_the_single_shared_helper(self):
+        for program in ("sr8-mcp", "ollama-mcp"):
+            source = (EXT_DIR / program).read_text(encoding="utf-8")
+            self.assertIn('with_name("rl_model_path.py")', source, program)
+            self.assertIn(".resolve_rl_model_path()", source, program)
+            self.assertNotIn('getenv("RL_MODEL_PATH"', source, program)
 
 
 class TwoRealWritersTests(unittest.TestCase):

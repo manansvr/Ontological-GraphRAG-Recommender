@@ -109,13 +109,21 @@ async def _call_tool_logged(session: Any, turn: dict[str, Any], name: str, args:
     return result
 
 
+def _load_rl_model_path_helper() -> Any:
+    """Load rl_model_path.py by file path: the RL_MODEL_PATH rule shared with sr8-mcp."""
+    spec = importlib.util.spec_from_file_location(
+        "rl_model_path", Path(__file__).resolve().with_name("rl_model_path.py"),
+    )
+    module = importlib.util.module_from_spec(spec)
+    spec.loader.exec_module(module)
+    return module
+
+
 def _rl_model_path() -> str:
-    """RL model file. A relative RL_MODEL_PATH (default .rl-model.json) is resolved against
-    the thesis-extension folder, not the current working directory, so ollama-mcp and
-    sr8-mcp (which keeps .rl-model.json next to itself) use the same file wherever the
-    client is started from."""
-    path = Path(os.getenv("RL_MODEL_PATH", ".rl-model.json")).expanduser()
-    return str(path if path.is_absolute() else EXTENSION_DIR / path)
+    """RL model file, resolved by the rule shared with sr8-mcp (rl_model_path.py): unset or
+    empty -> thesis-extension/.rl-model.json; relative -> against thesis-extension/, not the
+    current working directory; absolute -> as given."""
+    return str(_load_rl_model_path_helper().resolve_rl_model_path())
 
 
 class _RLBridge:
