@@ -1,116 +1,155 @@
 #!/usr/bin/env python3
+"""Validate ontology.owl and the schema CSVs generated from it. Exits 1 if any check fails.
 
+Checks (each one tests its condition; nothing is reported as passed without being tested):
+  XML syntax         ontology.owl is well-formed XML
+  Namespaces         rdf, rdfs, owl, xsd and dcterms are declared with their standard URIs
+  Class labels       every owl:Class with rdf:about has a non-empty rdfs:label
+  Ontology metadata  the owl:Ontology element has rdf:about and non-empty dcterms:title,
+                     dcterms:description, dcterms:creator, dcterms:created and owl:versionInfo
+  Schema CSVs        the four CSVs in csv/ are exactly what scripts/owl-to-csv.py generates
+
+Usage:
+    python3 scripts/validate.py [--owl PATH] [--csv-dir PATH]
+"""
+
+import argparse
 import importlib.util
+import re
 import sys
 import xml.etree.ElementTree as ET
 from pathlib import Path
 
+ONTOLOGY_DIR = Path(__file__).resolve().parent.parent
+NS = {
+    "owl": "http://www.w3.org/2002/07/owl#",
+    "rdf": "http://www.w3.org/1999/02/22-rdf-syntax-ns#",
+    "rdfs": "http://www.w3.org/2000/01/rdf-schema#",
+    "xsd": "http://www.w3.org/2001/XMLSchema#",
+    "dcterms": "http://purl.org/dc/terms/",
+}
+ABOUT = f"{{{NS['rdf']}}}about"
+RESOURCE = f"{{{NS['rdf']}}}resource"
+REQUIRED_METADATA = ["dcterms:title", "dcterms:description", "dcterms:creator", "dcterms:created", "owl:versionInfo"]
 
-def check_csvs_match_owl():
-    """True if the four schema CSVs are exactly what scripts/owl-to-csv.py generates from ontology.owl."""
+
+def _owl_to_csv():
     spec = importlib.util.spec_from_file_location(
         "owl_to_csv", Path(__file__).resolve().with_name("owl-to-csv.py"))
-    owl_to_csv = importlib.util.module_from_spec(spec)
-    spec.loader.exec_module(owl_to_csv)
-    diffs = owl_to_csv.differences()
+    module = importlib.util.module_from_spec(spec)
+    spec.loader.exec_module(module)
+    return module
+
+
+def check_xml(owl_file):
+    """(ok, detail, root) for the XML syntax check."""
+    try:
+        root = ET.parse(owl_file).getroot()
+    except ET.ParseError as exc:
+        return False, f"not well-formed XML: {exc}", None
+    except OSError as exc:
+        return False, f"cannot read {owl_file}: {exc}", None
+    return True, "well-formed XML", root
+
+
+def check_namespaces(owl_file):
+    """Every prefix in NS must be declared on the document with its standard URI."""
+    text = Path(owl_file).read_text(encoding="utf-8")
+    declared = dict(re.findall(r'xmlns:(\w+)="([^"]*)"', text))
+    problems = [f"{prefix} (expected {uri}, found {declared.get(prefix, 'nothing')})"
+                for prefix, uri in NS.items() if declared.get(prefix) != uri]
+    if problems:
+        return False, "missing or wrong namespace declarations: " + "; ".join(problems)
+    return True, "rdf, rdfs, owl, xsd and dcterms declared"
+
+
+def check_class_labels(root):
+    unlabelled = [c.get(ABOUT) for c in root.findall(".//owl:Class[@rdf:about]", NS)
+                  if not (c.findtext("rdfs:label", default="", namespaces=NS) or "").strip()]
+    if unlabelled:
+        return False, f"{len(unlabelled)} class(es) without rdfs:label: {', '.join(unlabelled)}"
+    return True, f"all {len(root.findall('.//owl:Class[@rdf:about]', NS))} classes have rdfs:label"
+
+
+def check_metadata(root):
+    ontologies = root.findall("owl:Ontology", NS)
+    if len(ontologies) != 1:
+        return False, f"expected one owl:Ontology element, found {len(ontologies)}"
+    onto = ontologies[0]
+    missing = [] if onto.get(ABOUT) else ["rdf:about"]
+    missing += [tag for tag in REQUIRED_METADATA if not (onto.findtext(tag, default="", namespaces=NS) or "").strip()]
+    if missing:
+        return False, "owl:Ontology is missing: " + ", ".join(missing)
+    return True, "owl:Ontology has rdf:about, " + ", ".join(REQUIRED_METADATA)
+
+
+def check_csvs(owl_file, csv_dir):
+    try:
+        diffs = _owl_to_csv().differences(csv_dir=csv_dir, owl_file=owl_file)
+    except Exception as exc:   # e.g. the OWL file cannot be parsed
+        return False, f"could not generate CSVs from {owl_file}: {exc}"
     if diffs:
-        print(f"   ✗ CSVs out of date with ontology.owl: {', '.join(diffs)} (run scripts/owl-to-csv.py)")
-        return False
-    print("   ✓ node-labels.csv, relationships.csv, node-properties.csv and relationship-properties.csv match ontology.owl")
-    return True
+        return False, f"out of date with ontology.owl: {', '.join(diffs)} (run scripts/owl-to-csv.py)"
+    return True, "node-labels.csv, relationships.csv, node-properties.csv and relationship-properties.csv match ontology.owl"
 
-def analyze_ontology():
-    tree = ET.parse('ontology.owl')
-    root = tree.getroot()
 
-    ns = {
-        'owl': 'http://www.w3.org/2002/07/owl#',
-        'rdf': 'http://www.w3.org/1999/02/22-rdf-syntax-ns#',
-        'rdfs': 'http://www.w3.org/2000/01/rdf-schema#'
-    }
+def run_checks(owl_file=ONTOLOGY_DIR / "ontology.owl", csv_dir=ONTOLOGY_DIR / "csv"):
+    """Return [(check name, ok, detail)]; later checks that need the parsed XML fail if it is broken."""
+    results = []
+    ok, detail, root = check_xml(owl_file)
+    results.append(("XML syntax", ok, detail))
+    results.append(("Namespaces", *check_namespaces(owl_file)))
+    if root is None:
+        results.append(("Class labels", False, "skipped: XML could not be parsed"))
+        results.append(("Ontology metadata", False, "skipped: XML could not be parsed"))
+    else:
+        results.append(("Class labels", *check_class_labels(root)))
+        results.append(("Ontology metadata", *check_metadata(root)))
+    results.append(("Schema CSVs", *check_csvs(owl_file, csv_dir)))
+    return results, root
 
-    print("\n" + "="*60)
+
+def analyze_ontology(owl_file=ONTOLOGY_DIR / "ontology.owl", csv_dir=ONTOLOGY_DIR / "csv"):
+    """Print the report; return True if every check passed."""
+    results, root = run_checks(owl_file, csv_dir)
+
+    print("\n" + "=" * 60)
     print("SR8 ONTOLOGY VALIDATION REPORT")
-    print("="*60)
+    print("=" * 60)
 
-    # 1. Count Elements
-    classes = root.findall('.//owl:Class[@rdf:about]', ns)
-    obj_props = root.findall('.//owl:ObjectProperty[@rdf:about]', ns)
-    data_props = root.findall('.//owl:DatatypeProperty[@rdf:about]', ns)
-    individuals = root.findall('.//owl:NamedIndividual', ns)
+    if root is not None:
+        classes = root.findall(".//owl:Class[@rdf:about]", NS)
+        obj_props = root.findall(".//owl:ObjectProperty[@rdf:about]", NS)
+        data_props = root.findall(".//owl:DatatypeProperty[@rdf:about]", NS)
+        print("\n📊 STATISTICS:")
+        print(f"   Classes:           {len(classes)}")
+        print(f"   Object Properties: {len(obj_props)}")
+        print(f"   Data Properties:   {len(data_props)}")
+        print(f"   Individuals:       {len(root.findall('.//owl:NamedIndividual', NS))}")
 
-    print(f"\n📊 STATISTICS:")
-    print(f"   Classes:           {len(classes)}")
-    print(f"   Object Properties: {len(obj_props)}")
-    print(f"   Data Properties:   {len(data_props)}")
-    print(f"   Individuals:       {len(individuals)}")
+        print("\n🌳 TOP-LEVEL CLASSES:")
+        for cls in classes:
+            if cls.find("rdfs:subClassOf", NS) is None:
+                print(f"   • {cls.findtext('rdfs:label', default=cls.get(ABOUT), namespaces=NS)}")
 
-    # 2. Top-Level Classes
-    print(f"\n🌳 TOP-LEVEL CLASSES:")
-    for cls in classes:
-        about = cls.get('{http://www.w3.org/1999/02/22-rdf-syntax-ns#}about')
+    print("\n✅ VALIDATION:")
+    for name, ok, detail in results:
+        print(f"   {'✓' if ok else '✗'} {name}: {detail}")
 
-        if about and '#' in about:
-            class_name = about.split('#')[1]
-            subclass = cls.find('rdfs:subClassOf', ns)
+    passed = all(ok for _, ok, _ in results)
+    print("\n" + "=" * 60)
+    print("ONTOLOGY READY FOR USE" if passed else "VALIDATION FAILED")
+    print("=" * 60)
+    return passed
 
-            if subclass is None:
-                label = cls.find('rdfs:label', ns)
-                label_text = label.text if label is not None else class_name
-                print(f"   • {label_text}")
 
-    # 3. Key Individuals
-    print(f"\n🎯 KEY INDIVIDUALS:")
-    for ind in individuals:
-        about = ind.get('{http://www.w3.org/1999/02/22-rdf-syntax-ns#}about')
+def main(argv=None):
+    parser = argparse.ArgumentParser(description="Validate ontology.owl and the generated schema CSVs.")
+    parser.add_argument("--owl", type=Path, default=ONTOLOGY_DIR / "ontology.owl")
+    parser.add_argument("--csv-dir", type=Path, default=ONTOLOGY_DIR / "csv")
+    args = parser.parse_args(argv)
+    return 0 if analyze_ontology(args.owl, args.csv_dir) else 1
 
-        if about and '#' in about:
-            ind_name = about.split('#')[1]
-            ind_type = ind.find('rdf:type', ns)
 
-            if ind_type is not None:
-                type_res = ind_type.get('{http://www.w3.org/1999/02/22-rdf-syntax-ns#}resource')
-
-                if type_res and '#' in type_res:
-                    type_name = type_res.split('#')[1]
-                    print(f"   • {ind_name:<30} ({type_name})")
-
-    # 4. Key Relationships
-    print(f"\n🔗 KEY OBJECT PROPERTIES (Sample):")
-    for i, prop in enumerate(obj_props[:10]):
-        about = prop.get('{http://www.w3.org/1999/02/22-rdf-syntax-ns#}about')
-
-        if about and '#' in about:
-            prop_name = about.split('#')[1]
-            label = prop.find('rdfs:label', ns)
-            label_text = label.text if label is not None else prop_name
-            print(f"   • {label_text}")
-
-    if len(obj_props) > 10:
-        print(f"   ... and {len(obj_props) - 10} more")
-
-    # 5. Validation
-    print(f"\n✅ VALIDATION:")
-    print(f"   ✓ XML Syntax Is Valid")
-    print(f"   ✓ Namespace Declarations Present")
-    print(f"   ✓ All Classes Have Labels")
-    print(f"   ✓ Ontology Meta-Data complete")
-
-    print(f"\n🔁 SCHEMA CSVs:")
-    if not check_csvs_match_owl():
-        print(f"\n" + "="*60)
-        print("ONTOLOGY AND CSVs DIFFER")
-        print("="*60)
-        return False
-
-    print(f"\n" + "="*60)
-    print("ONTOLOGY READY FOR USE")
-    print("="*60)
-    print(f"\nNext Steps:")
-    print(f"  1. open in protégé: brew install --cask protege")
-    print(f"  2. import to neo4j: brew install neo4j")
-    print(f"  3. view documentation: cat Documentation/ontology.md")
-    print()
-
-if __name__ == '__main__':
-    sys.exit(0 if analyze_ontology() is not False else 1)
+if __name__ == "__main__":
+    sys.exit(main())

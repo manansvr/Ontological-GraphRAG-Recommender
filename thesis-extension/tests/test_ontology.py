@@ -77,7 +77,7 @@ class GeneratedCsvTests(unittest.TestCase):
                 Path(tmp, name).write_text(content, encoding="utf-8")
             Path(tmp, "relationships.csv").write_text("RelationshipType\nx\n", encoding="utf-8")
             self.assertEqual(owl_to_csv.differences(csv_dir=tmp), ["relationships.csv"])
-        self.assertIn("check_csvs_match_owl", (ONTOLOGY / "scripts/validate.py").read_text(encoding="utf-8"))
+        self.assertIn("owl_to_csv().differences(", (ONTOLOGY / "scripts/validate.py").read_text(encoding="utf-8"))
 
 
 class ModelTests(unittest.TestCase):
