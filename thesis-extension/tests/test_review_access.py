@@ -194,20 +194,23 @@ class OllamaReviewCommandTests(unittest.TestCase):
         self.assertIn("Earlier decision", refused)
 
     def test_review_functions_only_reachable_from_typed_input(self):
-        """promote/reject are referenced only in _run_review_command, and commands are parsed only from user_input."""
+        """promote/reject are referenced only in _run_review_command, which only the review route's
+        handler calls, and run_chat matches routes only against what the user typed."""
         tree = ast.parse(OLLAMA_PATH.read_text(encoding="utf-8"))
-        referencing = set()
-        parse_args = []
+        referencing, callers_of_run_review, route_args = set(), set(), []
         for fn in ast.walk(tree):
             if isinstance(fn, (ast.FunctionDef, ast.AsyncFunctionDef)):
                 for node in ast.walk(fn):
                     if isinstance(node, ast.Attribute) and node.attr in HUMAN_ONLY:
                         referencing.add(fn.name)
-                    if (isinstance(node, ast.Call) and isinstance(node.func, ast.Name)
-                            and node.func.id == "_parse_review_command" and fn.name == "run_chat"):
-                        parse_args.append(ast.unparse(node.args[0]) if hasattr(ast, "unparse") else node.args[0].id)
+                    if isinstance(node, ast.Call) and getattr(node.func, "id", None) == "_run_review_command":
+                        callers_of_run_review.add(fn.name)
+                    if (isinstance(node, ast.Call) and getattr(node.func, "id", None) == "_match_route"
+                            and fn.name == "run_chat"):
+                        route_args.append(node.args[0].id)
         self.assertEqual(referencing, {"_run_review_command"})
-        self.assertEqual(parse_args, ["user_input"])
+        self.assertEqual(callers_of_run_review, {"_handle_review"})
+        self.assertEqual(route_args, ["user_input"])
 
 
 # ── scripts/review-links.py ──────────────────────────────────────────────────

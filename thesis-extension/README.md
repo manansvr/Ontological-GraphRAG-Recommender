@@ -114,6 +114,14 @@ Reads `thesis-extraction/csv/ADR*-Requirements.csv` and writes `ADR-mapping.csv`
 
 These 38 tools are all the LLM can call. Reviewing suggestions and recording feedback are deliberately **not** MCP tools, so the model cannot confirm, modify or reject its own suggestions; see [Reviewing inferred links](#reviewing-inferred-links).
 
+## Fixed routes in ollama-mcp
+
+Before the RL step, `ollama-mcp` checks one explicit `ROUTES` list (name, matcher, handler, `uses_llm`) from top to bottom; the first match handles the turn. Routes with `uses_llm = false` call one tool (or a human review function) directly and print its raw output without calling the model; their turn records have `route = <name>` and `llm_calls = 0`. Anything that matches no route goes to the RL-guided path (`rl_prefetch`). Print the table with:
+
+```bash
+python3 thesis-extension/ollama-mcp --print-routes
+```
+
 ## Neo4j graph structure
 
 Node labels used by the MCP tools:

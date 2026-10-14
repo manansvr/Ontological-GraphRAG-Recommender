@@ -99,6 +99,8 @@ class QuestionFileTests(unittest.TestCase):
         o = self.ollama
         for row in self.evaluation + self.training:
             q = row["question"]
+            route, _ = o._match_route(q)
+            self.assertIsNone(route, f"{row['question_id']} would take the {route.name if route else ''} route")
             self.assertIsNone(o._parse_review_command(q), row["question_id"])
             self.assertFalse(o._is_count_requirements_question(q) and o._extract_rule_id_from_question(q),
                              f"{row['question_id']} would take the count route")

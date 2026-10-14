@@ -98,12 +98,15 @@ class TurnLogTests(unittest.TestCase):
     def test_default_log_path_is_in_the_extension_folder(self):
         self.assertEqual(self.ollama.TURN_LOG_PATH, EXT_DIR / "logs" / "turns.jsonl")
 
-    def test_every_tool_call_in_the_chat_loop_is_logged(self):
-        direct = [n for n in ast.walk(self.run_chat) if isinstance(n, ast.Attribute) and n.attr == "call_tool"]
-        logged = [n for n in ast.walk(self.run_chat)
-                  if isinstance(n, ast.Call) and getattr(n.func, "id", None) == "_call_tool_logged"]
-        self.assertEqual(direct, [])
-        self.assertEqual(len(logged), 8)
+    def test_every_tool_call_is_logged(self):
+        """The only direct session.call_tool is inside _call_tool_logged; the chat loop and every
+        route handler go through it."""
+        users = {fn.name for fn in ast.walk(self.tree) if isinstance(fn, (ast.FunctionDef, ast.AsyncFunctionDef))
+                 for n in ast.walk(fn) if isinstance(n, ast.Attribute) and n.attr == "call_tool"}
+        self.assertEqual(users, {"_call_tool_logged"})
+        logged_in = {fn.name for fn in ast.walk(self.tree) if isinstance(fn, (ast.FunctionDef, ast.AsyncFunctionDef))
+                     for n in ast.walk(fn) if isinstance(n, ast.Call) and getattr(n.func, "id", None) == "_call_tool_logged"}
+        self.assertTrue({"run_chat", "_run_tool_route", "_handle_count", "_handle_reference", "_handle_guidance"} <= logged_in)
 
     def test_turn_is_written_in_a_finally_block(self):
         finals = [n for n in ast.walk(self.run_chat) if isinstance(n, ast.Try) and n.finalbody]
@@ -113,8 +116,8 @@ class TurnLogTests(unittest.TestCase):
 
     def test_every_model_call_is_counted(self):
         source = OLLAMA_PATH.read_text(encoding="utf-8")
-        chat = source[source.index("async def run_chat"):]
-        self.assertEqual(chat.count("_post_chat(model=model"), chat.count('turn["llm_calls"] += 1'))
+        self.assertEqual(source.count("= _post_chat(model="), 2)   # RL path and guidance routes
+        self.assertEqual(source.count("= _post_chat(model="), source.count('turn["llm_calls"] += 1'))
 
 
 class ModelPathTests(unittest.TestCase):

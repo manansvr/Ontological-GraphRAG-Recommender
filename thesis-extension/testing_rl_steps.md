@@ -21,6 +21,22 @@ python3 thesis-extension/ollama-mcp
 
 Confirm both services are up before proceeding.
 
+### Fixed routes
+
+Prompts that match a fixed route in `ollama-mcp` are answered by calling one tool directly and printing its raw output, without the model (`llm_calls` is 0 in `logs/turns.jsonl`). The trigger phrases used in this guide are:
+
+| Prompt starts with / contains | Route | Tool |
+|---|---|---|
+| "RL policy" or "Q-values" | `rl_policy` | `get_rl_policy` |
+| "unassigned requirements" | `unassigned_requirements` | `get_unassigned_requirements` |
+| "List all projects" | `list_all_projects` | `list_all_projects` |
+| "inferred" and "link" | `inferred_links` | `get_inferred_links` |
+| "Run this Cypher query: <MATCH ...>" | `cypher_query` | `query_knowledge_graph` (read-only) |
+| "Suggest that requirement <REQ> belongs to project <PROJ> with confidence <x>, because <reason>" | `suggest_link` | `write_inferred_project_link` |
+| "confirm link <REQ> -> <PROJ>" / "reject link <REQ> -> <PROJ> because <reason>" | `review_confirm` / `review_reject` | human review functions |
+
+Replace the bracketed placeholders, e.g. `[req_id]`, with real IDs and no brackets. `python3 thesis-extension/ollama-mcp --print-routes` prints the full table.
+
 ---
 
 ## Test 1 — FIX 6: Pre-trained inference states exist on first load
@@ -77,21 +93,23 @@ Then restart the Ollama client so the server reloads with no saved model.
 
 **Step 3a — Find an unassigned requirement:**
 
-> Are there any requirements that have not been assigned to a project?
+> Show me the unassigned requirements.
 
-This calls `get_unassigned_requirements`. Note a `req_id` from the result (e.g. `REQ-ADR43-001`) and its `adr_id`.
+This routes to `unassigned_requirements`, which calls `get_unassigned_requirements` directly. Note a `req_id` from the result (e.g. `REQ-ADR43-001`) and its `adr_id`.
 
 **Step 3b — Find a target project:**
 
 > List all projects.
 
-Note a `project_id` to assign to (e.g. `PROJ-BRAKES`).
+This routes to `list_all_projects`. Note a `project_id` to assign to (e.g. `PROJ-BRAKES`).
 
 **Step 3c — Write an inferred link:**
 
-> Suggest that requirement [req_id from 3a] belongs to project [project_id from 3b] with confidence 0.65, because it shares the same ADR source as other braking requirements already assigned there.
+Use the `req_id` from 3a and the `project_id` from 3b:
 
-This calls `write_inferred_project_link`. The response JSON should contain:
+> Suggest that requirement [req_id] belongs to project [project_id] with confidence 0.65, because it shares the same ADR source as other braking requirements already assigned there.
+
+This routes to `suggest_link`, which calls `write_inferred_project_link` directly. The response JSON should contain:
 
 ```json
 {
@@ -216,9 +234,9 @@ reject link [req_id] -> [project_id] because second attempt
 
 **Step 5b-5b — The model cannot review:** ask in plain language
 
-> Reject the inferred link from [req_id] to [project_id].
+> Please reject the suggestion that [req_id] belongs to [project_id].
 
-The model has no review tool, so it should say it cannot; no `[tool] reject_inferred_link` or `[tool] record_feedback` line appears.
+This matches no fixed route, so it goes to the model. The model has no review tool, so it should say it cannot; no `[tool] reject_inferred_link` or `[tool] record_feedback` line appears.
 
 **Step 5b-6 — Re-suggesting does not overwrite the decision:**
 
@@ -324,20 +342,32 @@ EOF
 
 **Ask Ollama (single conversation):**
 
-> 1. Are there any unassigned requirements?
-> 2. For the first one, suggest it belongs to the most appropriate project with a confidence score. Use the graph to reason about similar requirements.
-> 3. Show me all inferred links and tell me which are recommended.
-Then, as the reviewer, type (not a question to the model):
+Step 1 (fixed route `unassigned_requirements`, no model call):
+
+> Show me the unassigned requirements.
+
+Step 2 (goes to the model, which reasons over the graph):
+
+> For the first one, suggest which project it belongs to, with a confidence score. Use the graph to reason about similar requirements.
+
+Step 3 (fixed route `inferred_links`, no model call):
+
+> Show me all inferred links.
+
+Step 4, as the reviewer, type (not a question to the model):
 
 ```
 reject link [req_id] -> [project_id] because end-to-end test
 ```
 
-> 5. Now show me the RL policy — has the agent updated?
+Step 5 (fixed route `rl_policy`):
+
+> Show me the current RL policy.
 
 **Pass criteria:**
-- Step 2 calls `get_unassigned_requirements`, then `get_similar_assigned_requirements`, then `write_inferred_project_link` — all three tools appear in the tool call log
-- Step 3 response includes `recommended` and `warning` fields
+- Step 1 prints the raw `get_unassigned_requirements` output (route `unassigned_requirements`, `llm_calls` 0)
+- Step 2: the model calls `get_similar_assigned_requirements`, then `write_inferred_project_link`; both appear in the tool call log
+- Step 3 prints the raw `get_inferred_links` output, which includes the `recommended` and `warning` fields
 - The typed `reject link` command prints `[review] Rejected ...` with the reward; if confidence was > 0.8, the penalty is applied automatically
 - Step 5 shows an epsilon value lower than the one reported in Test 1 (exploration has decayed)
 

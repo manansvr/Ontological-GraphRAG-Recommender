@@ -11,7 +11,7 @@ import time
 import uuid
 from datetime import datetime, timezone
 from pathlib import Path
-from typing import Any
+from typing import Any, Awaitable, Callable, NamedTuple
 
 import requests
 from dotenv import load_dotenv
@@ -586,6 +586,327 @@ def _post_chat(model: str, messages: list[dict[str, Any]], tools: list[dict[str,
     return response.json()
 
 
+
+# ── Deterministic routing table ────────────────────────────────────────────────
+# Checked before the RL step, top to bottom; the first matching route handles the turn.
+# Routes with uses_llm=False call one MCP tool (or a review function) directly and print
+# its raw output without calling the model. Anything that matches no route goes to the
+# RL-guided path (route "rl_prefetch").
+
+
+class _ChatContext:
+    """What a route handler needs from the chat session."""
+
+    def __init__(self, session: Any, model: str, tools: list[dict[str, Any]], messages: list[dict[str, Any]]) -> None:
+        self.session = session
+        self.model = model
+        self.tools = tools
+        self.messages = messages
+        self.turn: dict[str, Any] = {}
+        self.reviewer = ""  # asked for on the first typed review command
+
+
+class Route(NamedTuple):
+    name: str
+    matcher: Callable[[str], dict[str, Any] | None]
+    handler: Callable[[_ChatContext, dict[str, Any]], Awaitable[None]] | None
+    uses_llm: bool
+    trigger: str   # human-readable trigger, for the printed table
+    tool: str      # what the route calls, for the printed table
+
+
+_EXIT_WORDS = {"/exit", "exit", "quit"}
+_CYPHER_RE = re.compile(r"^\s*(?:run\s+this\s+)?cypher\s+query\s*:\s*(\S.*?)\s*$", re.IGNORECASE | re.DOTALL)
+_SUGGEST_RE = re.compile(
+    r"^\s*suggest\s+that\s+requirement\s+(\S+)\s+belongs\s+to\s+project\s+(\S+)\s+"
+    r"with\s+confidence\s+([0-9]*\.?[0-9]+)\s*,?\s*because\s+(\S.*?)\s*$",
+    re.IGNORECASE | re.DOTALL,
+)
+_UNASSIGNED_RE = re.compile(r"\bunassigned\s+requirements?\b", re.IGNORECASE)
+_MANUFACTURING_KEYWORDS = ["manufactur", "fabricat", "assembly", "procure", "quality control", "build"]
+
+
+def _match_exit(text: str) -> dict[str, Any] | None:
+    return {} if text.strip().lower() in _EXIT_WORDS else None
+
+
+def _match_review(kind: str) -> Callable[[str], dict[str, Any] | None]:
+    def matcher(text: str) -> dict[str, Any] | None:
+        command = _parse_review_command(text)
+        return command if command is not None and command["kind"] == kind else None
+    return matcher
+
+
+def _match_cypher(text: str) -> dict[str, Any] | None:
+    m = _CYPHER_RE.match(text)
+    return {"cypher": m.group(1)} if m else None
+
+
+def _match_suggest(text: str) -> dict[str, Any] | None:
+    m = _SUGGEST_RE.match(text)
+    if not m:
+        return None
+    return {"requirement_id": m.group(1).rstrip(".,"), "project_id": m.group(2).rstrip(".,"),
+            "confidence": float(m.group(3)), "reasoning": m.group(4)}
+
+
+def _match_rl_policy(text: str) -> dict[str, Any] | None:
+    t = text.lower()
+    return {} if "rl policy" in t or "q-values" in t else None
+
+
+def _match_unassigned(text: str) -> dict[str, Any] | None:
+    return {} if _UNASSIGNED_RE.search(text) else None
+
+
+def _match_list_projects(text: str) -> dict[str, Any] | None:
+    return {} if "list all projects" in text.lower() else None
+
+
+def _match_inferred_links(text: str) -> dict[str, Any] | None:
+    t = text.lower()
+    return {} if "inferred" in t and "link" in t else None
+
+
+def _match_count(text: str) -> dict[str, Any] | None:
+    rule_id = _extract_rule_id_from_question(text) if _is_count_requirements_question(text) else None
+    return {"rule_id": rule_id} if rule_id else None
+
+
+def _match_reference(text: str) -> dict[str, Any] | None:
+    return {"rule_id": _extract_rule_id_from_question(text)} if _is_reference_question(text) else None
+
+
+def _match_manufacturing(text: str) -> dict[str, Any] | None:
+    t = text.lower()
+    return _design_guidance_redirect(text) if any(k in t for k in _MANUFACTURING_KEYWORDS) else None
+
+
+def _match_design(text: str) -> dict[str, Any] | None:
+    return _design_guidance_redirect(text) if _is_design_guidance_question(text) else None
+
+
+def _tool_text(result: Any, empty: str = "{}") -> str:
+    parts = [t for t in (getattr(part, "text", None) for part in result.content) if t]
+    return "\n".join(parts) if parts else empty
+
+
+def _remember(ctx: _ChatContext, answer: str) -> None:
+    """Show the answer and keep the exchange in the chat history for later model turns."""
+    ctx.turn["answer"] = answer
+    ctx.messages.append({"role": "user", "content": ctx.turn["question"]})
+    ctx.messages.append({"role": "assistant", "content": answer})
+
+
+async def _run_tool_route(ctx: _ChatContext, tool: str, args: dict[str, Any]) -> None:
+    """Call one MCP tool and print its raw output; no model call."""
+    print(f"\n[route {ctx.turn['route']}] {tool}({args})")
+    text = _tool_text(await _call_tool_logged(ctx.session, ctx.turn, tool, args))
+    print(f"\n{text}")
+    _remember(ctx, text)
+
+
+async def _handle_rl_policy(ctx: _ChatContext, match: dict[str, Any]) -> None:
+    await _run_tool_route(ctx, "get_rl_policy", {})
+
+
+async def _handle_unassigned(ctx: _ChatContext, match: dict[str, Any]) -> None:
+    await _run_tool_route(ctx, "get_unassigned_requirements", {})
+
+
+async def _handle_list_projects(ctx: _ChatContext, match: dict[str, Any]) -> None:
+    await _run_tool_route(ctx, "list_all_projects", {})
+
+
+async def _handle_inferred_links(ctx: _ChatContext, match: dict[str, Any]) -> None:
+    await _run_tool_route(ctx, "get_inferred_links", {})
+
+
+async def _handle_cypher(ctx: _ChatContext, match: dict[str, Any]) -> None:
+    # query_knowledge_graph itself refuses anything but read-only MATCH queries.
+    await _run_tool_route(ctx, "query_knowledge_graph", {"cypher": match["cypher"]})
+
+
+async def _handle_suggest(ctx: _ChatContext, match: dict[str, Any]) -> None:
+    await _run_tool_route(ctx, "write_inferred_project_link", match)
+
+
+async def _handle_review(ctx: _ChatContext, command: dict[str, Any]) -> None:
+    """Typed review commands (people only): the functions called are not MCP tools."""
+    if not ctx.reviewer:
+        ctx.reviewer = input("Reviewer name (recorded on every review decision this session): ").strip()
+        if not ctx.reviewer:
+            print("\nNo reviewer name given; nothing recorded.")
+            ctx.turn["answer"] = "No reviewer name given; nothing recorded."
+            return
+    try:
+        ctx.turn["answer"] = _run_review_command(command, ctx.reviewer)
+        print(f"\n[review] {ctx.turn['answer']}")
+    except Exception as exc:
+        ctx.turn["answer"] = f"failed: {exc}"
+        print(f"\n[review] failed: {exc}")
+
+
+async def _handle_review_usage(ctx: _ChatContext, match: dict[str, Any]) -> None:
+    print(f"\n{REVIEW_USAGE}")
+    ctx.turn["answer"] = REVIEW_USAGE
+
+
+async def _handle_count(ctx: _ChatContext, match: dict[str, Any]) -> None:
+    """Count+list requirement questions by ADR/SRP ID."""
+    rule_id = match["rule_id"]
+    print(f"\n[tool] get_adr_requirements({{'adr_id': '{rule_id}', 'limit': {GRAPH_LIMIT}}})")
+    tool_text = _tool_text(await _call_tool_logged(
+        ctx.session, ctx.turn, "get_adr_requirements", {"adr_id": rule_id, "limit": GRAPH_LIMIT}))
+    try:
+        payload = json.loads(tool_text)
+    except Exception:
+        payload = {"adr_id": rule_id, "count": 0, "requirements": [], "evidence_refs": []}
+    content = _format_requirements_listing(payload)
+    print(f"\nAssistant: {content}")
+    _remember(ctx, content)
+
+
+async def _handle_reference(ctx: _ChatContext, match: dict[str, Any]) -> None:
+    """Reference queries by ADR/SRP ID."""
+    rule_id = match["rule_id"]
+    print(f"\n[tool] get_adr_requirements({{'adr_id': '{rule_id}', 'limit': {GRAPH_LIMIT}}})")
+    req_text = _tool_text(await _call_tool_logged(
+        ctx.session, ctx.turn, "get_adr_requirements", {"adr_id": rule_id, "limit": GRAPH_LIMIT}))
+    try:
+        req_payload = json.loads(req_text)
+    except Exception:
+        req_payload = {"adr_id": rule_id, "count": 0, "evidence_refs": []}
+
+    normalized_rule = req_payload.get("adr_id", rule_id)
+    print(f"\n[tool] search_local_documents({{'query': '{normalized_rule}', 'max_files': {DOC_MAX_FILES}, 'max_hits_per_file': {DOC_MAX_HITS}}})")
+    doc_text = _tool_text(await _call_tool_logged(
+        ctx.session, ctx.turn, "search_local_documents",
+        {"query": normalized_rule, "max_files": DOC_MAX_FILES, "max_hits_per_file": DOC_MAX_HITS}))
+    try:
+        doc_payload = json.loads(doc_text)
+    except Exception:
+        doc_payload = {"matches": []}
+
+    content = _format_reference_listing(rule_id, req_payload, doc_payload)
+    print(f"\nAssistant: {content}")
+    _remember(ctx, content)
+
+
+async def _handle_guidance(ctx: _ChatContext, guidance: dict[str, str]) -> None:
+    """Design / manufacturing questions: answer from the indexed documents, then append the redirect."""
+    turn, messages = ctx.turn, ctx.messages
+    print(f"\n[tool] search_local_documents({{'query': '{guidance['query']}', 'max_files': 5, 'max_hits_per_file': 3}})")
+    design_text = _tool_text(await _call_tool_logged(
+        ctx.session, turn, "search_local_documents",
+        {"query": guidance["query"], "max_files": 5, "max_hits_per_file": 3}))
+
+    messages.append({"role": "user", "content": turn["question"]})
+    messages.append({"role": "tool", "name": "search_local_documents", "content": design_text})
+    tool_used_this_turn = True
+    evidence_refs_this_turn = _extract_evidence_refs(design_text)
+
+    for _ in range(6):
+        result = _post_chat(model=ctx.model, messages=messages, tools=ctx.tools)
+        turn["llm_calls"] += 1
+        assistant_message = result.get("message", {})
+        tool_calls = assistant_message.get("tool_calls", [])
+
+        if not tool_calls:
+            content = assistant_message.get("content", "")
+            if _strict_context_only() and not tool_used_this_turn:
+                content = FALLBACK_ANSWER
+            elif _strict_context_only() and _require_explicit_citations():
+                if not _has_explicit_citation(content):
+                    if evidence_refs_this_turn:
+                        refs_text = "; ".join(evidence_refs_this_turn[:3])
+                        content = f"{content.strip()}\n\nEvidence: {refs_text}"
+                        turn["evidence_appended"] = True
+                    else:
+                        content = FALLBACK_ANSWER
+
+            if guidance["redirect"] not in content:
+                content = f"{content.strip()}\n\n{guidance['redirect']}"
+
+            print(f"\nAssistant: {content}")
+            turn["answer"] = content
+            messages.append({"role": "assistant", "content": content})
+            return
+
+        messages.append({"role": "assistant", "content": assistant_message.get("content", ""), "tool_calls": tool_calls})
+        for call in tool_calls:
+            fn = call.get("function", {})
+            tool_name = fn.get("name")
+            args = fn.get("arguments", {})
+            if isinstance(args, str):
+                try:
+                    args = json.loads(args)
+                except Exception:
+                    args = {}
+            print(f"\n[tool] {tool_name}({args})")
+            tool_result = await _call_tool_logged(ctx.session, turn, tool_name, args)
+            tool_used_this_turn = True
+            tool_text = _tool_text(tool_result, empty=str(tool_result))
+            refs = _extract_evidence_refs(tool_text)
+            if refs:
+                evidence_refs_this_turn.extend(refs)
+            messages.append({"role": "tool", "name": tool_name, "content": tool_text})
+
+    print("\nAssistant: I hit the tool-call loop limit. Please rephrase and try again.")
+    turn["answer"] = "I hit the tool-call loop limit. Please rephrase and try again."
+
+
+ROUTES: list[Route] = [
+    Route("exit", _match_exit, None, False, '"exit", "quit" or "/exit"', "(ends the session)"),
+    Route("review_confirm", _match_review("confirm"), _handle_review, False,
+          '"confirm link <REQ> -> <PROJECT>"', "promote_inferred_link (human review, not an MCP tool)"),
+    Route("review_reject", _match_review("reject"), _handle_review, False,
+          '"reject link <REQ> -> <PROJECT> because <reason>"', "reject_inferred_link (human review, not an MCP tool)"),
+    Route("review_usage", _match_review("usage"), _handle_review_usage, False,
+          'malformed "confirm link" / "reject link"', "(prints the review command usage)"),
+    Route("cypher_query", _match_cypher, _handle_cypher, False,
+          '"cypher query: <query>" or "run this cypher query: <query>"', "query_knowledge_graph (read-only MATCH)"),
+    Route("suggest_link", _match_suggest, _handle_suggest, False,
+          '"suggest that requirement <REQ> belongs to project <PROJ> with confidence <x> because <reason>"',
+          "write_inferred_project_link"),
+    Route("rl_policy", _match_rl_policy, _handle_rl_policy, False, '"rl policy" or "q-values"', "get_rl_policy"),
+    Route("unassigned_requirements", _match_unassigned, _handle_unassigned, False,
+          '"unassigned requirement(s)"', "get_unassigned_requirements"),
+    Route("list_all_projects", _match_list_projects, _handle_list_projects, False,
+          '"list all projects"', "list_all_projects"),
+    Route("inferred_links", _match_inferred_links, _handle_inferred_links, False,
+          '"inferred" and "link"', "get_inferred_links"),
+    Route("count_requirements", _match_count, _handle_count, False,
+          '"how many" and "requir" plus an ADR/SRP ID', "get_adr_requirements"),
+    Route("reference", _match_reference, _handle_reference, False,
+          '"reference" plus an ADR/SRP ID', "get_adr_requirements, search_local_documents"),
+    Route("manufacturing_redirect", _match_manufacturing, _handle_guidance, True,
+          "manufactur, fabricat, assembly, procure, quality control, build",
+          "search_local_documents, then the model, then the Manufacturing Section redirect"),
+    Route("design_guidance", _match_design, _handle_guidance, True,
+          "design, prototype, conceptual, preliminary, detailed (and the manufacturing words)",
+          "search_local_documents, then the model, then the Design Manual redirect"),
+]
+
+
+def _match_route(text: str) -> tuple[Route | None, dict[str, Any] | None]:
+    """Return the first route whose matcher accepts the text, with its match data."""
+    for route in ROUTES:
+        match = route.matcher(text)
+        if match is not None:
+            return route, match
+    return None, None
+
+
+def format_routes_table() -> str:
+    """The routing table as text (name | trigger | tool | uses_llm), plus the RL fallback."""
+    rows = [(r.name, r.trigger, r.tool, str(r.uses_llm).lower()) for r in ROUTES]
+    rows.append(("rl_prefetch (default)", "anything else", "RL-chosen prefetch, then the model", "true"))
+    widths = [max(len(row[i]) for row in rows + [("name", "trigger", "tool", "uses_llm")]) for i in range(4)]
+    line = lambda row: " | ".join(cell.ljust(widths[i]) for i, cell in enumerate(row))  # noqa: E731
+    return "\n".join([line(("name", "trigger", "tool", "uses_llm")), "-+-".join("-" * w for w in widths)]
+                     + [line(row) for row in rows])
+
 async def run_chat(model: str, server_command: str, server_args: list[str]) -> None:
     _forced_strategy()  # fail fast on an invalid RETRIEVAL_STRATEGY
     server_params = StdioServerParameters(command=server_command, args=server_args)
@@ -607,11 +928,13 @@ async def run_chat(model: str, server_command: str, server_args: list[str]) -> N
 
             messages: list[dict[str, Any]] = [{"role": "system", "content": system_prompt}]
             rl_bridge = _RLBridge()
-            reviewer = ""  # asked for on the first typed review command
+            ctx = _ChatContext(session=session, model=model, tools=tools, messages=messages)
             session_id = uuid.uuid4().hex  # groups this run's turns in logs/turns.jsonl
 
             print("Connected. Type your prompt, or /exit to quit.")
             print(REVIEW_USAGE)
+            print("Fixed routes (answered without the model unless uses_llm is true):")
+            print(format_routes_table())
             print(f"Model: {model}")
             print("Tools:")
             for t in tool_list.tools:
@@ -621,203 +944,23 @@ async def run_chat(model: str, server_command: str, server_args: list[str]) -> N
                 user_input = input("\nYou: ").strip()
                 if not user_input:
                     continue
-                if user_input.lower() in {"/exit", "exit", "quit"}:
+                # The routing table is checked before the RL step; the first match wins.
+                route, match = _match_route(user_input)
+                if route is not None and route.name == "exit":
                     break
 
                 # One record per user turn, written to logs/turns.jsonl however the turn ends.
                 turn = _new_turn(session_id, model, user_input)
+                ctx.turn = turn
                 try:
-                    # Typed review commands (people only): never sent to the model, and the
-                    # functions they call are not MCP tools the model could invoke.
-                    review_command = _parse_review_command(user_input)
-                    if review_command is not None:
-                        turn["route"] = f"review_{review_command['kind']}"
-                        if review_command["kind"] == "usage":
-                            print(f"\n{REVIEW_USAGE}")
-                            turn["answer"] = REVIEW_USAGE
-                            continue
-                        if not reviewer:
-                            reviewer = input("Reviewer name (recorded on every review decision this session): ").strip()
-                            if not reviewer:
-                                print("\nNo reviewer name given; nothing recorded.")
-                                turn["answer"] = "No reviewer name given; nothing recorded."
-                                continue
-                        try:
-                            turn["answer"] = _run_review_command(review_command, reviewer)
-                            print(f"\n[review] {turn['answer']}")
-                        except Exception as exc:
-                            turn["answer"] = f"failed: {exc}"
-                            print(f"\n[review] failed: {exc}")
+                    if route is not None:
+                        turn["route"] = route.name
+                        await route.handler(ctx, match)
+                        if not route.uses_llm:
+                            turn["llm_calls"] = 0
                         continue
 
-                    # Deterministic path for count+list requirement questions by ADR/SRP ID.
-                    if _is_count_requirements_question(user_input):
-                        rule_id = _extract_rule_id_from_question(user_input)
-                        if rule_id:
-                            turn["route"] = "count_requirements"
-                            print(f"\n[tool] get_adr_requirements({{'adr_id': '{rule_id}', 'limit': {GRAPH_LIMIT}}})")
-                            tool_result = await _call_tool_logged(session, turn, "get_adr_requirements", {"adr_id": rule_id, "limit": GRAPH_LIMIT})
-
-                            tool_text_parts: list[str] = []
-                            for part in tool_result.content:
-                                text = getattr(part, "text", None)
-                                if text:
-                                    tool_text_parts.append(text)
-                            tool_text = "\n".join(tool_text_parts) if tool_text_parts else "{}"
-
-                            try:
-                                payload = json.loads(tool_text)
-                            except Exception:
-                                payload = {"adr_id": rule_id, "count": 0, "requirements": [], "evidence_refs": []}
-
-                            content = _format_requirements_listing(payload)
-                            print(f"\nAssistant: {content}")
-                            turn["answer"] = content
-                            messages.append({"role": "user", "content": user_input})
-                            messages.append({"role": "assistant", "content": content})
-                            continue
-
-                    # Deterministic path for reference queries by ADR/SRP ID.
-                    if _is_reference_question(user_input):
-                        rule_id = _extract_rule_id_from_question(user_input)
-                        if rule_id:
-                            turn["route"] = "reference"
-                            print(f"\n[tool] get_adr_requirements({{'adr_id': '{rule_id}', 'limit': {GRAPH_LIMIT}}})")
-                            req_result = await _call_tool_logged(session, turn, "get_adr_requirements", {"adr_id": rule_id, "limit": GRAPH_LIMIT})
-
-                            req_text_parts: list[str] = []
-                            for part in req_result.content:
-                                text = getattr(part, "text", None)
-                                if text:
-                                    req_text_parts.append(text)
-                            req_text = "\n".join(req_text_parts) if req_text_parts else "{}"
-
-                            try:
-                                req_payload = json.loads(req_text)
-                            except Exception:
-                                req_payload = {"adr_id": rule_id, "count": 0, "evidence_refs": []}
-
-                            normalized_rule = req_payload.get("adr_id", rule_id)
-                            print(f"\n[tool] search_local_documents({{'query': '{normalized_rule}', 'max_files': {DOC_MAX_FILES}, 'max_hits_per_file': {DOC_MAX_HITS}}})")
-                            doc_result = await _call_tool_logged(session, turn, 
-                                "search_local_documents",
-                                {"query": normalized_rule, "max_files": DOC_MAX_FILES, "max_hits_per_file": DOC_MAX_HITS},
-                            )
-
-                            doc_text_parts: list[str] = []
-                            for part in doc_result.content:
-                                text = getattr(part, "text", None)
-                                if text:
-                                    doc_text_parts.append(text)
-                            doc_text = "\n".join(doc_text_parts) if doc_text_parts else "{}"
-
-                            try:
-                                doc_payload = json.loads(doc_text)
-                            except Exception:
-                                doc_payload = {"matches": []}
-
-                            content = _format_reference_listing(rule_id, req_payload, doc_payload)
-                            print(f"\nAssistant: {content}")
-                            turn["answer"] = content
-                            messages.append({"role": "user", "content": user_input})
-                            messages.append({"role": "assistant", "content": content})
-                            continue
-
-                    design_guidance = _design_guidance_redirect(user_input)
-                    if design_guidance:
-                        turn["route"] = "design_guidance"
-                        print(
-                            f"\n[tool] search_local_documents({{'query': '{design_guidance['query']}', 'max_files': 5, 'max_hits_per_file': 3}})"
-                        )
-                        design_result = await _call_tool_logged(session, turn, 
-                            "search_local_documents",
-                            {"query": design_guidance["query"], "max_files": 5, "max_hits_per_file": 3},
-                        )
-
-                        design_text_parts: list[str] = []
-                        for part in design_result.content:
-                            text = getattr(part, "text", None)
-                            if text:
-                                design_text_parts.append(text)
-                        design_text = "\n".join(design_text_parts) if design_text_parts else "{}"
-
-                        messages.append({"role": "user", "content": user_input})
-                        messages.append({"role": "tool", "name": "search_local_documents", "content": design_text})
-                        tool_used_this_turn = True
-                        evidence_refs_this_turn = _extract_evidence_refs(design_text)
-
-                        for _ in range(6):
-                            result = _post_chat(model=model, messages=messages, tools=tools)
-                            turn["llm_calls"] += 1
-                            assistant_message = result.get("message", {})
-                            tool_calls = assistant_message.get("tool_calls", [])
-
-                            if not tool_calls:
-                                content = assistant_message.get("content", "")
-                                if _strict_context_only() and not tool_used_this_turn:
-                                    content = "I do not have enough context in the indexed sources to answer that."
-                                elif _strict_context_only() and _require_explicit_citations():
-                                    if not _has_explicit_citation(content):
-                                        if evidence_refs_this_turn:
-                                            refs_text = "; ".join(evidence_refs_this_turn[:3])
-                                            content = f"{content.strip()}\n\nEvidence: {refs_text}"
-                                            turn["evidence_appended"] = True
-                                        else:
-                                            content = "I do not have enough context in the indexed sources to answer that."
-
-                                if design_guidance["redirect"] not in content:
-                                    content = f"{content.strip()}\n\n{design_guidance['redirect']}"
-
-                                print(f"\nAssistant: {content}")
-                                turn["answer"] = content
-                                messages.append({"role": "assistant", "content": content})
-                                break
-
-                            messages.append(
-                                {
-                                    "role": "assistant",
-                                    "content": assistant_message.get("content", ""),
-                                    "tool_calls": tool_calls,
-                                }
-                            )
-
-                            for call in tool_calls:
-                                fn = call.get("function", {})
-                                tool_name = fn.get("name")
-                                args = fn.get("arguments", {})
-
-                                if isinstance(args, str):
-                                    try:
-                                        args = json.loads(args)
-                                    except Exception:
-                                        args = {}
-
-                                print(f"\n[tool] {tool_name}({args})")
-                                tool_result = await _call_tool_logged(session, turn, tool_name, args)
-                                tool_used_this_turn = True
-
-                                tool_text_parts: list[str] = []
-                                for part in tool_result.content:
-                                    text = getattr(part, "text", None)
-                                    if text:
-                                        tool_text_parts.append(text)
-                                tool_text = "\n".join(tool_text_parts) if tool_text_parts else str(tool_result)
-                                refs = _extract_evidence_refs(tool_text)
-                                if refs:
-                                    evidence_refs_this_turn.extend(refs)
-
-                                messages.append(
-                                    {
-                                        "role": "tool",
-                                        "name": tool_name,
-                                        "content": tool_text,
-                                    }
-                                )
-                        else:
-                            print("\nAssistant: I hit the tool-call loop limit. Please rephrase and try again.")
-                            turn["answer"] = "I hit the tool-call loop limit. Please rephrase and try again."
-                        continue
-
+                    # No route matched: RL-guided prefetch, then the model.
                     messages.append({"role": "user", "content": user_input})
                     tool_used_this_turn = False
                     evidence_refs_this_turn: list[str] = []
@@ -976,11 +1119,16 @@ def parse_args() -> argparse.Namespace:
         default="sr8-mcp",
         help="MCP server script path",
     )
+    parser.add_argument("--print-routes", action="store_true",
+                        help="Print the deterministic routing table and exit (no connections)")
     return parser.parse_args()
 
 
 def main() -> None:
     args = parse_args()
+    if args.print_routes:
+        print(format_routes_table())
+        return
     model = _ollama_model(args.model)
     asyncio.run(run_chat(model=model, server_command=args.server_command, server_args=[args.server_script]))
 
