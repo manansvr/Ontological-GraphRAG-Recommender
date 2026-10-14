@@ -22,7 +22,7 @@ Outputs (experiments/results/)
 
 Requirements: Neo4j running with the schema and extracted graph loaded, Ollama running
 with the model pulled, and the same Python environment as ollama-mcp / sr8-mcp.
-Note that the model is offered all 38 sr8-mcp tools, including the write tools.
+Note that the model is offered all 39 sr8-mcp tools, including the write tools.
 """
 
 import argparse

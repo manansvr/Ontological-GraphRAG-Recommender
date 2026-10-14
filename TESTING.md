@@ -80,11 +80,12 @@ python -m unittest discover -s thesis-extension/tests -v > evidence/01-tests.txt
 > | Rows flagged for review (needsReview) | 0 |
 > | Rows with a placeholder project ID | 2 |
 >
-> - **Unit tests (code):** `Ran 214 tests` … `OK`. The suite includes:
+> - **Unit tests (code):** `Ran 219 tests` … `OK`. The suite includes:
 >   - schema checks: `SchemaValidationTests`, 15;
 >   - suggestion protection and double feedback: `WriteInferredLinkTests` 9 and `FeedbackTests` 6;
 >   - credit to the action actually taken, and the overconfidence penalty: `RlCreditTests`, 12;
 >   - the two-writer lock test: `TwoRealWritersTests`, 1;
+>   - reading the latest saved model in `get_rl_policy` and the action choice: `LatestModelTests`, 4;
 >   - the routing table: `RouteTableTests`, 10, one of which feeds one example phrase to each of the 14 routes.
 >
 > **Save:** `evidence/01-validate.txt`, `evidence/01-dryrun.txt`, `evidence/01-tests.txt`.
