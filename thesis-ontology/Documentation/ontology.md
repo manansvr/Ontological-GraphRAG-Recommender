@@ -2,7 +2,7 @@
 
 This ontology formally represents the knowledge domain of the Sunswift Racing SR8 tri-brid electric vehicle project, integrating regulatory compliance, knowledge graph technologies, & AI-assisted reasoning.
 
-**Version**: 2.0
+**Version**: 1.0 (`owl:versionInfo` in `ontology.owl`)
 **Created**: February 26, 2026
 **Authors**: Manan Rathi, Ilina Sharma
 
@@ -209,6 +209,8 @@ Technical departments:
 | Project Tracking | 189 Projects, 12 Technical Departments, 100 Members | Primary/secondary departments, member assignments |
 | Parts Management | 100,000+ Components | BOM hierarchy, supply chain, cost tracking |
 | ADR Management | 100 ADRs | 6 verification methods, evidence tracking |
+
+These figures describe the source systems the ontology was designed for; they are not derived from data in this repository and have not been verified. The extracted graph currently holds 8 ADRs (`thesis-extraction/csv/`), 217 requirement nodes, 24 distinct projects referenced by them, and 15 FMEA components (see `thesis-extraction/Documentation/extraction.md`).
 
 ---
 
@@ -508,9 +510,12 @@ graph LR
 
 ### Axioms & Constraints
 
-**Disjoint Classes**:
-- `EssentialRequirement` ⊥ `RecommendedRequirement`
+**Disjoint Classes** (`owl:disjointWith` in `ontology.owl`):
+- `InternalEssentialRequirement` ⊥ `InternalRecommendedRequirement`
+- `ExtractedEssentialRequirement` ⊥ `ExtractedRecommendedRequirement`
 - `InternalRequirement` ⊥ `ExtractedRequirement`
+
+Like the property characteristics, these are not enforced in Neo4j: `import.py` loads only the class hierarchy, relationships and properties.
 
 ---
 
@@ -708,7 +713,7 @@ open http://localhost:7474
 
 - **Connect URL**: `bolt://localhost:7687`
 - **Username**: `neo4j`
-- **Password**: `password123`
+- **Password**: your Neo4j password (set `NEO4J_PASSWORD` in `thesis-extension/.env`; never commit it)
 
 ### Quick Queries
 

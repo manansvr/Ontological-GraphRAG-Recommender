@@ -41,15 +41,15 @@ Replace the bracketed placeholders, e.g. `[req_id]`, with real IDs and no bracke
 
 ## Test 1 — FIX 6: Pre-trained inference states exist on first load
 
-**What it tests:** When `sr8-mcp` starts with no `.rl-model.json`, `_load_rl_agent()` calls `train_inference_agent()` and merges 1 000 episodes of inference priors into the Q-table before the first tool call.
+**What it tests:** When `sr8-mcp` starts with no inference states in the model file, `_load_rl_agent()` calls `train_inference_agent()` (a coverage phase that visits each of the 36 state-action pairs 5 times, then 1 000 episodes, seed 99) and merges the resulting prior into `problem_b` before the first tool call.
 
-**Step 1a — Reset the model file (optional but recommended for a clean test):**
+**Step 1a — Start from an empty model file (optional):** point `RL_MODEL_PATH` at a file that does not exist, so the learned model in `thesis-extension/.rl-model.json` is left untouched. Set it in `thesis-extension/.env`, which both `ollama-mcp` and `sr8-mcp` read (the MCP stdio client does not pass the shell's variables on to `sr8-mcp`):
 
 ```bash
-rm -f thesis-extension/.rl-model.json thesis-extension/.rl-model.json.lock
+RL_MODEL_PATH=.rl-model.test.json
 ```
 
-Then restart the Ollama client so the server reloads with no saved model.
+Both resolve the relative path against `thesis-extension/`. Restart `ollama-mcp`. Afterwards remove the line from `.env` and delete `thesis-extension/.rl-model.test.json`. Do not delete `.rl-model.json` or the `.rl-model.backup-*.json` files.
 
 **Step 1b — Ask Ollama:**
 
@@ -83,14 +83,14 @@ Then restart the Ollama client so the server reloads with no saved model.
 
 **Pass criteria:**
 - All three Q-value columns (`↑`, `keep`, `↓`) are shown per state
-- Epsilon is between 0.02 and 0.15 (decayed from pre-training)
+- Epsilon is between 0.02 and 0.15 (the cold-start prior leaves Problem B at its floor, 0.0200)
 - The tool output is not an error dict
 
 ---
 
 ## Test 3 — FIX 1: Richer 12-state inference encoding on `write_inferred_project_link`
 
-**What it tests:** When a suggestedProject relationship is written, the server queries Neo4j for context (how many requirements from the same ADR are already assigned, and whether the candidate project already holds one of them), computes one of the 12 `inference_*` state strings, lets the agent choose an action, and stores `inferenceState`, `rlAction`, `baseConfidence` and the adjusted `confidence` on the relationship.
+**What it tests:** When a suggestedProject relationship is written, the server queries Neo4j for context (the best same-ADR assigned neighbour's score from `get_similar_assigned_requirements`, strong if ≥ 0.5, and whether the candidate project already holds a requirement from the same ADR), computes one of the 12 `inference_*` state strings, lets the agent choose an action, and stores `inferenceState`, `rlAction`, `baseConfidence` and the adjusted `confidence` on the relationship.
 
 **Step 3a — Find an unassigned requirement:**
 
@@ -292,21 +292,13 @@ Note the Q-values for one state, e.g. `inference_strong_yes_high`.
 
 **Step 7b — Submit 35 feedback events:**
 
-Run the following in a separate terminal (bypasses Ollama; calls the tool function directly):
+Run the following from the repository root in a separate terminal, with the Python environment that runs `sr8-mcp` (it needs `mcp` and `neo4j` installed). It bypasses Ollama and calls the update function directly. It writes to the model file `RL_MODEL_PATH` points to (default `thesis-extension/.rl-model.json`), so keep `RL_MODEL_PATH=.rl-model.test.json` in `thesis-extension/.env` (Step 1a) unless you mean to change the learned model:
 
 ```bash
-/opt/miniconda3/bin/python3 - <<'EOF'
-import importlib.util, json
-from pathlib import Path
+python3 - <<'EOF'
+import importlib.machinery, importlib.util, json
 
 # Load sr8-mcp directly
-spec = importlib.util.spec_from_loader(
-    "sr8_mcp",
-    importlib.util.LazyLoader(
-        importlib.machinery.SourceFileLoader("sr8_mcp", "thesis-extension/sr8-mcp")
-    ),
-)
-import importlib.machinery
 loader = importlib.machinery.SourceFileLoader("sr8_mcp", "thesis-extension/sr8-mcp")
 spec = importlib.util.spec_from_loader("sr8_mcp", loader)
 mod = importlib.util.module_from_spec(spec)
@@ -314,7 +306,7 @@ loader.exec_module(mod)
 
 # Fire 35 feedback events directly via _rl_update (bypasses Neo4j write):
 # reward 1.0 for the action increase_confidence in this state.
-# Note: this writes to thesis-extension/.rl-model.json (migrating it to schema version 3).
+# Note: this writes problem_b of the RL_MODEL_PATH file (migrating it to schema version 3).
 for i in range(35):
     mod._rl_update(1.0, "inference_strong_yes_high", "increase_confidence")
 
@@ -372,7 +364,7 @@ Step 5 (fixed route `rl_policy`):
 - Step 2: the model calls `get_similar_assigned_requirements`, then `write_inferred_project_link`; both appear in the tool call log
 - Step 3 prints the raw `get_inferred_links` output, which includes the `recommended` and `warning` fields
 - The typed `reject link` command prints `[review] Rejected ...` with the reward; if confidence was > 0.8, the penalty is applied automatically
-- Step 5 shows an epsilon value lower than the one reported in Test 1 (exploration has decayed)
+- Step 5 shows an epsilon value no higher than the one reported in Test 1 (each review decays it; it stays at the 0.02 floor once reached, which the cold-start prior already reaches)
 
 ---
 

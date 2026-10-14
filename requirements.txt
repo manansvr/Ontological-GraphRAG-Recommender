@@ -1,0 +1,28 @@
+# Third-party packages for sr8-mcp, ollama-mcp, reinforcemnt-learning.py, the thesis-ontology
+# scripts, the thesis-extraction scripts, the experiments and the tests.
+#
+# Requires Python 3.10+ (mcp needs 3.10; sr8-mcp and ollama-mcp use "X | None" annotations).
+#   python3 -m pip install -r requirements.txt
+#
+# reinforcemnt-learning.py, similarity.py, rl_model_path.py, owl-to-csv.py, validate.py and
+# experiments/run-baseline.py use only the standard library.
+#
+# "tested" = installed at this version and exercised by the offline tests and checks
+# (on Python 3.9.6, where mcp is stubbed). "untested" = not installed in that environment;
+# the minimum is the one thesis-extension/requirements.txt declared before this file existed.
+#
+# System dependencies (not managed by pip): tesseract (pytesseract) and poppler (pdf2image),
+# e.g. brew install tesseract poppler.
+
+neo4j>=5.28.4            # tested: sr8-mcp, extract-ADR.py, extract_failure_modes.py, run-extraction.py, import.py, verify.py, export-confirmed-links.py
+openpyxl>=3.1.5          # tested: extract_failure_modes.py, propose-fmea-links.py, test_fmea.py
+python-dotenv>=1.2.1     # tested: sr8-mcp, ollama-mcp, test_recommender.py, export-confirmed-links.py
+requests>=2.32.5         # tested (imported; HTTP stubbed): ollama-mcp, test_recommender.py
+mcp>=1.9.0               # untested: sr8-mcp (mcp.server.fastmcp.FastMCP), ollama-mcp (ClientSession, stdio_client)
+
+# Optional document readers used by sr8-mcp's search_local_documents and read_document;
+# each is imported only when a file of that type is read.
+pypdf>=4.2.0             # untested: PDF text (PdfReader)
+python-docx>=1.1.2       # untested: .docx text (import docx)
+pdf2image>=1.17.0        # untested: OCR fallback for scanned PDFs (needs poppler)
+pytesseract>=0.3.10      # untested: OCR fallback for scanned PDFs (needs tesseract)

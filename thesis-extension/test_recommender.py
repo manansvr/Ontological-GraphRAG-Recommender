@@ -41,8 +41,8 @@ except Exception as exc:
 
 # ── Ollama helpers ─────────────────────────────────────────────────────────────
 
-OLLAMA_URL = os.getenv("OLLAMA_URL", "http://localhost:11434")
-OLLAMA_MODEL = os.getenv("OLLAMA_MODEL", "llama3.1:8b")
+OLLAMA_URL = os.getenv("OLLAMA_BASE_URL") or os.getenv("OLLAMA_URL", "http://localhost:11434")
+OLLAMA_MODEL = os.getenv("OLLAMA_MODEL", "qwen2.5:14b-instruct")
 
 TOOL_DESCRIPTIONS = {
     "get_project": "Get project metadata and requirements",

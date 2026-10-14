@@ -7,3 +7,10 @@ __pycache__/
 .rl-model.json.lock
 # per-turn and inference logs written by ollama-mcp and sr8-mcp
 logs/
+
+# local secrets: copy thesis-extension/.env.example to .env
+.env
+# experiment outputs
+thesis-extension/experiments/results/
+# RL model backups
+.rl-model.backup-*.json

@@ -12,6 +12,7 @@ import uuid
 from datetime import datetime, timezone
 from pathlib import Path
 from typing import Any, Awaitable, Callable, NamedTuple
+from urllib.parse import quote
 
 import requests
 from dotenv import load_dotenv
@@ -289,7 +290,7 @@ def _ollama_base_url() -> str:
 
 
 def _ollama_model(default: str | None = None) -> str:
-    return default or os.getenv("OLLAMA_MODEL", "llama3.1:8b")
+    return default or os.getenv("OLLAMA_MODEL", "qwen2.5:14b-instruct")
 
 
 def _strict_context_only() -> bool:
@@ -297,7 +298,11 @@ def _strict_context_only() -> bool:
 
 
 def _require_explicit_citations() -> bool:
-    return os.getenv("REQUIRE_EXPLICIT_CITATIONS", "true").lower() == "true"
+    """REQUIRE_EXPLICIT_CITATIONS (default false). When true, an answer without a file citation
+    gets the tools' evidence appended, or the fallback if there is none, which also replaces
+    answers from graph-only tools such as list_all_projects or get_rl_policy (no file to cite).
+    The Problem A reward measures the model's own citations either way."""
+    return os.getenv("REQUIRE_EXPLICIT_CITATIONS", "false").lower() == "true"
 
 
 def _has_explicit_citation(text: str) -> bool:
@@ -444,18 +449,43 @@ def _is_design_guidance_question(text: str) -> bool:
     return any(keyword in t for keyword in _DESIGN_KEYWORDS + _MANUFACTURING_KEYWORDS)
 
 
+REPO_ROOT = EXTENSION_DIR.parent
+GUIDANCE_DOCS_DIR = REPO_ROOT / "thesis-extraction" / "Design-Documentation"
+
+
+def _guidance_doc_path(filename: str) -> Path:
+    """Where a design-guidance PDF lives: the first DOC_ROOTS entry (comma-separated) that
+    holds the file directly or in a Design-Documentation subfolder, otherwise
+    thesis-extraction/Design-Documentation/ in this repository."""
+    for chunk in os.getenv("DOC_ROOTS", "").split(","):
+        if not chunk.strip():
+            continue
+        root = Path(chunk.strip()).expanduser()
+        for candidate in (root / filename, root / "Design-Documentation" / filename):
+            if candidate.is_file():
+                return candidate.resolve()
+    return GUIDANCE_DOCS_DIR / filename
+
+
+def _guidance_link(filename: str, line: int) -> str:
+    """Markdown link target for a guidance PDF: URL-quoted absolute path plus #L<line>."""
+    return f"{quote(_guidance_doc_path(filename).as_posix())}#L{line}"
+
+
 def _design_guidance_redirect(text: str) -> dict[str, str] | None:
     t = text.lower()
     if any(keyword in t for keyword in _MANUFACTURING_KEYWORDS):
         return {
             "query": "Manufacturing Section",
-            "redirect": "For the detailed manufacturing checklist, see [Manufacturing Section.pdf](/Users/manan/Desktop/Honours/thesis-extraction/Design-Documentation/Manufacturing%20Section.pdf#L1) (Manufacturing).",
+            "redirect": "For the detailed manufacturing checklist, see "
+                        f"[Manufacturing Section.pdf]({_guidance_link('Manufacturing Section.pdf', 1)}) (Manufacturing).",
         }
 
     if _is_design_guidance_question(text):
         return {
             "query": "The Design Process",
-            "redirect": "For the broader design workflow, see [Design Manual.pdf](/Users/manan/Desktop/Honours/thesis-extraction/Design-Documentation/Design%20Manual.pdf#L111) (The Design Process).",
+            "redirect": "For the broader design workflow, see "
+                        f"[Design Manual.pdf]({_guidance_link('Design Manual.pdf', 111)}) (The Design Process).",
         }
 
     return None

@@ -2,15 +2,18 @@
 
 ## Overview
 
-Two scripts, two sources, one neo4j graph.
+Extractors in `Scripts/`, run from the `thesis-extraction` folder, writing one neo4j graph.
 
 | Script | Source | What it writes |
 |---|---|---|
-| `extract-ADR.py` | `CSV/*.csv` (8 ADR files) | AustralianDesignRule, Clause, ExtractedEssentialRequirement, Project (stub), Department |
-| `run-extraction.py` | orchestrates both | runs extract-ADR.py first, then extract_projects.py |
+| `extract-ADR.py` | `csv/*.csv` (8 ADR files) | AustralianDesignRule, Clause, ExtractedEssentialRequirement, Project (stub), Department |
+| `extract_failure_modes.py` | `Brake_System_Failure_Mode_Data.xlsx` | Component, FailureMode, Cause, Effect, ControlAction, Requirement (`--only failure-modes`) |
 | `extract_assemblies.py` | `data/assemblies.csv` | Assembly, Project -[:belongsToAssembly]-> Assembly (`--only assemblies`) |
+| `run-extraction.py` | orchestrates them | with no `--only`, runs in order: adrs, projects, parts, failure-modes, assemblies |
 
-`extract-ADR.py` sets `source = 'extracted'` on each `assignedToProject` edge it creates (`ON CREATE SET`, so edges that already exist are not changed). Edges promoted from inferred suggestions by the sr8-mcp `promote_inferred_link` tool carry `source = 'inferred'` instead.
+The `projects` and `parts` steps are **NOT IMPLEMENTED**: `run-extraction.py` imports `extract_projects` and `extract_parts`, which do not exist in `Scripts/`. Their input files (`data/project-tracking-system.csv`, `data/parts-management.csv`) are also absent, so those steps currently print "file not found" and are skipped instead of failing. (`Scripts/extract-project.py` exists but is not called by `run-extraction.py`.)
+
+`extract-ADR.py` sets `source = 'extracted'` on each `assignedToProject` edge it creates (`ON CREATE SET`, so edges that already exist are not changed). Edges promoted from inferred suggestions by sr8-mcp's `promote_inferred_link` (a human review function reached through `thesis-extension/scripts/review-links.py` or the typed `confirm link` command, not an MCP tool) carry `source = 'inferred'` instead.
 
 ---
 
@@ -31,7 +34,7 @@ Open the browser at: http://localhost:7474
 ### Check your folder structure
 ```
 thesis-extraction/
-├── CSV/                          ← ADR CSV files go here
+├── csv/                          ← ADR CSV files go here
 │   ├── ADR10-Requirements.csv
 │   ├── ADR23-Requirements.csv
 │   ├── ADR25-Requirements.csv
@@ -40,25 +43,29 @@ thesis-extraction/
 │   ├── ADR43-Requirements.csv
 │   ├── ADR92-Requirements.csv
 │   └── ADR95-Requirements.csv
+├── data/
+│   └── assemblies.csv
+├── Brake_System_Failure_Mode_Data.xlsx
 ├── Scripts/
-│   ├── extract-ADR.py            ← renamed from extract_adrs.py
+│   ├── extract-ADR.py
+│   ├── extract_failure_modes.py
+│   ├── extract_assemblies.py
+│   ├── extract-project.py        ← not called by run-extraction.py
 │   └── run-extraction.py         ← master orchestrator
 ```
 
-The ontology schema CSV files live in `../thesis-ontology/CSV/`.
+The ontology schema CSV files live in `../thesis-ontology/csv/` and are generated from `../thesis-ontology/ontology.owl` by `scripts/owl-to-csv.py`.
 
 ---
 
 ## Step 0 — Load the ontology schema (run once on a fresh database)
 
-Copy CSV files to neo4j import folder:
 ```bash
-cp CSV/node-labels.csv /opt/homebrew/var/neo4j/import/
-cp CSV/relationships.csv /opt/homebrew/var/neo4j/import/
-cp CSV/node-properties.csv /opt/homebrew/var/neo4j/import/
+cd ../thesis-ontology
+python3 scripts/import.py --password <neo4j password>
 ```
 
-Then in neo4j Browser run each block from `thesis-ontology/Documentation/one-shot-cypher.md` in order (blocks 1–5).
+This loads the schema layer (SchemaLabel, SchemaRelationship and SchemaProperty nodes) from `csv/` and creates the instance uniqueness constraints. sr8-mcp's write tools refuse to write until it has been loaded.
 
 ---
 
@@ -66,7 +73,7 @@ Then in neo4j Browser run each block from `thesis-ontology/Documentation/one-sho
 
 ### Dry run first (preview — nothing written to neo4j)
 ```bash
-python3 Scripts/run-extraction.py --only adrs --dry-run --uri bolt://localhost:7687 --user neo4j --password password123
+python3 Scripts/run-extraction.py --only adrs --dry-run --uri bolt://localhost:7687 --user neo4j --password <neo4j password>
 ```
 
 Check the output:
@@ -76,7 +83,7 @@ Check the output:
 
 ### Live run
 ```bash
-python3 Scripts/run-extraction.py --only adrs --uri bolt://localhost:7687 --user neo4j --password password123
+python3 Scripts/run-extraction.py --only adrs --uri bolt://localhost:7687 --user neo4j --password <neo4j password>
 ```
 
 ### Expected output
@@ -127,8 +134,8 @@ Requirement and Clause nodes store `isApplicable`, `applicabilityNote`, `applica
 
 ### Run a single ADR file only
 ```bash
-python3 Scripts/extract-ADR.py --file CSV/ADR10-Requirements.csv --dry-run --uri bolt://localhost:7687 --user neo4j --password password123
-python3 Scripts/extract-ADR.py --file CSV/ADR10-Requirements.csv --uri bolt://localhost:7687 --user neo4j --password password123
+python3 Scripts/extract-ADR.py --file csv/ADR10-Requirements.csv --dry-run --uri bolt://localhost:7687 --user neo4j --password <neo4j password>
+python3 Scripts/extract-ADR.py --file csv/ADR10-Requirements.csv --uri bolt://localhost:7687 --user neo4j --password <neo4j password>
 ```
 
 ---
@@ -153,8 +160,8 @@ Dry run on the current workbook: `Components: 15 | Failure mode rows: 22 (20 dis
 To propose links from these FMEA requirements to ADR requirements for human review (nothing is written to the graph), see `thesis-extension/scripts/propose-fmea-links.py`.
 
 ```bash
-python3 Scripts/run-extraction.py --only failure-modes --dry-run --uri bolt://localhost:7687 --user neo4j --password password123
-python3 Scripts/run-extraction.py --only failure-modes --uri bolt://localhost:7687 --user neo4j --password password123
+python3 Scripts/run-extraction.py --only failure-modes --dry-run --uri bolt://localhost:7687 --user neo4j --password <neo4j password>
+python3 Scripts/run-extraction.py --only failure-modes --uri bolt://localhost:7687 --user neo4j --password <neo4j password>
 ```
 
 Or run it standalone:
@@ -163,20 +170,20 @@ python3 Scripts/extract_failure_modes.py --file Brake_System_Failure_Mode_Data.x
 python3 Scripts/extract_failure_modes.py --file Brake_System_Failure_Mode_Data.xlsx
 ```
 
-Requires `openpyxl` (`pip3 install openpyxl`) in addition to the `neo4j` driver.
+Requires `openpyxl` in addition to the `neo4j` driver (both in the repository's `requirements.txt`).
 
 ---
 
-## Step 2 — Extract Projects (when xlsx is exported)
+## Step 2 — Extract Projects (NOT IMPLEMENTED)
 
-Export `project-tracking-system.xlsx` as CSV:
+`--only projects` imports `Scripts/extract_projects.py`, which does not exist, so this step cannot run yet. The intended workflow was: export `project-tracking-system.xlsx` as CSV:
 - Google Sheets: `File → Download → Comma Separated Values`
 - Place the file at `data/project-tracking-system.csv`
 
 Then run:
 ```bash
-python3 Scripts/run-extraction.py --only projects --dry-run --uri bolt://localhost:7687 --user neo4j --password password123
-python3 Scripts/run-extraction.py --only projects --uri bolt://localhost:7687 --user neo4j --password password123
+python3 Scripts/run-extraction.py --only projects --dry-run --uri bolt://localhost:7687 --user neo4j --password <neo4j password>
+python3 Scripts/run-extraction.py --only projects --uri bolt://localhost:7687 --user neo4j --password <neo4j password>
 ```
 
 ---
@@ -186,8 +193,8 @@ python3 Scripts/run-extraction.py --only projects --uri bolt://localhost:7687 --
 Assemblies group projects. They are listed in `data/assemblies.csv` (one row per project: `assembly_id`, `assembly_name`, `project_id`) and created by the extraction pipeline, after the ADRs (the projects must already exist):
 
 ```bash
-python3 Scripts/run-extraction.py --only assemblies --dry-run --uri bolt://localhost:7687 --user neo4j --password password123
-python3 Scripts/run-extraction.py --only assemblies --uri bolt://localhost:7687 --user neo4j --password password123
+python3 Scripts/run-extraction.py --only assemblies --dry-run --uri bolt://localhost:7687 --user neo4j --password <neo4j password>
+python3 Scripts/run-extraction.py --only assemblies --uri bolt://localhost:7687 --user neo4j --password <neo4j password>
 ```
 
 This writes `(:Assembly {hasID, hasName})` and `(:Project)-[:belongsToAssembly]->(:Assembly)`, the names declared in `thesis-ontology/csv/relationships.csv`. A `project_id` that does not exist (in the graph for a live run; among the projects `extract-ADR.py` creates for a dry run) is printed as a warning and skipped; no stub project is created. For each assembly the run reports the projects linked and how many requirements reach it through `assignedToProject`.
@@ -263,16 +270,14 @@ RETURN path1, path2
 MATCH (n) DETACH DELETE n
 ```
 
-### 2. Reload schema (in neo4j Browser — blocks from thesis-ontology/Documentation/one-shot-cypher.md)
+### 2. Reload schema (Step 0: `python3 scripts/import.py` in `thesis-ontology`)
 
 ### 3. In terminal — re-run extraction
 ```bash
-python3 Scripts/run-extraction.py --only adrs --uri bolt://localhost:7687 --user neo4j --password password123
-python3 Scripts/run-extraction.py --only projects --uri bolt://localhost:7687 --user neo4j --password password123
+python3 Scripts/run-extraction.py --only adrs --uri bolt://localhost:7687 --user neo4j --password <neo4j password>
+python3 Scripts/run-extraction.py --only failure-modes --uri bolt://localhost:7687 --user neo4j --password <neo4j password>
+python3 Scripts/run-extraction.py --only assemblies --uri bolt://localhost:7687 --user neo4j --password <neo4j password>
 ```
-
-### 4. In neo4j Browser — re-add assemblies
-Run the three assembly MERGE blocks from Step 3 above.
 
 ---
 
@@ -294,9 +299,9 @@ python3 Scripts/run-extraction.py --only adrs --uri bolt://localhost:7687 --user
 ```
 
 ### ADR folder not found
-The script looks for `CSV/` by default. Confirm your CSVs are there:
+The script looks for `csv/` (relative to the current folder) by default. Confirm your CSVs are there:
 ```bash
-ls CSV/
+ls csv/
 ```
 
 ### Re-running is always safe
@@ -317,24 +322,24 @@ Wait ~10 seconds after starting, then confirm the Browser loads at http://localh
 
 ### 2. Install python dependencies
 ```bash
+python3 -m pip install -r requirements.txt   # from the repository root
 cd thesis-extraction
-python3 -m pip install neo4j openpyxl
 ```
 Use `python3 -m pip install`, not a bare `pip3 install` — it guarantees the packages land in the same interpreter that runs the script (matters if you have multiple Pythons, e.g. conda `base` alongside system Python).
 
 ### 3. Dry run (preview only, nothing written)
 ```bash
-python3 Scripts/run-extraction.py --only failure-modes --dry-run --uri bolt://localhost:7687 --user neo4j --password password123
+python3 Scripts/run-extraction.py --only failure-modes --dry-run --uri bolt://localhost:7687 --user neo4j --password <neo4j password>
 ```
 Expected tail of output:
 ```
-   ✓ Components: 15 | Failure modes: 22 | Requirement links: 23 | Skipped: 0
+   ✓ Components: 15 | Failure mode rows: 22 (20 distinct, 0 without a control action) | Requirement links: 23 | Skipped: 0
 ```
 If `Skipped` is nonzero, or the counts don't match, something in the xlsx sheet layout changed — check the sheet names are still exactly `Failure Mode Data` and `Requirement Mapping`.
 
 ### 4. Live run
 ```bash
-python3 Scripts/run-extraction.py --only failure-modes --uri bolt://localhost:7687 --user neo4j --password password123
+python3 Scripts/run-extraction.py --only failure-modes --uri bolt://localhost:7687 --user neo4j --password <neo4j password>
 ```
 Same counts as the dry run, minus the `[DRY]` prefixes — this time it's actually written.
 
@@ -347,7 +352,7 @@ WHERE any(l IN labels(n) WHERE l IN ["Component","FailureMode","Cause","Effect",
 RETURN labels(n)[0] AS label, count(n) AS count
 ORDER BY count DESC
 ```
-Expect: `Component` 15, `FailureMode` 22, `Requirement` ≤ 23 (some requirement text repeats across components and correctly merges into one node), `Cause`/`Effect`/`ControlAction` deduplicated wherever the same cause/effect/action recurs (e.g. `adjuster_mechanism_inadequate` is shared by `BrakeDiscs`, `BrakeDrums`, `BrakeLinings` and should be **one** `Cause` node, not three).
+Expect: `Component` 15, `FailureMode` 20 (22 rows; two failure modes repeat and MERGE on `hasID`), `Requirement` ≤ 23 (some requirement text repeats across components and correctly merges into one node), `Cause`/`Effect`/`ControlAction` deduplicated wherever the same cause/effect/action recurs (e.g. `adjuster_mechanism_inadequate` is shared by `BrakeDiscs`, `BrakeDrums`, `BrakeLinings` and should be **one** `Cause` node, not three).
 
 **Full FMEA chain for one component** (same shape as the Aura screenshot query):
 ```cypher
@@ -392,5 +397,5 @@ One node, one set of labels/properties — if you see two separate `BrakeDiscs` 
 ### Standalone (no orchestrator)
 ```bash
 python3 Scripts/extract_failure_modes.py --file Brake_System_Failure_Mode_Data.xlsx --dry-run
-python3 Scripts/extract_failure_modes.py --file Brake_System_Failure_Mode_Data.xlsx --uri bolt://localhost:7687 --user neo4j --password password123
+python3 Scripts/extract_failure_modes.py --file Brake_System_Failure_Mode_Data.xlsx --uri bolt://localhost:7687 --user neo4j --password <neo4j password>
 ```

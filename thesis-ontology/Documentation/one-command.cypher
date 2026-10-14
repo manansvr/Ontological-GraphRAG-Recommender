@@ -1,5 +1,5 @@
 // run in one command:
-// cypher-shell -a bolt://localhost:7687 -u neo4j -p password123 -f docs/one-command.cypher
+// cypher-shell -a bolt://localhost:7687 -u neo4j -p "<neo4j password>" -f docs/one-command.cypher
 // note: cypher-shell does not render a visual graph. to see graph visuals, run the final query in neo4j browser.
 
 MATCH (n) DETACH DELETE n;

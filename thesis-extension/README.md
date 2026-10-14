@@ -1,11 +1,11 @@
 # SR8 Compliance Knowledge Graph — Thesis Extension
 
-A Formula SAE SR8 compliance assistant built on Neo4j, Ollama, and the Model Context Protocol (MCP). The system extracts requirements from Australian Design Rules (ADRs), maps them to projects and assemblies in a knowledge graph, and exposes 33 tools for compliance analysis, interface risk detection, inference, and change impact tracking.
+A Formula SAE SR8 compliance assistant built on Neo4j, Ollama, and the Model Context Protocol (MCP). The system extracts requirements from Australian Design Rules (ADRs), maps them to projects and assemblies in a knowledge graph, and exposes 39 MCP tools for document search, compliance analysis, interface risk detection, inference, and change impact tracking.
 
 ## Architecture
 
 ```
-ollama-mcp.py  ←→  sr8-mcp.py (MCP server, 33 tools)  ←→  Neo4j
+ollama-mcp  ←→  sr8-mcp (MCP server, 39 tools)  ←→  Neo4j
                          ↕
                reinforcemnt-learning.py (Q-learning agent)
 ```
@@ -23,9 +23,9 @@ AustralianDesignRule
 
 | Component | Version | Notes |
 |-----------|---------|-------|
-| Python | 3.11+ | |
+| Python | 3.10+ | `mcp` requires 3.10 |
 | Neo4j | 5.x | Running locally on bolt://localhost:7687 |
-| Ollama | latest | Running locally with `llama3.1:8b` pulled |
+| Ollama | latest | Running locally with `qwen2.5:14b-instruct` pulled |
 | tesseract | any | System dependency for OCR (`brew install tesseract`) |
 | poppler | any | System dependency for pdf2image (`brew install poppler`) |
 
@@ -34,15 +34,16 @@ AustralianDesignRule
 ### 1. Python dependencies
 
 ```bash
-cd thesis-extension
-pip install -r requirements.txt
+python3 -m pip install -r requirements.txt   # from the repository root
 ```
+
+`requirements.txt` at the repository root lists every third-party package; `thesis-extension/requirements.txt` only includes it.
 
 ### 2. Environment configuration
 
 ```bash
 cp .env.example .env
-# Edit .env — set NEO4J_PASSWORD and confirm OLLAMA_URL/OLLAMA_MODEL
+# Edit .env — set NEO4J_PASSWORD (the example holds a placeholder). .env is git-ignored; never commit it.
 ```
 
 Key variables:
@@ -51,9 +52,15 @@ Key variables:
 |----------|---------|-------------|
 | `NEO4J_URI` | `bolt://localhost:7687` | Neo4j Bolt URI |
 | `NEO4J_USER` | `neo4j` | Neo4j username |
-| `NEO4J_PASSWORD` | — | Neo4j password (required) |
-| `OLLAMA_URL` | `http://localhost:11434` | Ollama base URL |
-| `OLLAMA_MODEL` | `llama3.1:8b` | Model name |
+| `NEO4J_PASSWORD` | `password` | Neo4j password (set your own) |
+| `OLLAMA_BASE_URL` | `http://localhost:11434` | Ollama base URL (`test_recommender.py` also accepts `OLLAMA_URL`) |
+| `OLLAMA_MODEL` | `qwen2.5:14b-instruct` | Model name |
+| `STRICT_CONTEXT_ONLY` | `true` | If no tool ran this turn, the answer is replaced by the "not enough context" fallback |
+| `REQUIRE_EXPLICIT_CITATIONS` | `false` | If `true`, an answer without a file citation (`path \| row/line N`) gets the tools' evidence appended, or the fallback if there is none; this also replaces answers from graph-only tools such as `list_all_projects` or `get_rl_policy`, which have no file to cite |
+| `RL_ENABLED` | `true` | `false`: `ollama-mcp` chooses no retrieval strategy and learns nothing |
+| `RL_LEARNING` | `true` | `false`: learned policies are used greedily and never updated or saved |
+| `RETRIEVAL_STRATEGY` | `rl` | `rl`, `graph_first`, `documents_first` or `hybrid` (fixes the `adr_lookup` strategy) |
+| `RL_MODEL_PATH` | `.rl-model.json` | Relative paths resolve against `thesis-extension/`. Set it in `.env`: `sr8-mcp` reads `.env` but does not inherit `ollama-mcp`'s shell variables |
 | `DOC_ROOTS` | *(empty — uses relative fallbacks)* | Comma-separated paths to local document directories |
 | `EXTRACTION_ROOT` | *(empty — uses relative fallback)* | Path to thesis-extraction directory |
 
@@ -62,26 +69,24 @@ Leave `DOC_ROOTS` and `EXTRACTION_ROOT` empty to use the default paths relative 
 ### 3. Pull the Ollama model
 
 ```bash
-ollama pull llama3.1:8b
+ollama pull qwen2.5:14b-instruct
 ```
 
 ## Running the MCP server
 
 ```bash
-python3 thesis-extension/sr8-mcp.py
+python3 thesis-extension/sr8-mcp
 ```
 
-The server runs on `stdio` transport and is driven by `ollama-mcp.py`. Running it directly will appear idle, which is expected.
+The server runs on `stdio` transport and is driven by `ollama-mcp`. Running it directly will appear idle, which is expected.
 
 ## Running the Ollama client
 
 ```bash
-python3 thesis-extension/ollama-mcp.py
+python3 thesis-extension/ollama-mcp
 ```
 
 This starts an interactive chat session. The client drives the MCP server as a child process, calls tools automatically, and maintains conversation context.
-
-**Do not modify `ollama-mcp.py`.**
 
 ## Running the test script
 
@@ -89,7 +94,7 @@ This starts an interactive chat session. The client drives the MCP server as a c
 python3 thesis-extension/test_recommender.py
 ```
 
-Runs 5 pre-defined questions against the knowledge graph and Ollama, printing tool calls, answers, and a summary. Neo4j and Ollama must both be running.
+Intended to run 5 pre-defined questions against the knowledge graph and Ollama, printing tool calls, answers, and a summary. Neo4j and Ollama must both be running. **It currently exits at start-up**: it loads `sr8-mcp.py`, but the server file is `sr8-mcp` (no extension).
 
 ## Regenerating ADR mapping files
 
@@ -97,13 +102,14 @@ Runs 5 pre-defined questions against the knowledge graph and Ollama, printing to
 python3 thesis-extension/sync-ADR-mapping.py
 ```
 
-Reads `thesis-extraction/csv/ADR*-Requirements.csv` and writes `ADR-mapping.csv` and `ADR-mapping.json` into this directory.
+Reads `thesis-extraction/csv/ADR*-Requirements.csv` and writes `thesis-extension/ADR-mapping.csv` and `thesis-extension/ADR-mapping.json` (sr8-mcp falls back to them when the graph has no rows for an ADR). The committed copies hold `source_file` paths from the original author's machine; rerun this to refresh them.
 
 ## Tool categories
 
 | Category | Tools |
 |----------|-------|
-| Document search | `list_documents`, `search_local_documents`, `suggest_requirement_sources`, `read_document`, `run_extraction_for_requirements` |
+| Document search | `list_documents`, `search_local_documents`, `suggest_requirement_sources`, `read_document`, `summarize_document`, `search_keywords`, `search_braking`, `search_tyre`, `search_manufacturing` |
+| Extraction | `run_extraction_for_requirements`, `extraction_report`, `adr_mapping_stats` |
 | GraphRAG lookup | `get_project`, `get_adr`, `get_assembly`, `search_requirements`, `list_all_projects`, `list_all_adrs`, `get_adr_requirements` |
 | Cypher passthrough | `query_knowledge_graph` (read-only MATCH queries only) |
 | Compliance gaps | `get_compliance_gaps`, `get_verification_progress`, `get_highest_risk_gaps` |
@@ -143,6 +149,7 @@ Relationship types:
 - `belongsToAssembly` — Project → Assembly (declared in `thesis-ontology/csv/relationships.csv`)
 - `hasClause` — ADR → Clause
 - `affectsRequirement` / `affectsProject` — ChangeImpactReport → Requirement / Project
+- `recordedFor` — FeedbackEvent → Requirement / Project
 
 ### Schema validation
 
@@ -151,7 +158,6 @@ Relationship types:
 ```bash
 cd thesis-ontology && python3 scripts/import.py --password <neo4j password>
 ```
-- `recordedFor` — FeedbackEvent → Requirement / Project
 
 ## Reviewing inferred links
 
@@ -229,7 +235,7 @@ python3 -m unittest discover -s thesis-extension/tests -v
 - **Cold-start prior.** If `problem_b` has no inference states, `sr8-mcp` seeds them from `train_inference_agent()` using `INFERENCE_PRIOR_REWARD_MODEL`, a hand-designed reward model, not data. With seed 99 it first visits every state-action pair 5 times (180 single-step updates, so no pair keeps its untried initial value of 0.0), then runs 1000 epsilon-greedy single-step episodes. The reward model's categories are evidence × project: `strong_yes` favours `increase_confidence` (the proposal agrees with a close neighbour's project), `strong_no` favours `decrease_confidence` (a close neighbour exists but the proposed project holds none of the ADR's requirements, so the proposal contradicts the evidence), and `weak_yes` / `weak_no` favour `keep_confidence`. In the resulting prior every state's greedy action is its category's best action under the reward model. Print its Q-table with `python3 thesis-extension/reinforcemnt-learning.py --inference-table`.
 - **Version 2 files** (one shared agent) are migrated automatically on the first save: `inference_*` states go to `problem_b` (with the new single-step config), everything else plus the old config and `episode_rewards` to `problem_a`. To migrate explicitly: `python3 thesis-extension/reinforcemnt-learning.py --migrate thesis-extension/.rl-model.json`.
 
-The model file is loaded automatically when `sr8-mcp.py` starts. Both processes find the model file with the same rule, in `rl_model_path.py`: `RL_MODEL_PATH` unset or empty means `thesis-extension/.rl-model.json`, a relative value is resolved against the `thesis-extension` folder (not the current working directory), and an absolute value is used as given. `ollama-mcp` only ever writes `problem_a` and `sr8-mcp` only `problem_b`, both through `locked_update`. `sr8-mcp`, `ollama-mcp` and `scripts/review-links.py` each hold their own in-memory copy, so every save goes through `locked_update`: it locks `.rl-model.json.lock`, reloads the latest file, applies only that process's change and writes atomically, so no process overwrites another's learning.
+The model file is loaded automatically when `sr8-mcp` starts. Both processes find the model file with the same rule, in `rl_model_path.py`: `RL_MODEL_PATH` unset or empty means `thesis-extension/.rl-model.json`, a relative value is resolved against the `thesis-extension` folder (not the current working directory), and an absolute value is used as given. `ollama-mcp` only ever writes `problem_a` and `sr8-mcp` only `problem_b`, both through `locked_update`. `sr8-mcp`, `ollama-mcp` and `scripts/review-links.py` each hold their own in-memory copy, so every save goes through `locked_update`: it locks `.rl-model.json.lock`, reloads the latest file, applies only that process's change and writes atomically, so no process overwrites another's learning.
 
 Run the built-in self-test:
 
@@ -241,7 +247,7 @@ python3 thesis-extension/reinforcemnt-learning.py --self-test
 
 - `query_knowledge_graph` accepts only MATCH-starting Cypher; write clauses are blocked.
 - Document reads are restricted to paths under `DOC_ROOTS`.
-- All Neo4j writes in the MCP tools use MERGE, never CREATE.
+- Neo4j writes in the MCP tools use MERGE, except a resubmitted suggestion (`write_inferred_project_link(..., resubmit=True)`), which CREATEs a second `suggestedProject` edge.
 - Set `STRICT_CONTEXT_ONLY=false` in `.env` to allow non-contextual model responses.
 - Set `OCR_ENABLED=false` to disable the tesseract OCR fallback for scanned PDFs.
 
@@ -255,9 +261,9 @@ Both programs append one JSON object per line to `thesis-extension/logs/` (creat
 |---|---|
 | `timestamp`, `session_id`, `model` | UTC start time; one id per `ollama-mcp` run; Ollama model |
 | `question` | what the user typed |
-| `route` | `review_confirm` / `review_reject` / `review_usage`, `count_requirements`, `reference`, `design_guidance` or `rl_prefetch` |
+| `route` | the matching `ROUTES` name (`review_confirm`, `review_reject`, `review_usage`, `cypher_query`, `suggest_link`, `rl_policy`, `unassigned_requirements`, `list_all_projects`, `inferred_links`, `count_requirements`, `reference`, `manufacturing_redirect`, `design_guidance`) or `rl_prefetch` |
 | `rl_state`, `rl_action` | Problem A state and chosen strategy (`rl_prefetch` only) |
-| `forced_strategy` | always `null` (no option to force a strategy exists yet) |
+| `forced_strategy` | the `RETRIEVAL_STRATEGY` used for an `adr_lookup` turn, or `null` when the agent chose (`rl_prefetch` only) |
 | `tool_calls` | each call's `name`, `args`, `status` (`ok`, `empty` or `error`) and `duration_ms` |
 | `reward_components` | `tool_used`, `model_cited`, `evidence_available`, `fallback_used`, `total` (`rl_prefetch` only) |
 | `evidence_appended` | the client appended `Evidence:` because the model did not cite |
@@ -278,7 +284,7 @@ Each live Problem A update appends its reward to `problem_a.episode_rewards` in 
 
 - `questions.csv`: 25 evaluation questions over all 8 ADRs (requirement counts, specific lookups, verification methods, evidence/source questions, cross-ADR questions).
 - `train_questions.csv`: 30 different training questions.
-- Both have `expected_requirement_ids`. These are IDs from `ADR-mapping.json`, restricted to requirements whose mapping ID equals the graph ID that `extract-ADR.py` assigns; for ADR-23, ADR-25 and ADR-31 the two numberings differ for many rows. Every question is worded so it takes the RL route (no "how many … requirement", "reference" or design/manufacturing keywords), which `tests/test_experiments.py` checks.
+- Both have `expected_requirement_ids`. These are IDs from `thesis-extension/ADR-mapping.json`, restricted to requirements whose mapping ID equals the graph ID that `extract-ADR.py` assigns; for ADR-23, ADR-25 and ADR-31 the two numberings differ for many rows. Every question is worded so it takes the RL route (no "how many … requirement", "reference" or design/manufacturing keywords), which `tests/test_experiments.py` checks.
 - `run-baseline.py` runs each question through `ollama-mcp`'s own chat loop in a fresh session:
   - `--train --passes N`: `train_questions.csv`, N times, strategy `rl`, learning on.
   - `--evaluate`: `questions.csv` for `graph_first`, `documents_first`, `hybrid` and `rl`, learning off.

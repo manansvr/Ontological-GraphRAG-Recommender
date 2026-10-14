@@ -854,15 +854,15 @@ RETURN p.name, p.dataType, p.description;
 
 ```bash
 # View Top-Level Categories
-cypher-shell -u neo4j -p password123 \
+cypher-shell -u neo4j -p "<neo4j password>" \
   "MATCH (n:SchemaLabel) WHERE n.type = 'TopLevel' RETURN n.name, n.description;"
 
 # Count All Nodes
-cypher-shell -u neo4j -p password123 \
+cypher-shell -u neo4j -p "<neo4j password>" \
   "MATCH (n:SchemaLabel) RETURN n.category, count(*) ORDER BY count(*) DESC;"
 
 # View All Relationships
-cypher-shell -u neo4j -p password123 \
+cypher-shell -u neo4j -p "<neo4j password>" \
   "MATCH (r:SchemaRelationship) RETURN r.name LIMIT 10;"
 ```
 
