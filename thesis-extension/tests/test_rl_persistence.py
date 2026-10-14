@@ -267,6 +267,79 @@ class Sr8LoaderTests(unittest.TestCase):
             self.assertIn(INFERENCE_STATE, _q(sr8._RL_MODEL_PATH, "problem_b"))
 
 
+class LatestModelTests(unittest.TestCase):
+    """sr8-mcp reads the saved model before choosing an action and before reporting the policy."""
+
+    def setUp(self):
+        self.tmp = tempfile.TemporaryDirectory()
+        self.model = Path(self.tmp.name) / "model.json"
+        self.sr8 = test_inference_review._load_sr8()
+        self.sr8._RL_MODEL_PATH = self.model
+
+        def no_neo4j():
+            raise RuntimeError("no Neo4j in offline tests")
+        self.sr8._neo4j_driver = no_neo4j
+
+    def tearDown(self):
+        self.tmp.cleanup()
+
+    def save_from_another_process(self, q_values, epsilon=None):
+        """Set Q(INFERENCE_STATE, ·) in problem_b through locked_update in a separate Python process."""
+        worker = textwrap.dedent(f"""
+            import importlib.util, sys
+            spec = importlib.util.spec_from_file_location("rl", {str(RL_PATH)!r})
+            rl = importlib.util.module_from_spec(spec)
+            sys.modules["rl"] = rl
+            spec.loader.exec_module(rl)
+            epsilon = {epsilon!r}
+            def apply(agent):
+                agent.q_table[{INFERENCE_STATE!r}] = {q_values!r}
+                if epsilon is not None:
+                    agent.config.exploration_rate = epsilon
+            rl.locked_update({str(self.model)!r}, apply, rl.PROBLEM_B)
+        """)
+        subprocess.run([sys.executable, "-c", worker], check=True, timeout=60)
+
+    def policy_line(self):
+        report = self.sr8.get_rl_policy()
+        return next(line for line in report.splitlines() if line.startswith(INFERENCE_STATE))
+
+    def test_get_rl_policy_shows_an_update_saved_by_another_process(self):
+        before = self.policy_line()                        # loads sr8's copy and seeds the prior
+        self.assertNotIn("+0.987", before)
+        self.save_from_another_process(
+            {"increase_confidence": 0.987, "keep_confidence": -0.5, "decrease_confidence": -0.5})
+        after = self.policy_line()                         # same sr8 module, no restart
+        self.assertIn("↑+0.987", after)
+        self.assertIn("increase_confidence", after.split()[1])
+
+    def test_action_is_chosen_from_the_latest_saved_model(self):
+        agent = self.sr8._load_rl_agent()                  # in-memory copy from start-up (the prior)
+        self.assertEqual(agent.greedy_action(INFERENCE_STATE, self.sr8._RL_ACTIONS), "keep_confidence")
+        self.save_from_another_process(
+            {"increase_confidence": 0.9, "keep_confidence": -0.9, "decrease_confidence": -0.9}, epsilon=0.0)
+        adjusted, action = self.sr8._rl_adjust_confidence(0.65, INFERENCE_STATE)
+        self.assertEqual(action, "increase_confidence")
+        self.assertAlmostEqual(adjusted, 0.75)
+
+    def test_reading_does_not_change_the_file(self):
+        self.sr8.get_rl_policy()
+        before = self.model.read_bytes()
+        self.sr8.get_rl_policy()
+        self.sr8._rl_adjust_confidence(0.5, INFERENCE_STATE)
+        self.assertEqual(self.model.read_bytes(), before)
+
+    def test_saves_still_merge_into_the_latest_file(self):
+        self.sr8._load_rl_agent()
+        self.save_from_another_process(
+            {"increase_confidence": 0.3, "keep_confidence": 0.2, "decrease_confidence": 0.1})
+        other_state = "inference_strong_yes_high"
+        self.assertTrue(self.sr8._rl_update(1.0, other_state, "increase_confidence"))
+        saved = _q(self.model, "problem_b")
+        self.assertEqual(saved[INFERENCE_STATE],
+                         {"increase_confidence": 0.3, "keep_confidence": 0.2, "decrease_confidence": 0.1})
+
+
 class LockedUpdateTests(unittest.TestCase):
     def test_concurrent_processes_lose_no_updates(self):
         with tempfile.TemporaryDirectory() as tmp:

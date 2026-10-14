@@ -308,6 +308,22 @@ def locked_update(
             fcntl.flock(lock_file, fcntl.LOCK_UN)
 
 
+def locked_read(file_path: str | Path, problem: str) -> QLearningAgent:
+    """Load one problem's latest saved agent under a shared lock on <file>.lock.
+
+    Readers wait for any locked_update in progress (which holds the exclusive lock), so
+    they never see a half-applied change; the file itself is not modified.
+    """
+    default_config(problem)  # validates the name
+    path = Path(file_path)
+    with open(f"{path}.lock", "a") as lock_file:
+        fcntl.flock(lock_file, fcntl.LOCK_SH)
+        try:
+            return _agent_from_section(_read_model_document(path).get(problem), problem)
+        finally:
+            fcntl.flock(lock_file, fcntl.LOCK_UN)
+
+
 def migrate_model_file(file_path: str | Path) -> bool:
     """Rewrite a version-2 model file as version 3 under the lock. Returns True if it changed."""
     path = Path(file_path)

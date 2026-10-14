@@ -298,18 +298,15 @@ Use one requirement from `show unassigned requirements` (call it **REQ-A**) and 
 
 > **📸 Take a screenshot at every step marked with 📸.** These screenshots fill the worked-example placeholder in the Results chapter.
 
-Problem B values are read from the model file, not from `show me the rl policy`. Here is why:
-- Typed review commands run inside the `ollama-mcp` process.
-- `review-links.py` is its own process.
-- Both save to `.rl-model.json`, but `get_rl_policy` answers from the `sr8-mcp` server's in-memory copy, which is loaded once per session.
+Typed review commands (run inside the `ollama-mcp` process) and `review-links.py` (its own process) both save to `.rl-model.json`. `show me the rl policy` (`get_rl_policy`) reloads that file under its lock every time, so it shows their updates without a restart; so does the action choice in `write_inferred_project_link`.
 
-Use this command (from the repository root, in a second terminal) whenever a step says "check Problem B":
+Whenever a step says "check Problem B", type `show me the rl policy` in the chat client. As a cross-check, also run this command, which reads the same file directly (from the repository root, in a second terminal):
 
 ```bash
 python -c "import json; q=json.load(open('thesis-extension/.rl-model.json'))['problem_b']['q_table']; [print(s, {a: round(v,4) for a,v in q[s].items()}) for s in sorted(q)]"
 ```
 
-Before 7.1, run it once and save the output as `evidence/07-problemB-before.txt`.
+Before 7.1, type `show me the rl policy` and run the command once. Save both outputs as `evidence/07-problemB-before.txt`.
 
 **7.1 The model proposes a link.** 📸
 
@@ -406,7 +403,7 @@ RETURN count(*) AS human_confirmed;
 
 > **Expected (code, given exactly the steps above):** extracted = **172**, pending = **0**, human-confirmed = **1**.
 
-**7.7 Problem B learned from the right action.** Check Problem B (the command above) and compare it with `evidence/07-problemB-before.txt`.
+**7.7 Problem B learned from the right action.** Type `show me the rl policy` in the same `ollama-mcp` session (no restart needed). Cross-check with the file command above, and compare both with `evidence/07-problemB-before.txt`.
 
 > **Expected (code):**
 > - For each state used in 7.2, 7.4 and 7.5, only the Q-value of the **action stored as `rlAction`** has moved: down after each rejection, up after the confirmation. Each update is Q ← Q + 0.2 (r − Q).
@@ -467,7 +464,7 @@ python -c "import json; print(json.dumps(json.load(open('thesis-extension/.rl-mo
 > - **(code)** `reward_components` has `tool_used`, `model_cited`, `evidence_available`, `fallback_used` and `total`. `model_cited` reflects the model's own answer, not appended evidence.
 > - **(code)** In `.rl-model.json`, `problem_a` has `adr_lookup` and `general_lookup` only, with no `adr_question`. Only `adr_lookup` changes, and `episode_rewards` grows by 1.
 > - **(live)** The answer shows a citation in the form `path/file.csv | row N`.
-> - `show me the rl policy` reports Problem B only; read Problem A from `evidence/09-problemA.txt`.
+> - **(code)** Type `show me the rl policy`. It reports Problem B only, and its values are unchanged by this question: a Problem A turn never writes `problem_b`. `get_rl_policy` does not show Problem A, so read Problem A from `evidence/09-problemA.txt`.
 >
 > **Save:** 📸 `evidence/09-answer.png`, `evidence/09-problemA-turn.jsonl`, `evidence/09-problemA.txt`.
 
@@ -526,7 +523,7 @@ What requirements would be affected by a change to SRP8-045, and what needs re-v
 show me the rl policy
 ```
 
-This shows Problem B as the `sr8-mcp` server loaded it at the start of the session. Restart `ollama-mcp` first so it includes the review updates from step 7.
+This shows Problem B as currently saved, including the review updates from step 7, without restarting `ollama-mcp`. It should match the file command from step 7.
 
 > **Save:** `evidence/11-policy.txt`, plus a copy of `thesis-extension/.rl-model.json` as `evidence/11-rl-model-final.json`.
 

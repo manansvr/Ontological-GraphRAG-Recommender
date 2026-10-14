@@ -372,15 +372,18 @@ _rl_agent_loaded: bool = False
 _rl_transition_cls: Any = None
 _rl_replay_buffer: Any = None  # FIX 4: module-level ReplayBuffer (capacity 500)
 _rl_locked_update: Any = None  # reinforcemnt-learning.locked_update
+_rl_locked_read: Any = None    # reinforcemnt-learning.locked_read
 
 # FIX 5: .rl-model.json is shared with ollama-mcp and scripts/review-links.py, each
 # holding its own in-memory agent. Every save goes through locked_update, which
 # reloads the latest file under <file>.lock and applies only this process's change,
-# so no process overwrites another's updates with a stale copy.
+# so no process overwrites another's updates with a stale copy. Reads that matter
+# (choosing an action, reporting the policy) go through _rl_latest_agent, which reloads
+# the file under the same lock, so updates saved by another process are seen at once.
 
 
 def _load_rl_agent() -> Any:
-    global _rl_agent, _rl_agent_loaded, _rl_transition_cls, _rl_replay_buffer, _rl_locked_update
+    global _rl_agent, _rl_agent_loaded, _rl_transition_cls, _rl_replay_buffer, _rl_locked_update, _rl_locked_read
     if _rl_agent_loaded:
         return _rl_agent
     _rl_agent_loaded = True
@@ -404,6 +407,8 @@ def _load_rl_agent() -> Any:
         locked_update = getattr(module, "locked_update")
         # sr8-mcp only ever reads and writes Problem B (inference confidence) in the model file.
         _rl_locked_update = lambda path, apply: locked_update(path, apply, problem)  # noqa: E731
+        locked_read = getattr(module, "locked_read")
+        _rl_locked_read = lambda path: locked_read(path, problem)  # noqa: E731
 
         # FIX 4: initialise the live replay buffer (capacity 500).
         _rl_replay_buffer = replay_cls(capacity=500)
@@ -431,6 +436,25 @@ def _load_rl_agent() -> Any:
 
     except Exception:
         _rl_agent = None
+    return _rl_agent
+
+
+def _rl_latest_agent() -> Any:
+    """The Problem B agent as currently saved on disk, or None if RL is unavailable.
+
+    The first call loads the module and seeds the prior (_load_rl_agent). Every call then
+    reloads the model file under its lock, so feedback saved by scripts/review-links.py or
+    ollama-mcp's typed review commands is used without restarting sr8-mcp. If the reload
+    fails, the last in-memory copy is used.
+    """
+    global _rl_agent
+    agent = _load_rl_agent()
+    if agent is None or _rl_locked_read is None:
+        return agent
+    try:
+        _rl_agent = _rl_locked_read(_RL_MODEL_PATH)
+    except Exception:
+        pass
     return _rl_agent
 
 
@@ -466,8 +490,9 @@ def _rl_adjust_confidence(base: float, state: str) -> tuple[float, str | None]:
     Returns (adjusted_confidence, action). The action must be stored with the suggestion
     (rlAction) so that the reviewer's feedback later credits exactly this action.
     action is None when the RL agent is unavailable, in which case base is returned.
+    The action is chosen from the latest saved model (_rl_latest_agent).
     """
-    agent = _load_rl_agent()
+    agent = _rl_latest_agent()
     if not agent:
         return base, None
     try:
@@ -2973,8 +2998,11 @@ def get_rl_policy() -> str:
     - Q-values and greedy action for each known inference state
     - Total feedback events recorded and average reward
     - Whether the agent has converged (epsilon <= 0.05)
+
+    Read from the latest saved model, so decisions recorded by other processes
+    (scripts/review-links.py, ollama-mcp's typed review commands) appear without a restart.
     """
-    agent = _load_rl_agent()
+    agent = _rl_latest_agent()
 
     lines: list[str] = ["SR8 RL Policy Report", "=" * 48]
 
