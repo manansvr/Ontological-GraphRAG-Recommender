@@ -255,7 +255,8 @@ def write_requirement(session, adr_id: str, req_id: str,
                        req_name: str, text: str,
                        is_applicable: bool, applicability_note: str,
                        is_verified: bool = False,
-                       applicability_basis: str = "default", needs_review: bool = False):
+                       applicability_basis: str = "default", needs_review: bool = False,
+                       clause_num: str = ""):
     """
     ExtractedEssentialRequirement — sits between ADR and Project.
     ADR -[:hasExternalEssentialRequirement]-> Requirement -[:assignedToProject]-> Project
@@ -275,14 +276,15 @@ def write_requirement(session, adr_id: str, req_id: str,
         SET r.isApplicable       = $applicable,
             r.applicabilityNote  = $note,
             r.applicabilityBasis = $basis,
-            r.needsReview        = $needs_review
+            r.needsReview        = $needs_review,
+            r.clauseNumber       = $clause
         WITH r
         MATCH (a:AustralianDesignRule {hasID: $aid})
         MERGE (a)-[:hasExternalEssentialRequirement]->(r)
         MERGE (r)-[:derivedFrom]->(a)
     """, rid=req_id, name=req_name, text=text, aid=adr_id,
          applicable=is_applicable, note=applicability_note, verified=is_verified,
-         basis=applicability_basis, needs_review=needs_review)
+         basis=applicability_basis, needs_review=needs_review, clause=clause_num)
 
 
 def write_verification(session, adr_id: str, clause_num: str,
@@ -585,7 +587,7 @@ def extract_one_file(path: str, driver, dry_run: bool = False) -> dict:
             if req_id:
                 write_requirement(s, adr_id, req_id, req_name, text,
                                   is_applicable, plan["applicability_note"] or "", plan["is_verified"],
-                                  plan["applicability_basis"], needs_review)
+                                  plan["applicability_basis"], needs_review, clause_num)
 
             if plan["vmethod"] and clause_num and is_applicable:
                 write_verification(s, adr_id, clause_num, plan["vmethod"], plan["vdesc"],

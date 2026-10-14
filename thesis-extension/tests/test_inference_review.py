@@ -91,7 +91,8 @@ class FakeGraph:
     """Answers queries by matching a distinctive substring; records every query run."""
 
     def __init__(self, assignments=None, suggestions=None, write_row=None, write_returns_nothing=False,
-                 schema=None, subclass_of=None, requirement_labels=None, project_labels=None, context=None):
+                 schema=None, subclass_of=None, requirement_labels=None, project_labels=None, candidates=None,
+                 target=None):
         self.assignments = assignments if assignments is not None else [
             {"assigned_project": None, "source": None}
         ]
@@ -99,7 +100,10 @@ class FakeGraph:
         self.write_row = write_row or {"req_id": "REQ-1", "project_id": "SRP8-045",
                                        "revision_count": None, "already_assigned": False}
         self.write_returns_nothing = write_returns_nothing
-        self.context = context or {"same_adr_assigned": 0, "project_has_same_adr": False}
+        # Same-ADR candidates for _similar_assigned_requirements: dicts with req_id, req_name,
+        # clause and assigned_projects. target is (requirementName, clauseNumber) of the requirement.
+        self.candidates = candidates or []
+        self.target = target or ("Brake Linings", "5.1.1.3")
         self.schema = DEFAULT_SCHEMA if schema is None else schema
         self.subclass_of = DEFAULT_SUBCLASS_OF if subclass_of is None else subclass_of
         self.requirement_labels = requirement_labels or EER_LABELS
@@ -109,6 +113,12 @@ class FakeGraph:
 
     def run(self, query, **params):
         self.queries.append((query, params))
+        if "AS target_clause" in query:
+            base = {"target_name": self.target[0], "target_clause": self.target[1], "adr_id": "ADR-31"}
+            if not self.candidates:
+                return FakeResult([dict(base, req_id=None, req_name=None, clause=None,
+                                        is_applicable=None, assigned_projects=[])])
+            return FakeResult([dict(base, is_applicable=True, **c) for c in self.candidates])
         if "AS assigned_project" in query:
             return FakeResult([dict({"source_labels": self.requirement_labels,
                                      "target_labels": self.project_labels}, **row) for row in self.assignments])
@@ -126,8 +136,6 @@ class FakeGraph:
             return FakeResult([{"labels": self.project_labels}] if params["ids"] else [])
         if "s.rejectionReason AS rejection_reason" in query:
             return FakeResult(self.suggestions)
-        if "AS project_has_same_adr" in query:
-            return FakeResult([self.context])
         if ("rel.previousConfidence" in query or "CREATE (r)-[rel:suggestedProject]" in query
                 or "count(existing)" in query or "suggested.rejectionReason" in query
                 or "suggested.modifiedTo" in query):
@@ -556,11 +564,22 @@ class RlCreditTests(Base):
         self.assertIn("rel.rlAction       = $rl_action", query)
         self.assertEqual((params["rl_action"], params["base_confidence"]), ("keep_confidence", 0.65))
 
-    def test_context_query_uses_candidate_project(self):
-        graph = self.use(FakeGraph(context={"same_adr_assigned": 4, "project_has_same_adr": False}))
+    def test_inference_state_uses_the_uncapped_candidate_set(self):
+        # 7 same-ADR assigned requirements (more than the 5 the tool displays), none on SRP8-045.
+        others = [{"req_id": f"REQ-31-{i:03d}", "req_name": f"Rule {i}", "clause": f"5.{i}",
+                   "assigned_projects": ["SRP8-046"]} for i in range(10, 17)]
+        graph = self.use(FakeGraph(candidates=others))
         out = json.loads(sr8.write_inferred_project_link("REQ-1", "SRP8-045", 0.65, "same ADR"))
-        self.assertEqual(graph.ran("AS project_has_same_adr")[0][1]["project_id"], "SRP8-045")
+        self.assertEqual(out["same_adr_assigned"], 7)
+        self.assertFalse(out["project_has_same_adr"])
         self.assertEqual(out["inference_state"], "inference_strong_no_mid")
+        self.assertEqual(graph.ran("AS target_clause")[0][1]["req_id"], "REQ-1")
+
+    def test_project_feature_comes_from_the_candidates_assigned_projects(self):
+        graph = self.use(FakeGraph(candidates=[{"req_id": "REQ-31-006", "req_name": "Brake Linings",
+                                                "clause": "5.1.1.3", "assigned_projects": ["SRP8-045"]}]))
+        out = json.loads(sr8.write_inferred_project_link("REQ-1", "SRP8-045", 0.65, "same ADR"))
+        self.assertEqual(out["inference_state"], "inference_weak_yes_mid")
 
     def test_rejection_credits_the_stored_action_not_a_mapped_one(self):
         # The agent had chosen to INCREASE confidence; the rejection must penalise that action.

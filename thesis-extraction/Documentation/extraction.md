@@ -123,7 +123,7 @@ The first block counts distinct nodes and edges as written to the graph. The las
 2. Otherwise (column missing, empty or unrecognised), if the requirement name contains "not applicable" or "post collision", the row is not applicable (basis `name_keyword`).
 3. Otherwise it is applicable (basis `default`).
 
-Requirement and Clause nodes store `isApplicable`, `applicabilityNote`, `applicabilityBasis` and `needsReview`. A row gets `needsReview = true` only when the column has a non-empty value that is not recognised, or when a recognised column value says applicable but the name contains one of the keywords. A missing or empty column is not flagged. Flagged rows are written to `logs/applicability-review.csv` (rewritten on every run, header only when none). Only the ADR-10 file has an Applicability column; its six not-applicable rows are all decided by the column, and none is flagged.
+Requirement and Clause nodes store `isApplicable`, `applicabilityNote`, `applicabilityBasis` and `needsReview`. Requirement nodes also store `clauseNumber`, the clause of the row they came from (used by sr8-mcp's `get_similar_assigned_requirements` to score clause adjacency). A row gets `needsReview = true` only when the column has a non-empty value that is not recognised, or when a recognised column value says applicable but the name contains one of the keywords. A missing or empty column is not flagged. Flagged rows are written to `logs/applicability-review.csv` (rewritten on every run, header only when none). Only the ADR-10 file has an Applicability column; its six not-applicable rows are all decided by the column, and none is flagged.
 
 ### Run a single ADR file only
 ```bash

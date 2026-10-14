@@ -189,6 +189,7 @@ class SyntheticFileTests(unittest.TestCase):
             with contextlib.redirect_stdout(io.StringIO()):
                 x.extract_adrs(folder=tmp, driver=Driver(), dry_run=False, review_file=Path(tmp) / "review.csv")
         requirements = [p for q, p in calls if "MERGE (r:ExtractedEssentialRequirement" in q]
+        self.assertEqual([p["clause"] for p in requirements], ["1.1", "1.2", "1.3", "1.4"])   # clauseNumber
         self.assertEqual([(p["rid"], p["basis"], p["needs_review"]) for p in requirements], [
             ("REQ-99-001", "column", False), ("REQ-99-002", "column", True),
             ("REQ-99-003", "default", True), ("REQ-99-004", "default", False)])

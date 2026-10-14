@@ -1769,6 +1769,98 @@ def get_interface_risk_report() -> str:
 
 # ── Phase 4: Requirement propagation inference ─────────────────────────────────
 
+# ── Similar assigned requirements (shared by the similarity tool and inference) ──
+
+# Function words removed before comparing requirement names.
+_NAME_STOP_WORDS = {
+    "a", "an", "and", "are", "as", "at", "be", "by", "for", "from", "in", "into", "is", "it",
+    "its", "of", "on", "or", "per", "shall", "that", "the", "their", "this", "to", "with",
+}
+_CLAUSE_NUMBER_RE = re.compile(r"\d+(?:\.\d+)*")
+
+
+def _name_words(name: str | None) -> set[str]:
+    """Lower-cased content words of a requirement name (stop-words removed)."""
+    return {w for w in re.findall(r"[a-z0-9]+", (name or "").lower()) if w not in _NAME_STOP_WORDS}
+
+
+def _clause_parts(clause: str | None) -> tuple[int, ...] | None:
+    """Numeric parts of a clause number ("6.6.1 Pt 2" -> (6, 6, 1)); None if it has none."""
+    m = _CLAUSE_NUMBER_RE.search(clause or "")
+    return tuple(int(p) for p in m.group(0).split(".")) if m else None
+
+
+def _clauses_adjacent(a: str | None, b: str | None) -> bool | None:
+    """True if the clause numbers have the same depth and parent and their last parts differ
+    by at most 1 (5.2.7 / 5.2.8, or equal numbers); None if either clause number is unknown."""
+    pa, pb = _clause_parts(a), _clause_parts(b)
+    if pa is None or pb is None:
+        return None
+    return len(pa) == len(pb) and pa[:-1] == pb[:-1] and abs(pa[-1] - pb[-1]) <= 1
+
+
+def _similar_assigned_requirements(session: Any, requirement_id: str) -> dict[str, Any] | None:
+    """Score every same-ADR requirement that already has an assignedToProject relationship.
+
+    Candidate set: requirements from the same AustralianDesignRule as requirement_id
+    (via hasExternalEssentialRequirement), other than itself, with at least one
+    assignedToProject relationship. Each candidate's score is
+      clause_adjacent (1 if the two clauseNumber values are adjacent, see
+      _clauses_adjacent; 0 otherwise or when unknown)
+      + name_overlap (Jaccard overlap of the lower-cased content words of the two
+      requirementName values, stop-words removed; 0..1).
+    Returns None if the requirement does not exist, otherwise the target's ADR and clause,
+    candidate_count (the uncapped size of the candidate set) and all candidates sorted by
+    score (highest first, then requirement ID).
+    """
+    rows = [record.data() for record in session.run("""
+        MATCH (target:ExtractedEssentialRequirement {hasID: $req_id})
+        OPTIONAL MATCH (a:AustralianDesignRule)-[:hasExternalEssentialRequirement]->(target)
+        OPTIONAL MATCH (a)-[:hasExternalEssentialRequirement]->(c:ExtractedEssentialRequirement)
+                       -[:assignedToProject]->(p:Project)
+        WHERE c.hasID <> $req_id
+        RETURN target.requirementName AS target_name,
+               target.clauseNumber AS target_clause,
+               a.hasID AS adr_id,
+               c.hasID AS req_id,
+               c.requirementName AS req_name,
+               c.clauseNumber AS clause,
+               c.isApplicable AS is_applicable,
+               collect(DISTINCT p.projectID) AS assigned_projects
+    """, req_id=requirement_id)]
+    if not rows:
+        return None
+
+    first = rows[0]
+    target_words = _name_words(first["target_name"])
+    candidates = []
+    for row in rows:
+        if not row["req_id"]:
+            continue  # OPTIONAL MATCH found no candidate
+        words = _name_words(row["req_name"])
+        union = target_words | words
+        overlap = len(target_words & words) / len(union) if union else 0.0
+        adjacent = _clauses_adjacent(first["target_clause"], row["clause"])
+        candidates.append({
+            "req_id": row["req_id"],
+            "req_name": row["req_name"],
+            "clause": row["clause"],
+            "is_applicable": row["is_applicable"],
+            "assigned_projects": row["assigned_projects"],
+            "score": round((1.0 if adjacent else 0.0) + overlap, 4),
+            "clause_adjacent": adjacent,
+            "name_overlap": round(overlap, 4),
+            "shared_words": sorted(target_words & words),
+        })
+    candidates.sort(key=lambda c: (-c["score"], c["req_id"]))
+    return {
+        "adr_id": first["adr_id"],
+        "source_clause": first["target_clause"],
+        "candidate_count": len(candidates),
+        "candidates": candidates,
+    }
+
+
 @mcp.tool()
 def get_unassigned_requirements(include_reviewed: bool = False) -> str:
     """Call when user asks about gaps, missing assignments, or extending the knowledge base.
@@ -1814,43 +1906,39 @@ def get_unassigned_requirements(include_reviewed: bool = False) -> str:
 
 @mcp.tool()
 def get_similar_assigned_requirements(requirement_id: str) -> str:
-    """Find the 5 most similar requirements that already have project assignments.
+    """Rank requirements from the same ADR that already have project assignments.
 
-    Similarity is based on: same ADR source, adjacent clause ordering, and overlapping
-    words in requirementName. Returns matches with their assigned projects.
+    Candidates are the other requirements of the same AustralianDesignRule that have at
+    least one assignedToProject relationship. Each gets score = clause_adjacent +
+    name_overlap: clause_adjacent is 1 when the two clause numbers have the same depth and
+    parent and their last parts differ by at most 1 (e.g. 5.2.7 and 5.2.8), otherwise 0
+    (null when a clause number is not stored); name_overlap is the Jaccard overlap of the
+    lower-cased content words of the two requirement names, stop-words removed (0 to 1).
+    Returns the top 5 by score with their components and assigned projects, and
+    candidate_count, the number of all candidates (the same count the inference state uses).
     """
     if not requirement_id.strip():
         return json.dumps({"error": "requirement_id must not be empty"}, indent=2)
 
-    query = """
-    MATCH (target:ExtractedEssentialRequirement {hasID: $req_id})
-    OPTIONAL MATCH (a:AustralianDesignRule)-[:hasExternalEssentialRequirement]->(target)
-    WITH target, a
-    MATCH (a)-[:hasExternalEssentialRequirement]->(similar:ExtractedEssentialRequirement)
-    WHERE similar.hasID <> $req_id
-      AND (similar)-[:assignedToProject]->()
-    OPTIONAL MATCH (similar)-[:assignedToProject]->(p:Project)
-    WITH similar, a, collect(DISTINCT p.projectID) AS projects
-    RETURN similar.hasID AS req_id,
-           similar.requirementName AS req_name,
-           similar.isApplicable AS is_applicable,
-           a.hasID AS adr_id,
-           projects AS assigned_projects
-    ORDER BY similar.hasID
-    LIMIT 5
-    """
-
     try:
         with _neo4j_driver() as driver:
             with driver.session() as session:
-                rows = [record.data() for record in session.run(query, req_id=requirement_id)]
+                result = _similar_assigned_requirements(session, requirement_id)
     except Exception as exc:
         return json.dumps({"error": str(exc)}, indent=2)
 
+    if result is None:
+        return json.dumps({"error": f"Requirement '{requirement_id}' not found."}, indent=2)
+    top = result["candidates"][:5]
     return json.dumps({
         "source_requirement_id": requirement_id,
-        "similar_count": len(rows),
-        "similar_requirements": rows,
+        "adr_id": result["adr_id"],
+        "source_clause": result["source_clause"],
+        "candidate_count": result["candidate_count"],
+        "similar_count": result["candidate_count"],
+        "shown": len(top),
+        "similar_requirements": top,
+        "scoring": "score = clause_adjacent (0/1) + name_overlap (Jaccard of content words, 0-1)",
     }, indent=2)
 
 
@@ -1978,25 +2066,19 @@ def _write_inferred_project_link(
             "schema_validation": schema_validation,
         }, indent=2)
 
-    # FIX 1: gather context to compute the state before calling the agent.
+    # FIX 1: gather context to compute the state before calling the agent. The evidence
+    # count is the uncapped candidate set of get_similar_assigned_requirements (same helper).
     same_adr_assigned = 0
     project_has_same_adr = False
     try:
         with _neo4j_driver() as driver:
             with driver.session() as session:
-                ctx = session.run("""
-                    MATCH (r:ExtractedEssentialRequirement {hasID: $req_id})
-                    OPTIONAL MATCH (a:AustralianDesignRule)-[:hasExternalEssentialRequirement]->(r)
-                    OPTIONAL MATCH (a)-[:hasExternalEssentialRequirement]->(sim:ExtractedEssentialRequirement)
-                                   -[:assignedToProject]->(sp:Project)
-                    WHERE sim.hasID <> $req_id
-                    RETURN count(DISTINCT sim) AS same_adr_assigned,
-                           count(DISTINCT CASE WHEN sp.projectID = $project_id THEN sim END) > 0
-                               AS project_has_same_adr
-                """, req_id=requirement_id, project_id=project_id).single()
-                if ctx:
-                    same_adr_assigned = ctx["same_adr_assigned"] or 0
-                    project_has_same_adr = bool(ctx["project_has_same_adr"])
+                similar = _similar_assigned_requirements(session, requirement_id)
+                if similar:
+                    same_adr_assigned = similar["candidate_count"]
+                    project_has_same_adr = any(
+                        project_id in c["assigned_projects"] for c in similar["candidates"]
+                    )
     except Exception:
         pass
 
