@@ -1,0 +1,261 @@
+test_csv_validation_and_duplicates (test_assemblies.ExtractorDryRunTests.test_csv_validation_and_duplicates) ... ok
+test_missing_projects_are_warned_and_skipped (test_assemblies.ExtractorDryRunTests.test_missing_projects_are_warned_and_skipped) ... ok
+test_project_set_matches_extract_adr (test_assemblies.ExtractorDryRunTests.test_project_set_matches_extract_adr) ... ok
+test_projects_linked_and_requirements_per_assembly (test_assemblies.ExtractorDryRunTests.test_projects_linked_and_requirements_per_assembly) ... ok
+test_live_run_links_existing_projects_only_and_never_creates_projects (test_assemblies.ExtractorLiveRunTests.test_live_run_links_existing_projects_only_and_never_creates_projects) ... ok
+test_run_extraction_offers_the_assemblies_step (test_assemblies.ExtractorLiveRunTests.test_run_extraction_offers_the_assemblies_step) ... ok
+test_every_assembly_node_pattern_is_labelled (test_assemblies.OntologyNameTests.test_every_assembly_node_pattern_is_labelled) ... ok
+test_get_assembly_matches_by_label_and_hasID (test_assemblies.OntologyNameTests.test_get_assembly_matches_by_label_and_hasID) ... ok
+test_hand_run_cypher_no_longer_creates_assemblies (test_assemblies.OntologyNameTests.test_hand_run_cypher_no_longer_creates_assemblies) ... ok
+test_relationship_is_declared_project_to_assembly (test_assemblies.OntologyNameTests.test_relationship_is_declared_project_to_assembly) ... ok
+test_schema_validation_accepts_the_relationship (test_assemblies.OntologyNameTests.test_schema_validation_accepts_the_relationship) ... ok
+test_sr8_uses_only_the_ontology_names (test_assemblies.OntologyNameTests.test_sr8_uses_only_the_ontology_names) ... ok
+test_code_defaults (test_config_defaults.DefaultTests.test_code_defaults) ... ok
+test_env_example_matches_the_defaults_and_has_no_real_password (test_config_defaults.DefaultTests.test_env_example_matches_the_defaults_and_has_no_real_password) ... ok
+test_env_is_not_tracked_and_ignored (test_config_defaults.DefaultTests.test_env_is_not_tracked_and_ignored) ... ok
+test_answer_is_kept_by_default_and_with_false (test_config_defaults.GraphOnlyAnswerTests.test_answer_is_kept_by_default_and_with_false) ... ok
+test_true_replaces_the_answer_with_the_fallback (test_config_defaults.GraphOnlyAnswerTests.test_true_replaces_the_answer_with_the_fallback) ... ok
+test_default_is_the_repository_design_documentation (test_config_defaults.RedirectLinkTests.test_default_is_the_repository_design_documentation) ... ok
+test_doc_roots_entry_holding_the_file_wins (test_config_defaults.RedirectLinkTests.test_doc_roots_entry_holding_the_file_wins) ... ok
+test_no_hard_coded_user_paths (test_config_defaults.RedirectLinkTests.test_no_hard_coded_user_paths) ... ok
+test_evaluation_covers_all_adrs_and_question_types (test_experiments.QuestionFileTests.test_evaluation_covers_all_adrs_and_question_types) ... ok
+test_every_question_takes_the_rl_route (test_experiments.QuestionFileTests.test_every_question_takes_the_rl_route) ... ok
+test_expected_ids_are_real_and_match_the_graph (test_experiments.QuestionFileTests.test_expected_ids_are_real_and_match_the_graph) ... ok
+test_no_question_is_repeated (test_experiments.QuestionFileTests.test_no_question_is_repeated) ... ok
+test_sizes_and_columns (test_experiments.QuestionFileTests.test_sizes_and_columns) ... ok
+test_evaluate_plan_runs_every_strategy_on_every_question (test_experiments.RunnerTests.test_evaluate_plan_runs_every_strategy_on_every_question) ... ok
+test_evaluation_rows_summary_and_switches (test_experiments.RunnerTests.test_evaluation_rows_summary_and_switches) ... /Users/manan/Documents/GitHub/Ontological-GraphRAG-Recommender/thesis-extension/tests/test_experiments.py:227: ResourceWarning: unclosed file <_io.TextIOWrapper name='/var/folders/3c/rsxyd0x13nq6n_n4ky15cvbc0000gn/T/tmpep2e5p9t/baseline-20261015-005338.csv' mode='r' encoding='UTF-8'>
+  rows = list(csv.DictReader(open(f"{base}.csv", newline="")))
+ResourceWarning: Enable tracemalloc to get the object allocation traceback
+/Users/manan/Documents/GitHub/Ontological-GraphRAG-Recommender/thesis-extension/tests/test_experiments.py:228: ResourceWarning: unclosed file <_io.TextIOWrapper name='/var/folders/3c/rsxyd0x13nq6n_n4ky15cvbc0000gn/T/tmpep2e5p9t/baseline-20261015-005338-summary.csv' mode='r' encoding='UTF-8'>
+  summary = list(csv.DictReader(open(f"{base}-summary.csv", newline="")))
+ResourceWarning: Enable tracemalloc to get the object allocation traceback
+ok
+test_runner_uses_the_chat_clients_own_loop (test_experiments.RunnerTests.test_runner_uses_the_chat_clients_own_loop) ... ok
+test_stops_after_consecutive_errors (test_experiments.RunnerTests.test_stops_after_consecutive_errors) ... /Users/manan/Documents/GitHub/Ontological-GraphRAG-Recommender/thesis-extension/tests/test_experiments.py:227: ResourceWarning: unclosed file <_io.TextIOWrapper name='/var/folders/3c/rsxyd0x13nq6n_n4ky15cvbc0000gn/T/tmpoex_tpr0/baseline-20261015-005338.csv' mode='r' encoding='UTF-8'>
+  rows = list(csv.DictReader(open(f"{base}.csv", newline="")))
+ResourceWarning: Enable tracemalloc to get the object allocation traceback
+/Users/manan/Documents/GitHub/Ontological-GraphRAG-Recommender/thesis-extension/tests/test_experiments.py:228: ResourceWarning: unclosed file <_io.TextIOWrapper name='/var/folders/3c/rsxyd0x13nq6n_n4ky15cvbc0000gn/T/tmpoex_tpr0/baseline-20261015-005338-summary.csv' mode='r' encoding='UTF-8'>
+  summary = list(csv.DictReader(open(f"{base}-summary.csv", newline="")))
+ResourceWarning: Enable tracemalloc to get the object allocation traceback
+ok
+test_train_plan_repeats_training_questions_with_rl (test_experiments.RunnerTests.test_train_plan_repeats_training_questions_with_rl) ... ok
+test_training_counts_problem_a_updates (test_experiments.RunnerTests.test_training_counts_problem_a_updates) ... /Users/manan/Documents/GitHub/Ontological-GraphRAG-Recommender/thesis-extension/tests/test_experiments.py:227: ResourceWarning: unclosed file <_io.TextIOWrapper name='/var/folders/3c/rsxyd0x13nq6n_n4ky15cvbc0000gn/T/tmpscam3yfx/train-20261015-005338.csv' mode='r' encoding='UTF-8'>
+  rows = list(csv.DictReader(open(f"{base}.csv", newline="")))
+ResourceWarning: Enable tracemalloc to get the object allocation traceback
+/Users/manan/Documents/GitHub/Ontological-GraphRAG-Recommender/thesis-extension/tests/test_experiments.py:228: ResourceWarning: unclosed file <_io.TextIOWrapper name='/var/folders/3c/rsxyd0x13nq6n_n4ky15cvbc0000gn/T/tmpscam3yfx/train-20261015-005338-summary.csv' mode='r' encoding='UTF-8'>
+  summary = list(csv.DictReader(open(f"{base}-summary.csv", newline="")))
+ResourceWarning: Enable tracemalloc to get the object allocation traceback
+ok
+test_forced_strategy_only_for_adr_lookup_and_never_trains (test_experiments.SwitchTests.test_forced_strategy_only_for_adr_lookup_and_never_trains) ... ok
+test_learning_off_uses_greedy_policy_and_saves_nothing (test_experiments.SwitchTests.test_learning_off_uses_greedy_policy_and_saves_nothing) ... ok
+test_learning_on_updates_and_counts_updates (test_experiments.SwitchTests.test_learning_on_updates_and_counts_updates) ... ok
+test_retrieval_strategy_values (test_experiments.SwitchTests.test_retrieval_strategy_values) ... ok
+test_basis (test_extract_adr.ApplicabilityRuleTests.test_basis) ... ok
+test_column_wins_over_name (test_extract_adr.ApplicabilityRuleTests.test_column_wins_over_name) ... ok
+test_review_flag_rule (test_extract_adr.ApplicabilityRuleTests.test_review_flag_rule) ... ok
+test_unreachable_branch_removed_and_docstring_states_the_rule (test_extract_adr.ApplicabilityRuleTests.test_unreachable_branch_removed_and_docstring_states_the_rule) ... ok
+test_extraction_md_shows_the_new_totals (test_extract_adr.DryRunSummaryTests.test_extraction_md_shows_the_new_totals) ... ok
+test_summary_on_the_eight_current_csvs (test_extract_adr.DryRunSummaryTests.test_summary_on_the_eight_current_csvs) ... /Users/manan/Documents/GitHub/Ontological-GraphRAG-Recommender/thesis-extension/tests/test_extract_adr.py:103: ResourceWarning: unclosed file <_io.TextIOWrapper name='/var/folders/3c/rsxyd0x13nq6n_n4ky15cvbc0000gn/T/tmp10e9lhsg/review.csv' mode='r' encoding='UTF-8'>
+  review = list(csv.DictReader(open(Path(tmp) / "review.csv")))
+ResourceWarning: Enable tracemalloc to get the object allocation traceback
+ok
+test_placeholders_mean_no_project (test_extract_adr.ProjectPlaceholderTests.test_placeholders_mean_no_project) ... ok
+test_flags_review_rows_and_treats_placeholders_as_unassigned (test_extract_adr.SyntheticFileTests.test_flags_review_rows_and_treats_placeholders_as_unassigned) ... /Users/manan/Documents/GitHub/Ontological-GraphRAG-Recommender/thesis-extension/tests/test_extract_adr.py:159: ResourceWarning: unclosed file <_io.TextIOWrapper name='/var/folders/3c/rsxyd0x13nq6n_n4ky15cvbc0000gn/T/tmpbztz10i0/review.csv' mode='r' encoding='UTF-8'>
+  review = list(csv.DictReader(open(Path(tmp) / "review.csv")))
+ResourceWarning: Enable tracemalloc to get the object allocation traceback
+ok
+test_live_writes_store_basis_and_review_and_never_write_placeholder_projects (test_extract_adr.SyntheticFileTests.test_live_writes_store_basis_and_review_and_never_write_placeholder_projects) ... ok
+test_dry_run_on_the_real_workbook (test_fmea.ExtractorTests.test_dry_run_on_the_real_workbook) ... ok
+test_missing_control_action_creates_no_mitigation_and_rows_are_recorded (test_fmea.ExtractorTests.test_missing_control_action_creates_no_mitigation_and_rows_are_recorded) ... ok
+test_placeholders_are_missing (test_fmea.ExtractorTests.test_placeholders_are_missing) ... ok
+test_uses_the_shared_similarity_function (test_fmea.ProposalScriptTests.test_uses_the_shared_similarity_function) ... ok
+test_writes_review_csv_and_never_touches_the_graph (test_fmea.ProposalScriptTests.test_writes_review_csv_and_never_touches_the_graph) ... /Users/manan/Documents/GitHub/Ontological-GraphRAG-Recommender/thesis-extension/tests/test_fmea.py:172: ResourceWarning: unclosed file <_io.TextIOWrapper name='/var/folders/3c/rsxyd0x13nq6n_n4ky15cvbc0000gn/T/tmppyr33zdz/candidates.csv' mode='r' encoding='UTF-8'>
+  rows = list(csv.DictReader(open(out, newline="")))
+ResourceWarning: Enable tracemalloc to get the object allocation traceback
+ok
+test_graphs_without_stored_rows_still_point_to_the_sheet (test_fmea.ToolTests.test_graphs_without_stored_rows_still_point_to_the_sheet) ... ok
+test_query_uses_the_extractors_names_and_the_no_mitigation_filter (test_fmea.ToolTests.test_query_uses_the_extractors_names_and_the_no_mitigation_filter) ... ok
+test_result_has_provenance_pointer (test_fmea.ToolTests.test_result_has_provenance_pointer) ... ok
+test_tool_never_links_fmea_and_adr_requirements (test_fmea.ToolTests.test_tool_never_links_fmea_and_adr_requirements) ... ok
+test_2_feedback_uses_only_the_pending_suggestion (test_inference_review.FeedbackTests.test_2_feedback_uses_only_the_pending_suggestion) ... ok
+test_2_promote_refused_after_review_returns_earlier_decision (test_inference_review.FeedbackTests.test_2_promote_refused_after_review_returns_earlier_decision) ... ok
+test_2_record_feedback_refused_after_review (test_inference_review.FeedbackTests.test_2_record_feedback_refused_after_review) ... ok
+test_2_record_feedback_refused_without_any_suggestion (test_inference_review.FeedbackTests.test_2_record_feedback_refused_without_any_suggestion) ... ok
+test_promote_acts_only_on_pending_edge (test_inference_review.FeedbackTests.test_promote_acts_only_on_pending_edge) ... ok
+test_reject_keeps_suggestion_records_reviewer_and_then_refuses_second_feedback (test_inference_review.FeedbackTests.test_reject_keeps_suggestion_records_reviewer_and_then_refuses_second_feedback) ... ok
+test_log_is_append_only (test_inference_review.InferenceLogTests.test_log_is_append_only) ... ok
+test_modify_logs_both_projects (test_inference_review.InferenceLogTests.test_modify_logs_both_projects) ... ok
+test_refused_review_is_logged_with_previous_decision (test_inference_review.InferenceLogTests.test_refused_review_is_logged_with_previous_decision) ... ok
+test_refused_write_is_logged_with_schema_result (test_inference_review.InferenceLogTests.test_refused_write_is_logged_with_schema_result) ... ok
+test_review_event_is_logged_with_reward_reviewer_and_confidences (test_inference_review.InferenceLogTests.test_review_event_is_logged_with_reward_reviewer_and_confidences) ... ok
+test_suggestion_write_is_logged (test_inference_review.InferenceLogTests.test_suggestion_write_is_logged) ... ok
+test_all_four_evidence_project_combinations_are_reachable (test_inference_review.InferenceStateTests.test_all_four_evidence_project_combinations_are_reachable) ... ok
+test_band_boundaries_come_from_one_constant (test_inference_review.InferenceStateTests.test_band_boundaries_come_from_one_constant) ... ok
+test_evidence_threshold_is_one_constant_at_0_5 (test_inference_review.InferenceStateTests.test_evidence_threshold_is_one_constant_at_0_5) ... ok
+test_twelve_states (test_inference_review.InferenceStateTests.test_twelve_states) ... ok
+test_modify_assigns_other_project_and_marks_suggestion_modified (test_inference_review.ModifyTests.test_modify_assigns_other_project_and_marks_suggestion_modified) ... ok
+test_modify_refused_after_review (test_inference_review.ModifyTests.test_modify_refused_after_review) ... ok
+test_modify_to_same_project_is_refused (test_inference_review.ModifyTests.test_modify_to_same_project_is_refused) ... ok
+test_modify_to_unknown_project_rolls_back (test_inference_review.ModifyTests.test_modify_to_unknown_project_rolls_back) ... ok
+test_adjust_returns_the_chosen_action_and_clamps (test_inference_review.RlCreditTests.test_adjust_returns_the_chosen_action_and_clamps) ... ok
+test_confirmation_credits_the_stored_action_even_if_it_was_decrease (test_inference_review.RlCreditTests.test_confirmation_credits_the_stored_action_even_if_it_was_decrease) ... ok
+test_feedback_event_records_the_credited_action (test_inference_review.RlCreditTests.test_feedback_event_records_the_credited_action) ... ok
+test_legacy_suggestion_without_stored_action_does_not_update_q (test_inference_review.RlCreditTests.test_legacy_suggestion_without_stored_action_does_not_update_q) ... ok
+test_many_unrelated_neighbours_are_weak_evidence (test_inference_review.RlCreditTests.test_many_unrelated_neighbours_are_weak_evidence) ... ok
+test_no_feedback_mapping_table_remains (test_inference_review.RlCreditTests.test_no_feedback_mapping_table_remains) ... ok
+test_one_close_neighbour_is_strong_evidence (test_inference_review.RlCreditTests.test_one_close_neighbour_is_strong_evidence) ... ok
+test_overconfidence_penalty_kept (test_inference_review.RlCreditTests.test_overconfidence_penalty_kept) ... ok
+test_project_feature_comes_from_the_candidates_assigned_projects (test_inference_review.RlCreditTests.test_project_feature_comes_from_the_candidates_assigned_projects) ... ok
+test_rejection_credits_the_stored_action_not_a_mapped_one (test_inference_review.RlCreditTests.test_rejection_credits_the_stored_action_not_a_mapped_one) ... ok
+test_revision_stores_new_action_and_base_confidence (test_inference_review.RlCreditTests.test_revision_stores_new_action_and_base_confidence) ... ok
+test_write_stores_chosen_action_and_base_confidence (test_inference_review.RlCreditTests.test_write_stores_chosen_action_and_base_confidence) ... ok
+test_allowed_pair_passes (test_inference_review.SchemaValidationTests.test_allowed_pair_passes) ... ok
+test_alternatives_and_all_wildcard (test_inference_review.SchemaValidationTests.test_alternatives_and_all_wildcard) ... ok
+test_change_impact_report_refused_for_wrong_target_label (test_inference_review.SchemaValidationTests.test_change_impact_report_refused_for_wrong_target_label) ... ok
+test_change_impact_report_refused_when_schema_not_loaded (test_inference_review.SchemaValidationTests.test_change_impact_report_refused_when_schema_not_loaded) ... ok
+test_change_impact_report_validates_both_relationship_types (test_inference_review.SchemaValidationTests.test_change_impact_report_validates_both_relationship_types) ... ok
+test_change_impact_report_without_links_needs_no_schema (test_inference_review.SchemaValidationTests.test_change_impact_report_without_links_needs_no_schema) ... ok
+test_declared_label_matches_through_subclass_ancestor (test_inference_review.SchemaValidationTests.test_declared_label_matches_through_subclass_ancestor) ... ok
+test_empty_schema_is_refused (test_inference_review.SchemaValidationTests.test_empty_schema_is_refused) ... ok
+test_revision_also_records_schema_validation (test_inference_review.SchemaValidationTests.test_revision_also_records_schema_validation) ... ok
+test_undeclared_relationship_is_refused (test_inference_review.SchemaValidationTests.test_undeclared_relationship_is_refused) ... ok
+test_write_records_schema_validation_on_edge_and_response (test_inference_review.SchemaValidationTests.test_write_records_schema_validation_on_edge_and_response) ... ok
+test_write_refused_for_wrong_target_label (test_inference_review.SchemaValidationTests.test_write_refused_for_wrong_target_label) ... ok
+test_write_refused_when_schema_not_loaded (test_inference_review.SchemaValidationTests.test_write_refused_when_schema_not_loaded) ... ok
+test_wrong_source_label_is_refused (test_inference_review.SchemaValidationTests.test_wrong_source_label_is_refused) ... ok
+test_wrong_target_label_is_refused (test_inference_review.SchemaValidationTests.test_wrong_target_label_is_refused) ... ok
+test_1a_already_assigned_to_same_project_is_not_written (test_inference_review.WriteInferredLinkTests.test_1a_already_assigned_to_same_project_is_not_written) ... ok
+test_1b_latest_of_several_reviews_is_returned (test_inference_review.WriteInferredLinkTests.test_1b_latest_of_several_reviews_is_returned) ... ok
+test_1b_resubmit_creates_a_second_edge_and_never_merges (test_inference_review.WriteInferredLinkTests.test_1b_resubmit_creates_a_second_edge_and_never_merges) ... ok
+test_1b_reviewed_suggestion_returns_earlier_decision_and_is_untouched (test_inference_review.WriteInferredLinkTests.test_1b_reviewed_suggestion_returns_earlier_decision_and_is_untouched) ... ok
+test_1c_pending_suggestion_is_revised_in_place_keeping_previous_values (test_inference_review.WriteInferredLinkTests.test_1c_pending_suggestion_is_revised_in_place_keeping_previous_values) ... ok
+test_1c_pending_wins_over_resubmit_when_both_exist (test_inference_review.WriteInferredLinkTests.test_1c_pending_wins_over_resubmit_when_both_exist) ... ok
+test_1d_assigned_to_other_project_still_writes_with_warning (test_inference_review.WriteInferredLinkTests.test_1d_assigned_to_other_project_still_writes_with_warning) ... ok
+test_missing_requirement_or_project (test_inference_review.WriteInferredLinkTests.test_missing_requirement_or_project) ... ok
+test_new_suggestion_has_no_warning (test_inference_review.WriteInferredLinkTests.test_new_suggestion_has_no_warning) ... ok
+test_edge_properties_match_what_the_code_writes (test_ontology.CodeCoverageTests.test_edge_properties_match_what_the_code_writes) ... ok
+test_every_label_and_relationship_type_in_the_code_is_declared (test_ontology.CodeCoverageTests.test_every_label_and_relationship_type_in_the_code_is_declared) ... ok
+test_feedback_event_uses_has_timestamp (test_ontology.CodeCoverageTests.test_feedback_event_uses_has_timestamp) ... ok
+test_broken_symlink_is_gone (test_ontology.GeneratedCsvTests.test_broken_symlink_is_gone) ... ok
+test_counts (test_ontology.GeneratedCsvTests.test_counts) ... ok
+test_csvs_match_ontology (test_ontology.GeneratedCsvTests.test_csvs_match_ontology) ... ok
+test_regeneration_is_byte_identical (test_ontology.GeneratedCsvTests.test_regeneration_is_byte_identical) ... ok
+test_validate_fails_when_a_csv_drifts (test_ontology.GeneratedCsvTests.test_validate_fails_when_a_csv_drifts) ... ok
+test_hierarchy_expects_the_csvs_top_level_classes (test_ontology.ImportScriptTests.test_hierarchy_expects_the_csvs_top_level_classes) ... ok
+test_instance_constraints (test_ontology.ImportScriptTests.test_instance_constraints) ... ok
+test_loads_the_regenerated_csvs (test_ontology.ImportScriptTests.test_loads_the_regenerated_csvs) ... ok
+test_verify_counts_come_from_the_csvs (test_ontology.ImportScriptTests.test_verify_counts_come_from_the_csvs) ... ok
+test_characteristics (test_ontology.ModelTests.test_characteristics) ... ok
+test_component_is_not_an_assembly (test_ontology.ModelTests.test_component_is_not_an_assembly) ... ok
+test_new_classes_and_parents (test_ontology.ModelTests.test_new_classes_and_parents) ... ok
+test_new_relationships (test_ontology.ModelTests.test_new_relationships) ... ok
+test_node_properties (test_ontology.ModelTests.test_node_properties) ... ok
+test_saved_model_has_no_adr_question_in_problem_a (test_retrieval_reward.NoSyntheticPriorTests.test_saved_model_has_no_adr_question_in_problem_a) ... ok
+test_synthetic_retrieval_environment_is_gone (test_retrieval_reward.NoSyntheticPriorTests.test_synthetic_retrieval_environment_is_gone) ... ok
+test_client_appended_evidence_is_not_rewarded_as_a_citation (test_retrieval_reward.RewardComponentTests.test_client_appended_evidence_is_not_rewarded_as_a_citation) ... ok
+test_components_are_json_serialisable (test_retrieval_reward.RewardComponentTests.test_components_are_json_serialisable) ... ok
+test_model_cited_scores_full_reward (test_retrieval_reward.RewardComponentTests.test_model_cited_scores_full_reward) ... ok
+test_model_written_fallback_counts_as_fallback (test_retrieval_reward.RewardComponentTests.test_model_written_fallback_counts_as_fallback) ... ok
+test_no_tool_no_citation (test_retrieval_reward.RewardComponentTests.test_no_tool_no_citation) ... ok
+test_no_tool_used_but_cited (test_retrieval_reward.RewardComponentTests.test_no_tool_used_but_cited) ... ok
+test_substituted_fallback_replaces_everything (test_retrieval_reward.RewardComponentTests.test_substituted_fallback_replaces_everything) ... ok
+test_reward_is_computed_from_the_raw_answer (test_retrieval_reward.TurnHandlingTests.test_reward_is_computed_from_the_raw_answer) ... ok
+test_single_action_states_are_not_learnable (test_retrieval_reward.TurnHandlingTests.test_single_action_states_are_not_learnable) ... ok
+test_update_is_guarded_by_rl_learnable (test_retrieval_reward.TurnHandlingTests.test_update_is_guarded_by_rl_learnable) ... ok
+test_malformed_review_commands_give_usage_not_model (test_review_access.OllamaReviewCommandTests.test_malformed_review_commands_give_usage_not_model) ... ok
+test_ordinary_questions_are_not_review_commands (test_review_access.OllamaReviewCommandTests.test_ordinary_questions_are_not_review_commands) ... ok
+test_parse_confirm (test_review_access.OllamaReviewCommandTests.test_parse_confirm) ... ok
+test_parse_reject_keeps_full_reason (test_review_access.OllamaReviewCommandTests.test_parse_reject_keeps_full_reason) ... ok
+test_review_functions_only_reachable_from_typed_input (test_review_access.OllamaReviewCommandTests.test_review_functions_only_reachable_from_typed_input)
+promote/reject are referenced only in _run_review_command, which only the review route's ... ok
+test_run_review_command_calls_internal_functions_with_reviewer (test_review_access.OllamaReviewCommandTests.test_run_review_command_calls_internal_functions_with_reviewer) ... ok
+test_each_decision_calls_the_matching_function_with_reviewer (test_review_access.ReviewCliTests.test_each_decision_calls_the_matching_function_with_reviewer) ... ok
+test_quit_stops_without_further_calls (test_review_access.ReviewCliTests.test_quit_stops_without_further_calls) ... ok
+test_reviewer_is_required_and_non_empty (test_review_access.ReviewCliTests.test_reviewer_is_required_and_non_empty) ... ok
+test_exact_tool_list (test_review_access.ToolSurfaceTests.test_exact_tool_list) ... ok
+test_review_and_feedback_functions_are_not_mcp_tools (test_review_access.ToolSurfaceTests.test_review_and_feedback_functions_are_not_mcp_tools) ... ok
+test_in_memory_copy_is_refreshed_after_each_save (test_rl_persistence.CrossProcessOverwriteTests.test_in_memory_copy_is_refreshed_after_each_save) ... ok
+test_stale_ollama_copy_does_not_overwrite_review_feedback (test_rl_persistence.CrossProcessOverwriteTests.test_stale_ollama_copy_does_not_overwrite_review_feedback) ... ok
+test_stale_sr8_copy_does_not_overwrite_retrieval_update (test_rl_persistence.CrossProcessOverwriteTests.test_stale_sr8_copy_does_not_overwrite_retrieval_update) ... ok
+test_coverage_phase_is_180_updates_before_the_episodes (test_rl_persistence.InferencePriorTests.test_coverage_phase_is_180_updates_before_the_episodes) ... ok
+test_every_state_action_pair_is_visited (test_rl_persistence.InferencePriorTests.test_every_state_action_pair_is_visited) ... ok
+test_greedy_action_matches_the_reward_models_best_action (test_rl_persistence.InferencePriorTests.test_greedy_action_matches_the_reward_models_best_action) ... ok
+test_prior_is_single_step_deterministic_and_bounded (test_rl_persistence.InferencePriorTests.test_prior_is_single_step_deterministic_and_bounded) ... ok
+test_reward_model_is_a_named_constant (test_rl_persistence.InferencePriorTests.test_reward_model_is_a_named_constant) ... ok
+test_action_is_chosen_from_the_latest_saved_model (test_rl_persistence.LatestModelTests.test_action_is_chosen_from_the_latest_saved_model) ... ok
+test_get_rl_policy_shows_an_update_saved_by_another_process (test_rl_persistence.LatestModelTests.test_get_rl_policy_shows_an_update_saved_by_another_process) ... ok
+test_reading_does_not_change_the_file (test_rl_persistence.LatestModelTests.test_reading_does_not_change_the_file) ... ok
+test_saves_still_merge_into_the_latest_file (test_rl_persistence.LatestModelTests.test_saves_still_merge_into_the_latest_file) ... ok
+test_concurrent_processes_lose_no_updates (test_rl_persistence.LockedUpdateTests.test_concurrent_processes_lose_no_updates) ... ok
+test_save_is_atomic_and_leaves_no_temp_files (test_rl_persistence.LockedUpdateTests.test_save_is_atomic_and_leaves_no_temp_files) ... ok
+test_load_problem_migrates_in_memory_only (test_rl_persistence.MigrationTests.test_load_problem_migrates_in_memory_only) ... ok
+test_migrate_model_file_rewrites_once (test_rl_persistence.MigrationTests.test_migrate_model_file_rewrites_once) ... ok
+test_unknown_problem_name_is_rejected (test_rl_persistence.MigrationTests.test_unknown_problem_name_is_rejected) ... ok
+test_v2_document_splits_by_state_name (test_rl_persistence.MigrationTests.test_v2_document_splits_by_state_name) ... ok
+test_version_3_is_returned_unchanged (test_rl_persistence.MigrationTests.test_version_3_is_returned_unchanged) ... ok
+test_epsilon_decay_in_one_problem_does_not_affect_the_other (test_rl_persistence.ProblemSeparationTests.test_epsilon_decay_in_one_problem_does_not_affect_the_other) ... ok
+test_file_is_migrated_to_version_3_with_two_sections (test_rl_persistence.ProblemSeparationTests.test_file_is_migrated_to_version_3_with_two_sections) ... ok
+test_problem_b_is_single_step_and_problem_a_keeps_its_discount (test_rl_persistence.ProblemSeparationTests.test_problem_b_is_single_step_and_problem_a_keeps_its_discount) ... ok
+test_repeated_reward_converges_to_the_reward_not_r_over_one_minus_gamma (test_rl_persistence.ProblemSeparationTests.test_repeated_reward_converges_to_the_reward_not_r_over_one_minus_gamma) ... ok
+test_sr8_loads_the_problem_b_agent_with_priors (test_rl_persistence.Sr8LoaderTests.test_sr8_loads_the_problem_b_agent_with_priors)
+Regression: sr8-mcp's loader used to fail silently and return None (RL disabled). ... ok
+test_chat_loop_dispatches_before_rl_and_zeroes_llm_calls (test_routes.HandlerTests.test_chat_loop_dispatches_before_rl_and_zeroes_llm_calls) ... ok
+test_tool_routes_call_one_tool_and_never_the_model (test_routes.HandlerTests.test_tool_routes_call_one_tool_and_never_the_model) ... ok
+test_alternative_trigger_phrasings (test_routes.RouteTableTests.test_alternative_trigger_phrasings) ... ok
+test_assembly_questions_take_the_default_rl_route (test_routes.RouteTableTests.test_assembly_questions_take_the_default_rl_route) ... ok
+test_first_match_wins (test_routes.RouteTableTests.test_first_match_wins) ... ok
+test_manufacturing_questions_keep_the_redirect (test_routes.RouteTableTests.test_manufacturing_questions_keep_the_redirect) ... ok
+test_matchers_extract_arguments (test_routes.RouteTableTests.test_matchers_extract_arguments) ... ok
+test_one_example_per_route_selects_that_route (test_routes.RouteTableTests.test_one_example_per_route_selects_that_route) ... ok
+test_printed_table_has_every_route (test_routes.RouteTableTests.test_printed_table_has_every_route) ... ok
+test_routes_list_is_explicit_and_ordered (test_routes.RouteTableTests.test_routes_list_is_explicit_and_ordered) ... ok
+test_unmatched_questions_fall_through_to_rl (test_routes.RouteTableTests.test_unmatched_questions_fall_through_to_rl) ... ok
+test_uses_llm_flags (test_routes.RouteTableTests.test_uses_llm_flags) ... ok
+test_guide_prompts_take_the_intended_routes (test_routes.TestingGuideTests.test_guide_prompts_take_the_intended_routes) ... ok
+test_extractor_writes_clause_number_and_schema_declares_it (test_similarity.ClauseNumberStoredTests.test_extractor_writes_clause_number_and_schema_declares_it) ... ok
+test_docstring_describes_the_rule (test_similarity.HelperTests.test_docstring_describes_the_rule) ... ok
+test_inference_and_tool_use_the_same_helper (test_similarity.HelperTests.test_inference_and_tool_use_the_same_helper) ... ok
+test_no_candidates_and_missing_requirement (test_similarity.HelperTests.test_no_candidates_and_missing_requirement) ... ok
+test_scores_components_and_order (test_similarity.HelperTests.test_scores_components_and_order) ... ok
+test_tool_shows_top_five_but_counts_all (test_similarity.HelperTests.test_tool_shows_top_five_but_counts_all) ... ok
+test_applicability_properties_are_declared (test_similarity.PropertyDeclarationTests.test_applicability_properties_are_declared) ... ok
+test_chain_starts_from_the_requirements_own_clause (test_similarity.RequirementChainTests.test_chain_starts_from_the_requirements_own_clause) ... ok
+test_clause_id_formula_reproduces_every_extracted_clause_id (test_similarity.RequirementChainTests.test_clause_id_formula_reproduces_every_extracted_clause_id) ... ok
+test_output_has_one_clause_not_a_list (test_similarity.RequirementChainTests.test_output_has_one_clause_not_a_list) ... ok
+test_adjacency (test_similarity.WordAndClauseTests.test_adjacency) ... ok
+test_clause_parts (test_similarity.WordAndClauseTests.test_clause_parts) ... ok
+test_content_words (test_similarity.WordAndClauseTests.test_content_words) ... ok
+test_both_processes_resolve_the_same_path (test_turn_log_and_writers.ModelPathTests.test_both_processes_resolve_the_same_path)
+sr8-mcp (module constant, read at import) and ollama-mcp resolve RL_MODEL_PATH identically. ... ok
+test_both_processes_use_the_single_shared_helper (test_turn_log_and_writers.ModelPathTests.test_both_processes_use_the_single_shared_helper) ... ok
+test_relative_path_resolves_to_extension_folder_not_cwd (test_turn_log_and_writers.ModelPathTests.test_relative_path_resolves_to_extension_folder_not_cwd) ... ok
+test_call_tool_logged_records_each_call_and_reraises (test_turn_log_and_writers.ToolClassificationTests.test_call_tool_logged_records_each_call_and_reraises) ... ok
+test_classification (test_turn_log_and_writers.ToolClassificationTests.test_classification) ... ok
+test_default_log_path_is_in_the_extension_folder (test_turn_log_and_writers.TurnLogTests.test_default_log_path_is_in_the_extension_folder) ... ok
+test_every_model_call_is_counted (test_turn_log_and_writers.TurnLogTests.test_every_model_call_is_counted) ... ok
+test_every_tool_call_is_logged (test_turn_log_and_writers.TurnLogTests.test_every_tool_call_is_logged)
+The only direct session.call_tool is inside _call_tool_logged; the chat loop and every ... ok
+test_finished_turn_is_one_json_line_with_all_fields (test_turn_log_and_writers.TurnLogTests.test_finished_turn_is_one_json_line_with_all_fields) ... ok
+test_turn_is_written_in_a_finally_block (test_turn_log_and_writers.TurnLogTests.test_turn_is_written_in_a_finally_block) ... ok
+test_concurrent_writers_do_not_overwrite_each_other (test_turn_log_and_writers.TwoRealWritersTests.test_concurrent_writers_do_not_overwrite_each_other) ... /opt/homebrew/Cellar/python@3.12/3.12.15/Frameworks/Python.framework/Versions/3.12/lib/python3.12/unittest/case.py:589: ResourceWarning: unclosed file <_io.BufferedReader name=5>
+  if method() is not None:
+ResourceWarning: Enable tracemalloc to get the object allocation traceback
+/opt/homebrew/Cellar/python@3.12/3.12.15/Frameworks/Python.framework/Versions/3.12/lib/python3.12/unittest/case.py:589: ResourceWarning: unclosed file <_io.BufferedReader name=4>
+  if method() is not None:
+ResourceWarning: Enable tracemalloc to get the object allocation traceback
+ok
+test_broken_xml_fails (test_validate.ValidateFaultTests.test_broken_xml_fails) ... ok
+test_class_without_label_fails (test_validate.ValidateFaultTests.test_class_without_label_fails) ... ok
+test_csv_drift_fails (test_validate.ValidateFaultTests.test_csv_drift_fails) ... ok
+test_empty_label_fails (test_validate.ValidateFaultTests.test_empty_label_fails) ... ok
+test_missing_ontology_metadata_fails (test_validate.ValidateFaultTests.test_missing_ontology_metadata_fails) ... ok
+test_missing_version_info_fails (test_validate.ValidateFaultTests.test_missing_version_info_fails) ... ok
+test_no_check_is_printed_without_being_tested (test_validate.ValidateFaultTests.test_no_check_is_printed_without_being_tested) ... ok
+test_unmodified_ontology_passes (test_validate.ValidateFaultTests.test_unmodified_ontology_passes) ... ok
+test_wrong_namespace_fails (test_validate.ValidateFaultTests.test_wrong_namespace_fails) ... ok
+
+----------------------------------------------------------------------
+Ran 219 tests in 4.742s
+
+OK

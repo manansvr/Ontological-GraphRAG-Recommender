@@ -1,0 +1,92 @@
+============================================================
+SR8 KNOWLEDGE EXTRACTION — CSV PIPELINE
+============================================================
+  Connected: bolt://localhost:7687
+
+
+📁 Found 8 CSV file(s) in csv
+
+📄 ADR10-Requirements.csv
+   11 rows | Headers: ['ADR Number', 'Checklist', 'Clause', 'Req Name', 'Applicability', 'Text', 'Project ID', 'Relevant Project', 'Relevant Department', 'Right Project Assigned? (If not, list the appropriate one)', 'Would like to use Alternative Means of Testing compared to ADR (Yes/No)?', 'Verification Method : Inspection, Demonstration, Test, Analysis (Simulations/Calculations), ADR Annex, ADR Testing Procedure', 'Verification Method Description (As detailed as you can be)', 'Testing Procedure Per Req (To Be Done Later)', 'Verified?', 'ADR Name']
+   ✓ Requirement nodes: 11 (6 not applicable) | Clause nodes: 11 | assignedToProject edges: 5 | Unassigned: 6 | Flagged for review: 0 | Ledger rows: 11
+
+📄 ADR23-Requirements.csv
+   6 rows | Headers: ['ADR Number', 'Checklist', 'Clause', 'Req Name', 'Text', 'Project ID', 'Relevant Project', 'Relevant Department', 'Right Project Assigned? (If not, list the appropriate one)', 'Would like to use Alternative Means of Testing compared to ADR (Yes/No)?', 'Verification Method : Inspection, Demonstration, Test, Analysis (Simulations/Calculations), ADR Annex, ADR Testing Procedure', 'Verification Method Description (As detailed as you can be)', 'Testing Procedure Per Req (To Be Done Later)', 'Verified', 'ADR Name']
+   ✓ Requirement nodes: 5 (0 not applicable) | Clause nodes: 4 | assignedToProject edges: 5 | Unassigned: 0 | Flagged for review: 0 | Ledger rows: 6
+
+📄 ADR25-Requirements.csv
+   45 rows | Headers: ['ADR Number', 'Checklist', 'Clause', 'Req Name', 'Text', 'Project ID', 'Relevant Project', 'Relevant Department', 'Right Project Assigned? (If not, list the appropriate one)', 'Would like to use Alternative Means of Testing compared to ADR (Yes/No)?', 'Verification Method : Inspection, Demonstration, Test, Analysis (Simulations/Calculations), ADR Annex, ADR Testing Procedure', 'Verification Method Description (As detailed as you can be)', 'Testing Procedure Per Req (To Be Done Later)', 'Verified?', 'ADR Name']
+   ✓ Requirement nodes: 42 (0 not applicable) | Clause nodes: 40 | assignedToProject edges: 40 | Unassigned: 2 | Flagged for review: 0 | Ledger rows: 45
+
+📄 ADR31-Requirements.csv
+   150 rows | Headers: ['ADR Number', 'Checklist', 'Clause', 'Req Name', 'Text', 'Project ID', 'Relevant Project', 'Relevant Department', 'Right Project Assigned? (If not, list the appropriate one)', 'Would like to use Alternative Means of Testing compared to ADR (Yes/No)?', 'Verification Method : Inspection, Demonstration, Test, Analysis (Simulations/Calculations), ADR Annex, ADR Testing Procedure', 'Verification Method Description (As detailed as you can be)', 'Testing Procedure Per Req (To Be Done Later)', 'Verified?', 'ADR Name']
+   ✓ Requirement nodes: 116 (0 not applicable) | Clause nodes: 97 | assignedToProject edges: 85 | Unassigned: 31 | Flagged for review: 0 | Ledger rows: 150
+
+📄 ADR42-Requirements.csv
+   2 rows | Headers: ['ADR Number', 'Checklist', 'Clause', 'Req Name', 'Text', 'Project ID', 'Relevant Project', 'Relevant Department', 'Right Project Assigned? (If not, list the appropriate one)', 'Would like to use Alternative Means of Testing compared to ADR (Yes/No)?', 'Verification Method : Inspection, Demonstration, Test, Analysis (Simulations/Calculations), ADR Annex, ADR Testing Procedure', 'Verification Method Description (As detailed as you can be)', 'Testing Procedure Per Req (To Be Done Later)', 'Verified?', 'ADR Name']
+   ✓ Requirement nodes: 2 (0 not applicable) | Clause nodes: 2 | assignedToProject edges: 2 | Unassigned: 0 | Flagged for review: 0 | Ledger rows: 2
+
+📄 ADR43-Requirements.csv
+   27 rows | Headers: ['ADR Number', 'Checklist', 'Clause', 'Req Name', 'Text', 'Project ID', 'Relevant Project', 'Relevant Department', 'Right Project Assigned? (If not, list the appropriate one)', 'Would like to use Alternative Means of Testing compared to ADR (Yes/No)?', 'Verification Method : Inspection, Demonstration, Test, Analysis (Simulations/Calculations), ADR Annex, ADR Testing Procedure', 'Verification Method Description (As detailed as you can be)', 'Testing Procedure Per Req (To Be Done Later)', 'Verified?', 'ADR Name']
+   ✓ Requirement nodes: 27 (0 not applicable) | Clause nodes: 13 | assignedToProject edges: 23 | Unassigned: 4 | Flagged for review: 0 | Ledger rows: 27
+
+📄 ADR92-Requirements.csv
+   2 rows | Headers: ['ADR Number', 'Checklist', 'Clause', 'Req Name', 'Text', 'Project ID', 'Relevant Project', 'Relevant Department', 'Right Project Assigned? (If not, list the appropriate one)', 'Would like to use Alternative Means of Testing compared to ADR (Yes/No)?', 'Verification Method : Inspection, Demonstration, Test, Analysis (Simulations/Calculations), ADR Annex, ADR Testing Procedure', 'Verification Method Description (As detailed as you can be)', 'Testing Procedure Per Req (To Be Done Later)', 'Verified?', 'ADR Name']
+   ✓ Requirement nodes: 2 (0 not applicable) | Clause nodes: 2 | assignedToProject edges: 2 | Unassigned: 0 | Flagged for review: 0 | Ledger rows: 2
+
+📄 ADR95-Requirements.csv
+   12 rows | Headers: ['ADR Number', 'Checklist', 'Clause', 'Req Name', 'Text', 'Project ID', 'Relevant Project', 'Relevant Department', 'Right Project Assigned? (If not, list the appropriate one)', 'Would like to use Alternative Means of Testing compared to ADR (Yes/No)?', 'Verification Method : Inspection, Demonstration, Test, Analysis (Simulations/Calculations), ADR Annex, ADR Testing Procedure', 'Verification Method Description (As detailed as you can be)', 'Testing Procedure Per Req (To Be Done Later)', 'Verified?', 'ADR Name']
+   ✓ Requirement nodes: 12 (0 not applicable) | Clause nodes: 8 | assignedToProject edges: 10 | Unassigned: 2 | Flagged for review: 0 | Ledger rows: 12
+
+   ── TOTAL across 8 file(s) ──
+     ledger rows:                        255
+     requirement nodes:                  217 (211 applicable, 6 not applicable)
+     distinct Clause nodes:              177
+     assignedToProject edges:            172
+     distinct projects:                  24
+     unassigned requirements:            45
+     rows flagged for review:            0
+     rows with a placeholder project ID: 2 (N/A, NA, -, TBC: no Project node, no edge)
+     rows skipped:                       0 (none)
+     rows without a requirement node:    38 (no requirement name: 31, requirement name but no text (applicable): 7)
+     row counters (rows, not nodes):     rows with a clause number 255 | rows creating a requirement 217 | rows with a project or department 190 | rows with a verification method 0
+     review list:                       /Users/manan/Documents/GitHub/Ontological-GraphRAG-Recommender/thesis-extraction/logs/applicability-review.csv (0 row(s))
+
+  ⚠️  Projects file not found: data/project-tracking-system.csv
+      Export project-tracing-system.xlsx → CSV first
+
+  ⚠️  Parts file not found: data/parts-management.csv
+      Export parts-management.xlsx → CSV first
+
+📄 Brake_System_Failure_Mode_Data.xlsx
+   ✓ Components: 15 | Failure mode rows: 22 (20 distinct, 0 without a control action) | Requirement links: 23 | Skipped: 0
+
+📄 assemblies.csv
+   3 assemblies; checking project IDs against 24 Project nodes in the graph
+   ⚠️  ASM-FRONT-AXLE: project SRP8-088 does not exist (Project nodes in the graph); skipped, no stub created
+  [OK]  ASM-FRONT-AXLE (Front Axle Assembly): 3 project(s) linked: SRP8-043 (1), SRP8-045 (36), SRP8-050 (8); 45 requirement(s) reach it via assignedToProject
+  [OK]  ASM-STEERING (Steering System): 3 project(s) linked: SRP8-047 (12), SRP8-048 (24), SRP8-049 (2); 38 requirement(s) reach it via assignedToProject
+   ⚠️  ASM-REAR-AXLE: project SRP8-089 does not exist (Project nodes in the graph); skipped, no stub created
+  [OK]  ASM-REAR-AXLE (Rear Axle Assembly): 3 project(s) linked: SRP8-044 (1), SRP8-046 (25), SRP8-051 (9); 35 requirement(s) reach it via assignedToProject
+   ✓ Assemblies: 3 | Project links: 9 | Skipped (missing projects): 2
+
+============================================================
+✅ DONE
+============================================================
+
+  Verify in neo4j Browser → http://localhost:7474
+
+  // All node types and counts
+  MATCH (n) RETURN labels(n)[0] AS label, count(n) AS count
+  ORDER BY count DESC
+
+  // ADRs linked to Projects
+  MATCH (a:AustralianDesignRule)-[:assignedToProject]->(p:Project)
+  RETURN a.hasID, collect(distinct p.projectID) AS projects
+  ORDER BY a.hasID
+
+  // ADR → Clause count
+  MATCH (a:AustralianDesignRule)-[:hasClause]->(c:Clause)
+  RETURN a.hasID, count(c) AS clauses
+  ORDER BY a.hasID
+        

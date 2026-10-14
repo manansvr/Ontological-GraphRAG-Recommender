@@ -1,0 +1,34 @@
+
+============================================================
+SR8 ONTOLOGY VALIDATION REPORT
+============================================================
+
+📊 STATISTICS:
+   Classes:           72
+   Object Properties: 59
+   Data Properties:   70
+   Individuals:       0
+
+🌳 TOP-LEVEL CLASSES:
+   • Organization
+   • Project Tracking System
+   • Document
+   • Requirement
+   • Parts Management
+   • Project
+   • failure mode
+   • cause
+   • effect
+   • control action
+   • feedback event
+
+✅ VALIDATION:
+   ✓ XML syntax: well-formed XML
+   ✓ Namespaces: rdf, rdfs, owl, xsd and dcterms declared
+   ✓ Class labels: all 72 classes have rdfs:label
+   ✓ Ontology metadata: owl:Ontology has rdf:about, dcterms:title, dcterms:description, dcterms:creator, dcterms:created, owl:versionInfo
+   ✓ Schema CSVs: node-labels.csv, relationships.csv, node-properties.csv and relationship-properties.csv match ontology.owl
+
+============================================================
+ONTOLOGY READY FOR USE
+============================================================

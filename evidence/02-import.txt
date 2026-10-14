@@ -1,0 +1,61 @@
+✓ Connected To neo4j @ bolt://localhost:7687
+============================================================
+SR8 ONTOLOGY IMPORT TO NEO4J
+============================================================
+✓ Created: CONSTRAINT
+✓ Created: CONSTRAINT
+✓ Created: CONSTRAINT
+✓ Created: INDEX
+✓ Created: INDEX
+✓ Instance constraints: 12 created or already present
+
+📊 Importing Node Labels From csv/node-labels.csv...
+✓ Imported 72 Node Labels
+
+🔗 Creating Node Label Hierarchy...
+✓ Created 61 hierarchy relationships
+
+📊 Importing Relationships From csv/relationships.csv...
+✓ Imported 59 Relationship Types
+
+📊 Importing Properties From csv/node-properties.csv...
+✓ Imported 70 Property Definitions
+
+📈 Database Statistics:
+
+  Node Labels by Category:
+    • Artifact: 52
+    • Organization: 20
+    TOTAL: 72
+
+  Schema Relationship Types: 59
+  Schema Property Definitions: 70
+  Schema Hierarchy Relationships: 61
+
+✅ Verification:
+
+  Top-Level Categories (11):
+    ✓ Cause
+    ✓ ControlAction
+    ✓ Document
+    ✓ Effect
+    ✓ FailureMode
+    ✓ FeedbackEvent
+    ✓ Organization
+    ✓ PartsManagement
+    ✓ Project
+    ✓ ProjectTrackingSystem
+    ✓ Requirement
+
+  ✓ No Orphaned Labels
+
+============================================================
+✅ IMPORT COMPLETE!
+============================================================
+
+Summary:
+  • 72 Node Labels Imported
+  • 61 Hierarchy Relationships Created
+  • 59 Relationship Types Imported
+  • 70 Property Definitions Imported
+✓ Connection Closed

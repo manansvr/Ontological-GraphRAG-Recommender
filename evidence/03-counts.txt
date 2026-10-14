@@ -1,0 +1,101 @@
+Step 3 — Neo4j count results
+All results below were confirmed by the tester as matching the expected values in TESTING.md.
+
+QUERY:
+MATCH (a:AustralianDesignRule) RETURN count(a);
+
+RESULT:
+count(a)
+8
+
+QUERY:
+MATCH (r:ExtractedEssentialRequirement) RETURN count(r);
+
+RESULT:
+count(r)
+217
+
+QUERY:
+MATCH (r:ExtractedEssentialRequirement {isApplicable:false}) RETURN count(r);
+
+RESULT:
+count(r)
+6
+
+QUERY:
+MATCH (c:Clause) RETURN count(c);
+
+RESULT:
+count(c)
+177
+
+QUERY:
+MATCH ()-[e:assignedToProject]->() RETURN e.source, count(e);
+
+RESULT:
+e.source | count(e)
+extracted | 172
+
+QUERY:
+MATCH (p:Project)<-[:assignedToProject]-() RETURN count(DISTINCT p);
+
+RESULT:
+count(DISTINCT p)
+24
+
+QUERY:
+MATCH (p:Project {projectID:'N/A'}) RETURN count(p);
+
+RESULT:
+count(p)
+0
+
+QUERY:
+MATCH (r:ExtractedEssentialRequirement)
+WHERE NOT (r)-[:assignedToProject]->()
+RETURN count(r);
+
+RESULT:
+count(r)
+45
+
+QUERY:
+MATCH (a:Assembly)<-[:belongsToAssembly]-(p:Project)<-[:assignedToProject]-(r)
+RETURN a.hasName, count(DISTINCT p) AS projects, count(r) AS requirement_links;
+
+RESULT:
+a.hasName | projects | requirement_links
+Front Axle Assembly | 3 | 45
+Steering System | 3 | 38
+Rear Axle Assembly | 3 | 35
+
+QUERY:
+MATCH (f:FailureMode) RETURN count(f);
+
+RESULT:
+count(f)
+20
+
+QUERY:
+MATCH (c:Component) RETURN count(c);
+
+RESULT:
+count(c)
+15
+
+QUERY:
+MATCH ()-[s:satisfiesRequirement]->() RETURN count(s);
+
+RESULT:
+count(s)
+23
+
+QUERY:
+MATCH (r:Requirement)
+WHERE r.hasName IS NOT NULL
+  AND NOT r:ExtractedEssentialRequirement
+RETURN count(r);
+
+RESULT:
+count(r)
+17

@@ -1,0 +1,11 @@
+{
+inferredAt:2026-10-14T15:06:45.154000000Z,
+reasoning:"it shares ADR and wording with requirements already assigned to SRP8-043",
+confidence:0.65,
+inferredBy:"Ollama-MCP",
+baseConfidence:0.65,
+rlAction:"keep_confidence",
+schemaValidated:TRUE,
+inferenceState:"inference_weak_no_mid",
+schemaCheckedAt:2026-10-14T15:06:45.154000000Z
+}

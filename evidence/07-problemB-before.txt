@@ -1,0 +1,12 @@
+inference_strong_no_high {'increase_confidence': -0.475, 'keep_confidence': 0.1876, 'decrease_confidence': 0.5981}
+inference_strong_no_low {'increase_confidence': -0.3632, 'keep_confidence': 0.2084, 'decrease_confidence': 0.649}
+inference_strong_no_mid {'increase_confidence': -0.508, 'keep_confidence': 0.1627, 'decrease_confidence': 0.7202}
+inference_strong_yes_high {'increase_confidence': 0.754, 'keep_confidence': 0.4858, 'decrease_confidence': -0.2259}
+inference_strong_yes_low {'increase_confidence': 0.7874, 'keep_confidence': 0.7285, 'decrease_confidence': -0.1264}
+inference_strong_yes_mid {'increase_confidence': 0.8215, 'keep_confidence': 0.7204, 'decrease_confidence': -0.1485}
+inference_weak_no_high {'increase_confidence': -0.2527, 'keep_confidence': 0.3755, 'decrease_confidence': 0.2808}
+inference_weak_no_low {'increase_confidence': -0.2795, 'keep_confidence': 0.3734, 'decrease_confidence': 0.267}
+inference_weak_no_mid {'increase_confidence': -0.3854, 'keep_confidence': 0.3363, 'decrease_confidence': 0.1704}
+inference_weak_yes_high {'increase_confidence': 0.0483, 'keep_confidence': 0.4931, 'decrease_confidence': -0.102}
+inference_weak_yes_low {'increase_confidence': 0.049, 'keep_confidence': 0.4817, 'decrease_confidence': -0.1391}
+inference_weak_yes_mid {'increase_confidence': 0.0927, 'keep_confidence': 0.4748, 'decrease_confidence': -0.1534}

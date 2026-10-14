@@ -1,0 +1,11 @@
+Step 5 — Scenario 6: cross-domain reliability query
+
+You: cypher query: MATCH (r:Requirement)<-[:satisfiesRequirement]-(c:Component)-[:hasFailureMode]->(f:FailureMode) WHERE NOT (f)-[:mitigatedBy]->(:ControlAction) RETURN r.hasName, c.hasID, f.hasName
+
+[route cypher_query] query_knowledge_graph({'cypher': 'MATCH (r:Requirement)<-[:satisfiesRequirement]-(c:Component)-[:hasFailureMode]->(f:FailureMode) WHERE NOT (f)-[:mitigatedBy]->(:ControlAction) RETURN r.hasName, c.hasID, f.hasName'})
+Processing request of type CallToolRequest
+
+{
+  "row_count": 0,
+  "rows": []
+}

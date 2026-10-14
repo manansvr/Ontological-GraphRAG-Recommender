@@ -1,0 +1,5 @@
+You: reject link
+
+Review commands:
+  confirm link <REQ> -> <PROJECT>
+  reject link <REQ> -> <PROJECT> because <reason>

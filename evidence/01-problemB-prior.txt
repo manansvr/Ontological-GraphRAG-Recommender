@@ -1,0 +1,15 @@
+Problem B cold-start prior: train_inference_agent(coverage 12x3x5 = 180 updates, then episodes=1000, seed=99), discount_factor=0.0, final epsilon=0.0200
+State                          increase_confidence       keep_confidence   decrease_confidence  Greedy action         
+----------------------------------------------------------------------------------------------------------------------
+inference_strong_yes_high                   0.7540                0.4858               -0.2259  increase_confidence   
+inference_strong_yes_mid                    0.8215                0.7204               -0.1485  increase_confidence   
+inference_strong_yes_low                    0.7874                0.7285               -0.1264  increase_confidence   
+inference_strong_no_high                   -0.4750                0.1876                0.5981  decrease_confidence   
+inference_strong_no_mid                    -0.5080                0.1627                0.7202  decrease_confidence   
+inference_strong_no_low                    -0.3632                0.2084                0.6490  decrease_confidence   
+inference_weak_yes_high                     0.0483                0.4931               -0.1020  keep_confidence       
+inference_weak_yes_mid                      0.0927                0.4748               -0.1534  keep_confidence       
+inference_weak_yes_low                      0.0490                0.4817               -0.1391  keep_confidence       
+inference_weak_no_high                     -0.2527                0.3755                0.2808  keep_confidence       
+inference_weak_no_mid                      -0.3854                0.3363                0.1704  keep_confidence       
+inference_weak_no_low                      -0.2795                0.3734                0.2670  keep_confidence       

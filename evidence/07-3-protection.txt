@@ -1,0 +1,54 @@
+You: Suggest that requirement REQ-10-001 belongs to project SRP8-045 with confidence 0.9 because of very strong evidence from similar requirements in the same ADR
+
+[route suggest_link] write_inferred_project_link({'requirement_id': 'REQ-10-001', 'project_id': 'SRP8-045', 'confidence': 0.9, 'reasoning': 'of very strong evidence from similar requirements in the same ADR'})
+Processing request of type CallToolRequest
+
+{
+  "status": "written",
+  "write_mode": "created",
+  "req_id": "REQ-10-001",
+  "project_id": "SRP8-045",
+  "original_confidence": 0.9,
+  "adjusted_confidence": 0.9,
+  "rl_action": "keep_confidence",
+  "inference_state": "inference_weak_no_high",
+  "best_neighbour_score": 0.0,
+  "best_neighbour_id": "REQ-10-006",
+  "candidate_count": 5,
+  "project_has_same_adr": false,
+  "reasoning": "of very strong evidence from similar requirements in the same ADR",
+  "revision_count": null,
+  "resubmission_of": null,
+  "warning": null,
+  "schema_validation": {
+    "ok": true,
+    "reason": "'suggestedProject' declared in schema: source matches ExtractedEssentialRequirement, target matches Project."
+  }
+}
+
+You: reject link REQ-10-001 -> SRP8-045 because overconfidence test
+
+[review] Rejected REQ-10-001 -> SRP8-045 as Ilina; reward -2.0 (overconfidence penalty).
+
+You: Suggest that requirement REQ-10-001 belongs to project SRP8-045 with confidence 0.9 because of very strong evidence from similar requirements in the same ADR
+
+[route suggest_link] write_inferred_project_link({'requirement_id': 'REQ-10-001', 'project_id': 'SRP8-045', 'confidence': 0.9, 'reasoning': 'of very strong evidence from similar requirements in the same ADR'})
+Processing request of type CallToolRequest
+
+{
+  "status": "previously_reviewed",
+  "req_id": "REQ-10-001",
+  "project_id": "SRP8-045",
+  "previous_decision": {
+    "status": "rejected",
+    "reviewed_by": "Ilina",
+    "reviewed_at": "2026-10-14T15:15:46.735Z",
+    "rejection_reason": "overconfidence test"
+  },
+  "message": "A reviewer already decided on this suggestion; it was not modified. Pass resubmit=True to submit a new suggestion alongside it."
+}
+
+You: reject link REQ-10-001 -> SRP8-045 because overconfidence test
+
+[review] Not recorded: Suggestion between 'REQ-10-001' and 'SRP8-045' was already reviewed (status 'rejected'); feedback not recorded again.
+Earlier decision: {"status": "rejected", "reviewed_by": "Ilina", "reviewed_at": "2026-10-14T15:15:46.735Z", "rejection_reason": "overconfidence test"}
