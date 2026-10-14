@@ -1246,14 +1246,14 @@ def get_project(project_id: str) -> str:
 
     meta_query = """
     MATCH (p:Project {projectID: $pid})
-    OPTIONAL MATCH (p)-[:partOfAssembly]->(asm)
+    OPTIONAL MATCH (p)-[:belongsToAssembly]->(asm:Assembly)
     OPTIONAL MATCH (a:AustralianDesignRule)-[:assignedToDepartment]->(d)
     WHERE (a)-[:hasExternalEssentialRequirement]->(:ExtractedEssentialRequirement)
           -[:assignedToProject]->(p)
     RETURN p.projectID AS project_id,
            p.projectName AS project_name,
-           collect(DISTINCT asm.assemblyID)[0] AS assembly_id,
-           collect(DISTINCT asm.assemblyName)[0] AS assembly_name,
+           collect(DISTINCT asm.hasID)[0] AS assembly_id,
+           collect(DISTINCT asm.hasName)[0] AS assembly_name,
            collect(DISTINCT d.hasName)[0] AS department
     """
 
@@ -1325,8 +1325,8 @@ def get_assembly(assembly_id: str) -> str:
         return json.dumps({"error": "assembly_id must not be empty"}, indent=2)
 
     query = """
-    MATCH (asm {assemblyID: $assembly_id})
-    OPTIONAL MATCH (p:Project)-[:partOfAssembly]->(asm)
+    MATCH (asm:Assembly {hasID: $assembly_id})
+    OPTIONAL MATCH (p:Project)-[:belongsToAssembly]->(asm:Assembly)
     OPTIONAL MATCH (r:ExtractedEssentialRequirement)-[:assignedToProject]->(p)
     OPTIONAL MATCH (a:AustralianDesignRule)-[:hasExternalEssentialRequirement]->(r)
     WITH asm,
@@ -1334,8 +1334,8 @@ def get_assembly(assembly_id: str) -> str:
          count(DISTINCT r) AS total_reqs,
          count(DISTINCT CASE WHEN r.isApplicable = true THEN r END) AS applicable_reqs,
          count(DISTINCT CASE WHEN r.isApplicable = true AND r.isVerified = true THEN r END) AS verified_reqs
-    RETURN asm.assemblyID AS assembly_id,
-           asm.assemblyName AS assembly_name,
+    RETURN asm.hasID AS assembly_id,
+           asm.hasName AS assembly_name,
            projects,
            total_reqs,
            applicable_reqs,
@@ -1397,11 +1397,11 @@ def list_all_projects() -> str:
     """Return all project IDs and names grouped by assembly."""
     query = """
     MATCH (p:Project)
-    OPTIONAL MATCH (p)-[:partOfAssembly]->(asm)
+    OPTIONAL MATCH (p)-[:belongsToAssembly]->(asm:Assembly)
     RETURN p.projectID AS project_id,
            p.projectName AS project_name,
-           asm.assemblyID AS assembly_id,
-           asm.assemblyName AS assembly_name
+           asm.hasID AS assembly_id,
+           asm.hasName AS assembly_name
     ORDER BY assembly_id, project_id
     """
 
@@ -1478,10 +1478,10 @@ def get_compliance_gaps(
       AND (r.isVerified = false OR r.isVerified IS NULL)
       AND ($adr_variants IS NULL OR a.hasID IN $adr_variants)
     OPTIONAL MATCH (r)-[:assignedToProject]->(p:Project)
-    OPTIONAL MATCH (p)-[:partOfAssembly]->(asm)
+    OPTIONAL MATCH (p)-[:belongsToAssembly]->(asm:Assembly)
     WITH a, r, p, asm
     WHERE ($project_id IS NULL OR (p IS NOT NULL AND p.projectID = $project_id))
-      AND ($assembly_id IS NULL OR (asm IS NOT NULL AND asm.assemblyID = $assembly_id))
+      AND ($assembly_id IS NULL OR (asm IS NOT NULL AND asm.hasID = $assembly_id))
     RETURN a.hasID AS adr_id,
            a.hasName AS adr_name,
            r.hasID AS req_id,
@@ -1543,10 +1543,10 @@ def get_verification_progress(
     MATCH (a:AustralianDesignRule)-[:hasExternalEssentialRequirement]->(r:ExtractedEssentialRequirement)
     WHERE r.isApplicable = true
     OPTIONAL MATCH (r)-[:assignedToProject]->(p:Project)
-    OPTIONAL MATCH (p)-[:partOfAssembly]->(asm)
+    OPTIONAL MATCH (p)-[:belongsToAssembly]->(asm:Assembly)
     WITH a, r, p, asm
     WHERE ($project_id IS NULL OR (p IS NOT NULL AND p.projectID = $project_id))
-      AND ($assembly_id IS NULL OR (asm IS NOT NULL AND asm.assemblyID = $assembly_id))
+      AND ($assembly_id IS NULL OR (asm IS NOT NULL AND asm.hasID = $assembly_id))
     RETURN count(r) AS total_applicable,
            count(CASE WHEN r.isVerified = true THEN 1 END) AS total_verified,
            count(CASE WHEN r.isVerified = false OR r.isVerified IS NULL THEN 1 END) AS total_unverified
@@ -1583,10 +1583,10 @@ def get_highest_risk_gaps() -> str:
     WHERE r.isApplicable = true
       AND (r.isVerified = false OR r.isVerified IS NULL)
     OPTIONAL MATCH (r)-[:assignedToProject]->(p:Project)
-    OPTIONAL MATCH (p)-[:partOfAssembly]->(asm)
+    OPTIONAL MATCH (p)-[:belongsToAssembly]->(asm:Assembly)
     WITH r, a,
          [x IN collect(DISTINCT p.projectID) WHERE x IS NOT NULL] AS projects,
-         [x IN collect(DISTINCT asm.assemblyID) WHERE x IS NOT NULL] AS assemblies
+         [x IN collect(DISTINCT asm.hasID) WHERE x IS NOT NULL] AS assemblies
     ORDER BY size(projects) DESC, a.hasID, r.hasID
     LIMIT 10
     RETURN r.hasID AS req_id,
@@ -1616,8 +1616,8 @@ def get_cross_assembly_requirements() -> str:
     """Find ADRs whose requirements span more than one assembly; returns ADR, affected assemblies, and project counts."""
     query = """
     MATCH (a:AustralianDesignRule)-[:hasExternalEssentialRequirement]->(r:ExtractedEssentialRequirement)
-          -[:assignedToProject]->(p:Project)-[:partOfAssembly]->(asm)
-    WITH a, collect(DISTINCT asm.assemblyID) AS assemblies, collect(DISTINCT p.projectID) AS projects
+          -[:assignedToProject]->(p:Project)-[:belongsToAssembly]->(asm:Assembly)
+    WITH a, collect(DISTINCT asm.hasID) AS assemblies, collect(DISTINCT p.projectID) AS projects
     WHERE size(assemblies) > 1
     OPTIONAL MATCH (a)-[:hasExternalEssentialRequirement]->(r2:ExtractedEssentialRequirement)
     RETURN a.hasID AS adr_id,
@@ -1650,14 +1650,14 @@ def get_assembly_dependencies(assembly_id: str) -> str:
         return json.dumps({"error": "assembly_id must not be empty"}, indent=2)
 
     query = """
-    MATCH (asm1 {assemblyID: $assembly_id})<-[:partOfAssembly]-(p1:Project)
+    MATCH (asm1:Assembly {hasID: $assembly_id})<-[:belongsToAssembly]-(p1:Project)
           <-[:assignedToProject]-(r:ExtractedEssentialRequirement)
           <-[:hasExternalEssentialRequirement]-(a:AustralianDesignRule)
           -[:hasExternalEssentialRequirement]->(r2:ExtractedEssentialRequirement)
-          -[:assignedToProject]->(p2:Project)-[:partOfAssembly]->(asm2)
-    WHERE asm2.assemblyID <> $assembly_id
-    WITH asm2.assemblyID AS other_assembly,
-         asm2.assemblyName AS other_assembly_name,
+          -[:assignedToProject]->(p2:Project)-[:belongsToAssembly]->(asm2:Assembly)
+    WHERE asm2.hasID <> $assembly_id
+    WITH asm2.hasID AS other_assembly,
+         asm2.hasName AS other_assembly_name,
          a.hasID AS adr_id,
          collect(DISTINCT {req_id: r.hasID, req_name: r.requirementName}) AS coupling_reqs
     RETURN other_assembly,
@@ -1724,14 +1724,14 @@ def get_shared_requirements(project_id_1: str, project_id_2: str) -> str:
 def get_interface_risk_report() -> str:
     """Full interface risk report across all assemblies: shared requirements, ADR sources, and verification mismatches."""
     query = """
-    MATCH (asm1)<-[:partOfAssembly]-(p1:Project)
+    MATCH (asm1:Assembly)<-[:belongsToAssembly]-(p1:Project)
           <-[:assignedToProject]-(r1:ExtractedEssentialRequirement)
           <-[:hasExternalEssentialRequirement]-(a:AustralianDesignRule)
           -[:hasExternalEssentialRequirement]->(r2:ExtractedEssentialRequirement)
-          -[:assignedToProject]->(p2:Project)-[:partOfAssembly]->(asm2)
-    WHERE asm1.assemblyID < asm2.assemblyID
-    WITH asm1.assemblyID AS assembly_a,
-         asm2.assemblyID AS assembly_b,
+          -[:assignedToProject]->(p2:Project)-[:belongsToAssembly]->(asm2:Assembly)
+    WHERE asm1.hasID < asm2.hasID
+    WITH asm1.hasID AS assembly_a,
+         asm2.hasID AS assembly_b,
          a.hasID AS adr_id,
          a.hasName AS adr_name,
          collect(DISTINCT r1.hasID) AS reqs_in_a,
@@ -2433,14 +2433,14 @@ def get_requirements_by_keyword(keyword: str) -> str:
     OPTIONAL MATCH (a)-[:hasClause]->(c:Clause)
     WHERE toLower(c.clauseText) CONTAINS toLower($kw)
     OPTIONAL MATCH (r)-[:assignedToProject]->(p:Project)
-    OPTIONAL MATCH (p)-[:partOfAssembly]->(asm)
+    OPTIONAL MATCH (p)-[:belongsToAssembly]->(asm:Assembly)
     RETURN r.hasID AS req_id,
            r.requirementName AS req_name,
            r.isApplicable AS is_applicable,
            a.hasID AS adr_id,
            collect(DISTINCT c.hasID) AS matching_clauses,
            collect(DISTINCT p.projectID) AS assigned_projects,
-           collect(DISTINCT asm.assemblyID) AS assemblies
+           collect(DISTINCT asm.hasID) AS assemblies
     ORDER BY a.hasID, r.hasID
     LIMIT 50
     """
@@ -2466,7 +2466,7 @@ def get_requirement_chain(requirement_id: str) -> str:
     OPTIONAL MATCH (a:AustralianDesignRule)-[:hasExternalEssentialRequirement]->(r)
     OPTIONAL MATCH (a)-[:hasClause]->(c:Clause)
     OPTIONAL MATCH (r)-[:assignedToProject]->(p:Project)
-    OPTIONAL MATCH (p)-[:partOfAssembly]->(asm)
+    OPTIONAL MATCH (p)-[:belongsToAssembly]->(asm:Assembly)
     RETURN r.hasID AS req_id,
            r.requirementName AS req_name,
            r.requirementDescription AS req_description,
@@ -2476,7 +2476,7 @@ def get_requirement_chain(requirement_id: str) -> str:
            coalesce(a.isVerified, false) AS adr_verified,
            collect(DISTINCT {clause_id: c.hasID, clause_name: c.hasName, clause_text: c.clauseText}) AS clauses,
            collect(DISTINCT {project_id: p.projectID, project_name: p.projectName}) AS projects,
-           collect(DISTINCT {assembly_id: asm.assemblyID, assembly_name: asm.assemblyName}) AS assemblies
+           collect(DISTINCT {assembly_id: asm.hasID, assembly_name: asm.hasName}) AS assemblies
     """
 
     try:

@@ -16,7 +16,7 @@ ollama-mcp.py  ←→  sr8-mcp.py (MCP server, 33 tools)  ←→  Neo4j
 AustralianDesignRule
   └─[:hasExternalEssentialRequirement]→ ExtractedEssentialRequirement
                                               └─[:assignedToProject]→ Project
-                                                                         └─[:partOfAssembly]→ Assembly
+                                                                         └─[:belongsToAssembly]→ Assembly
 ```
 
 ## Prerequisites
@@ -130,7 +130,7 @@ Node labels used by the MCP tools:
 - `ExtractedEssentialRequirement` — a requirement extracted from an ADR; `hasID`, `requirementName`, `requirementDescription`, `isApplicable`, `hasRiskLevel`
 - `Clause` — a clause within an ADR; `hasID`, `hasName`, `clauseText`
 - `Project` — an SR8 project area; `projectID`, `projectName`
-- `Assembly` (or any node with `assemblyID`) — e.g. `ASM-FRONT-AXLE`, `ASM-STEERING`, `ASM-REAR-AXLE`
+- `Assembly` — a group of projects; `hasID` (e.g. `ASM-FRONT-AXLE`, `ASM-STEERING`, `ASM-REAR-AXLE`), `hasName`. Created by `thesis-extraction/Scripts/run-extraction.py --only assemblies` from `thesis-extraction/data/assemblies.csv`
 - `ChangeImpactReport` — written by `write_change_impact_report`; `hasID`, `changeDescription`, `riskSummary`, `createdAt`
 - `FeedbackEvent` — written when a person reviews a suggestion (`promote_inferred_link`, `modify_inferred_link`, `reject_inferred_link`; also the uncalled `record_feedback` function); `hasID`, `requirementID`, `projectID`, `action`, `reward`, `inferenceState`, `overconfidencePenaltyApplied`, `rlAction` (the action credited), `reviewer` (null when written by `record_feedback`), `timestamp`
 
@@ -139,7 +139,7 @@ Relationship types:
 - `hasExternalEssentialRequirement` — ADR → Requirement
 - `assignedToProject` — Requirement → Project (confirmed). `source = 'extracted'` when created by `extract-ADR.py`; `source = 'inferred'` when created by `promote_inferred_link`, or `'inferred-modified'` (plus `modifiedFromProject`, `modificationReason`) when a reviewer assigned a different project through `modify_inferred_link`; both also store `promotedAt`, `promotedBy` (the reviewer), `promotedFromConfidence`, `inferenceReasoning`, `inferredBy`, `inferredAt` and `inferenceState`
 - `suggestedProject` — Requirement → Project (machine inference, written by `write_inferred_project_link`). Never deleted: a pending suggestion has no `status`; after review it has `status = 'promoted'`, `'modified'` or `'rejected'`, `reviewedBy`, `reviewedAt`, for modifications `modifiedTo` and `modificationReason`, and for rejections `rejectionReason`. A revised pending suggestion also has `previousConfidence`, `previousReasoning` and `revisionCount`; a resubmitted one has `resubmissionOf` (the reviewed suggestion's `inferredAt`). Every written suggestion has `schemaValidated = true` and `schemaCheckedAt`. `get_inferred_links` and `get_unassigned_requirements` hide reviewed suggestions unless `include_reviewed=True`
-- `partOfAssembly` — Project → Assembly
+- `belongsToAssembly` — Project → Assembly (declared in `thesis-ontology/csv/relationships.csv`)
 - `hasClause` — ADR → Clause
 - `affectsRequirement` / `affectsProject` — ChangeImpactReport → Requirement / Project
 

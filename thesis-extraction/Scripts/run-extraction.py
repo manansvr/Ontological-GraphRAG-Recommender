@@ -7,6 +7,7 @@ Master script — runs extractors in dependency order.
 Usage:
     python3 Scripts/run-extraction.py --only adrs --dry-run
     python3 Scripts/run-extraction.py --only adrs
+    python3 Scripts/run-extraction.py --only assemblies --dry-run
     python3 Scripts/run-extraction.py --dry-run
     python3 Scripts/run-extraction.py
 """
@@ -37,6 +38,7 @@ DEFAULTS = {
     "projects_file": "data/project-tracking-system.csv",
     "parts_file":    "data/parts-management.csv",
     "failure_modes_file": "Brake_System_Failure_Mode_Data.xlsx",
+    "assemblies_file": "data/assemblies.csv",
 }
 
 
@@ -48,11 +50,12 @@ def main():
     parser.add_argument("--user",          default="neo4j")
     parser.add_argument("--password",      default="password")
     parser.add_argument("--dry-run",       action="store_true")
-    parser.add_argument("--only",          choices=["adrs", "projects", "parts", "failure-modes"])
+    parser.add_argument("--only",          choices=["adrs", "projects", "parts", "failure-modes", "assemblies"])
     parser.add_argument("--adrs-folder",   default=DEFAULTS["adrs_folder"])
     parser.add_argument("--projects-file", default=DEFAULTS["projects_file"])
     parser.add_argument("--parts-file",    default=DEFAULTS["parts_file"])
     parser.add_argument("--failure-modes-file", default=DEFAULTS["failure_modes_file"])
+    parser.add_argument("--assemblies-file", default=DEFAULTS["assemblies_file"])
     args = parser.parse_args()
 
     print("=" * 60)
@@ -116,6 +119,19 @@ def main():
                 )
             else:
                 print(f"\n  ⚠️  Failure mode file not found: {args.failure_modes_file}")
+
+        # ── 5. Assemblies (groups of existing projects; runs after ADRs) ──
+        if not args.only or args.only == "assemblies":
+            if os.path.exists(args.assemblies_file):
+                from extract_assemblies import extract_assemblies
+                extract_assemblies(
+                    args.assemblies_file,
+                    driver=driver,
+                    dry_run=args.dry_run,
+                    adr_folder=args.adrs_folder,
+                )
+            else:
+                print(f"\n  ⚠️  Assemblies file not found: {args.assemblies_file}")
 
     finally:
         if driver:

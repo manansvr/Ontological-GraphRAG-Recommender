@@ -8,6 +8,7 @@ Two scripts, two sources, one neo4j graph.
 |---|---|---|
 | `extract-ADR.py` | `CSV/*.csv` (8 ADR files) | AustralianDesignRule, Clause, ExtractedEssentialRequirement, Project (stub), Department |
 | `run-extraction.py` | orchestrates both | runs extract-ADR.py first, then extract_projects.py |
+| `extract_assemblies.py` | `data/assemblies.csv` | Assembly, Project -[:belongsToAssembly]-> Assembly (`--only assemblies`) |
 
 `extract-ADR.py` sets `source = 'extracted'` on each `assignedToProject` edge it creates (`ON CREATE SET`, so edges that already exist are not changed). Edges promoted from inferred suggestions by the sr8-mcp `promote_inferred_link` tool carry `source = 'inferred'` instead.
 
@@ -151,39 +152,28 @@ python3 Scripts/run-extraction.py --only projects --uri bolt://localhost:7687 --
 
 ---
 
-## Step 3 — Add Assembly groupings (run once in neo4j Browser)
+## Step 3 — Add Assembly groupings
 
-After extraction, add assembly nodes manually in the Browser.
+Assemblies group projects. They are listed in `data/assemblies.csv` (one row per project: `assembly_id`, `assembly_name`, `project_id`) and created by the extraction pipeline, after the ADRs (the projects must already exist):
 
-Delete old assembly links if re-running:
-```cypher
-MATCH ()-[r:includesProject|belongsToAssembly]->() DELETE r
-MATCH (a:Assembly) DETACH DELETE a
+```bash
+python3 Scripts/run-extraction.py --only assemblies --dry-run --uri bolt://localhost:7687 --user neo4j --password password123
+python3 Scripts/run-extraction.py --only assemblies --uri bolt://localhost:7687 --user neo4j --password password123
 ```
 
-Create Front Axle Assembly:
-```cypher
-MERGE (a:Assembly {hasID: "ASM-FRONT-AXLE", hasName: "Front Axle Assembly"})
-WITH a
-MATCH (p:Project) WHERE p.projectID IN ["SRP8-043", "SRP8-045", "SRP8-050", "SRP8-088"]
-MERGE (p)-[:belongsToAssembly]->(a)
+This writes `(:Assembly {hasID, hasName})` and `(:Project)-[:belongsToAssembly]->(:Assembly)`, the names declared in `thesis-ontology/csv/relationships.csv`. A `project_id` that does not exist (in the graph for a live run; among the projects `extract-ADR.py` creates for a dry run) is printed as a warning and skipped; no stub project is created. For each assembly the run reports the projects linked and how many requirements reach it through `assignedToProject`.
+
+Expected dry-run output with the current data:
+
+```
+⚠️  ASM-FRONT-AXLE: project SRP8-088 does not exist (...); skipped, no stub created
+[DRY] ASM-FRONT-AXLE (Front Axle Assembly): 3 project(s) linked: SRP8-043 (1), SRP8-045 (36), SRP8-050 (8); 45 requirement(s) reach it via assignedToProject
+[DRY] ASM-STEERING (Steering System): 3 project(s) linked: SRP8-047 (12), SRP8-048 (24), SRP8-049 (2); 38 requirement(s) reach it via assignedToProject
+⚠️  ASM-REAR-AXLE: project SRP8-089 does not exist (...); skipped, no stub created
+[DRY] ASM-REAR-AXLE (Rear Axle Assembly): 3 project(s) linked: SRP8-044 (1), SRP8-046 (25), SRP8-051 (9); 35 requirement(s) reach it via assignedToProject
 ```
 
-Create Steering System:
-```cypher
-MERGE (a:Assembly {hasID: "ASM-STEERING", hasName: "Steering System"})
-WITH a
-MATCH (p:Project) WHERE p.projectID IN ["SRP8-047", "SRP8-048", "SRP8-049"]
-MERGE (p)-[:belongsToAssembly]->(a)
-```
-
-Create Rear Axle Assembly:
-```cypher
-MERGE (a:Assembly {hasID: "ASM-REAR-AXLE", hasName: "Rear Axle Assembly"})
-WITH a
-MATCH (p:Project) WHERE p.projectID IN ["SRP8-044", "SRP8-046", "SRP8-051", "SRP8-089"]
-MERGE (p)-[:belongsToAssembly]->(a)
-```
+Re-running is safe (`MERGE`). Removing a row from the CSV does not delete an edge created earlier; delete it in the Browser if needed.
 
 ---
 

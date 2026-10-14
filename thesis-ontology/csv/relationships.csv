@@ -36,6 +36,7 @@ hasVerificationProcedure,AustralianDesignRule,VerificationProcedure,Has Verifica
 hasVerificationMethod,VerificationProcedure,VerificationMethod,Has Verification Method,
 supportedByEvidence,VerificationProcedure,TestingEvidence,Supported By Evidence,
 assignedToProject,ExtractedEssentialRequirement,Project,Requirement Assigned To Project,
+belongsToAssembly,Project,Assembly,Project Belongs To Assembly (Group Of Projects),
 suggestedProject,ExtractedEssentialRequirement,Project,Requirement Suggested For Project By Inference (Pending Human Review),
 affectsRequirement,ChangeImpactReport,Requirement,Change Impact Report Affects Requirement,
 affectsProject,ChangeImpactReport,Project,Change Impact Report Affects Project,
