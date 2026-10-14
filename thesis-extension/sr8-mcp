@@ -1771,36 +1771,107 @@ def get_interface_risk_report() -> str:
     }, indent=2)
 
 
+# ── FMEA: failure-mode coverage ────────────────────────────────────────────────
+
+# Where the FMEA data comes from (extract_failure_modes.py); used as the provenance pointer
+# when the graph was extracted before row numbers were stored.
+FMEA_WORKBOOK = "thesis-extraction/Brake_System_Failure_Mode_Data.xlsx"
+
+
+@mcp.tool()
+def get_unmitigated_failure_modes(requirement_keyword: str = "") -> str:
+    """List failure modes with no mitigation, for components that satisfy an FMEA requirement.
+
+    Matches (Requirement)<-[:satisfiesRequirement]-(Component)-[:hasFailureMode]->(FailureMode)
+    where the failure mode has no mitigatedBy relationship to a ControlAction. These are the
+    FMEA Requirement nodes from extract_failure_modes.py (named by hasName), not the ADR
+    ExtractedEssentialRequirement nodes; the two are not linked. requirement_keyword
+    (optional, case-insensitive) keeps only requirements whose name contains it.
+
+    Each result has the requirement, component, failure mode, its effects and causes, and a
+    provenance pointer to the FMEA workbook: the "Failure Mode Data" sheet row(s) of the
+    failure mode and the "Requirement Mapping" sheet row of the requirement link (rows are
+    null if the graph was extracted before row numbers were stored). checked_failure_modes
+    is how many failure modes matched before the no-mitigation filter, so an empty result
+    can be told apart from "nothing matched the keyword".
+    """
+    keyword = requirement_keyword.strip()
+    match = """
+    MATCH (r:Requirement)<-[s:satisfiesRequirement]-(c:Component)-[:hasFailureMode]->(f:FailureMode)
+    WHERE ($kw = "" OR toLower(r.hasName) CONTAINS toLower($kw))
+    """
+    query = match + """
+      AND NOT (f)-[:mitigatedBy]->(:ControlAction)
+    RETURN r.hasName AS requirement,
+           c.hasID AS component,
+           f.hasID AS failure_mode_id,
+           f.hasName AS failure_mode,
+           [(f)-[:causes]->(e:Effect) | e.hasName] AS effects,
+           [(f)-[:causedBy]->(x:Cause) | x.hasName] AS causes,
+           f.sourceFile AS fm_file, f.sourceSheet AS fm_sheet, f.sourceRows AS fm_rows,
+           s.sourceFile AS link_file, s.sourceSheet AS link_sheet, s.sourceRow AS link_row
+    ORDER BY requirement, component, failure_mode
+    """
+    count_query = match + "RETURN count(DISTINCT f) AS checked"
+
+    try:
+        with _neo4j_driver() as driver:
+            with driver.session() as session:
+                rows = [record.data() for record in session.run(query, kw=keyword)]
+                counted = session.run(count_query, kw=keyword).single()
+    except Exception as exc:
+        return json.dumps({"error": str(exc)}, indent=2)
+
+    results = []
+    for row in rows:
+        results.append({
+            "requirement": row["requirement"],
+            "component": row["component"],
+            "failure_mode_id": row["failure_mode_id"],
+            "failure_mode": row["failure_mode"],
+            "effects": row["effects"],
+            "causes": row["causes"],
+            "provenance": {
+                "failure_mode": {
+                    "workbook": row["fm_file"] or FMEA_WORKBOOK,
+                    "sheet": row["fm_sheet"] or "Failure Mode Data",
+                    "rows": row["fm_rows"],
+                },
+                "requirement_link": {
+                    "workbook": row["link_file"] or FMEA_WORKBOOK,
+                    "sheet": row["link_sheet"] or "Requirement Mapping",
+                    "row": row["link_row"],
+                },
+            },
+        })
+    return json.dumps({
+        "requirement_keyword": keyword,
+        "checked_failure_modes": counted["checked"] if counted else 0,
+        "unmitigated_count": len(results),
+        "unmitigated_failure_modes": results,
+        "source": FMEA_WORKBOOK,
+    }, indent=2)
+
+
 # ── Phase 4: Requirement propagation inference ─────────────────────────────────
 
 # ── Similar assigned requirements (shared by the similarity tool and inference) ──
 
-# Function words removed before comparing requirement names.
-_NAME_STOP_WORDS = {
-    "a", "an", "and", "are", "as", "at", "be", "by", "for", "from", "in", "into", "is", "it",
-    "its", "of", "on", "or", "per", "shall", "that", "the", "their", "this", "to", "with",
-}
-_CLAUSE_NUMBER_RE = re.compile(r"\d+(?:\.\d+)*")
+# Name and clause scoring live in similarity.py, shared with scripts/propose-fmea-links.py.
+def _load_similarity_module() -> Any:
+    spec = _importlib_util.spec_from_file_location(
+        "requirement_similarity", Path(__file__).resolve().with_name("similarity.py"),
+    )
+    module = _importlib_util.module_from_spec(spec)
+    spec.loader.exec_module(module)
+    return module
 
 
-def _name_words(name: str | None) -> set[str]:
-    """Lower-cased content words of a requirement name (stop-words removed)."""
-    return {w for w in re.findall(r"[a-z0-9]+", (name or "").lower()) if w not in _NAME_STOP_WORDS}
-
-
-def _clause_parts(clause: str | None) -> tuple[int, ...] | None:
-    """Numeric parts of a clause number ("6.6.1 Pt 2" -> (6, 6, 1)); None if it has none."""
-    m = _CLAUSE_NUMBER_RE.search(clause or "")
-    return tuple(int(p) for p in m.group(0).split(".")) if m else None
-
-
-def _clauses_adjacent(a: str | None, b: str | None) -> bool | None:
-    """True if the clause numbers have the same depth and parent and their last parts differ
-    by at most 1 (5.2.7 / 5.2.8, or equal numbers); None if either clause number is unknown."""
-    pa, pb = _clause_parts(a), _clause_parts(b)
-    if pa is None or pb is None:
-        return None
-    return len(pa) == len(pb) and pa[:-1] == pb[:-1] and abs(pa[-1] - pb[-1]) <= 1
+_similarity = _load_similarity_module()
+_NAME_STOP_WORDS = _similarity.NAME_STOP_WORDS
+_name_words = _similarity.name_words
+_clause_parts = _similarity.clause_parts
+_clauses_adjacent = _similarity.clauses_adjacent
 
 
 def _similar_assigned_requirements(session: Any, requirement_id: str) -> dict[str, Any] | None:

@@ -14,6 +14,14 @@ Sheet 1 "Failure Mode Data" (Component, FailureMode, Cause, Effect, ControlActio
 Sheet 2 "Requirement Mapping" (Component, Requirement):
   Component -[:satisfiesRequirement]-> Requirement
 
+Provenance: FailureMode nodes store sourceFile, sourceSheet ("Failure Mode Data") and
+sourceRows (workbook row numbers, header = row 1); satisfiesRequirement edges store
+sourceFile, sourceSheet ("Requirement Mapping") and sourceRow.
+
+A Cause, Effect or ControlAction cell that is empty or a placeholder (none, n/a, na, -, tbc)
+creates no node and no edge, so a failure mode without a control action has no
+mitigatedBy relationship (sr8-mcp's get_unmitigated_failure_modes relies on this).
+
 Component nodes are MERGEd on hasID = raw component name (e.g. "BrakeDiscs"),
 the same identifier other extractors would use, so failure-mode data attaches
 to whatever Component nodes already exist in the graph rather than creating a
@@ -33,6 +41,12 @@ from neo4j import GraphDatabase
 
 FAILURE_SHEET = "Failure Mode Data"
 REQUIREMENT_SHEET = "Requirement Mapping"
+MISSING_VALUES = {"", "none", "n/a", "na", "-", "tbc"}
+
+
+def present(value: str) -> bool:
+    """False for an empty cell or a placeholder meaning "no value" (MISSING_VALUES)."""
+    return str(value or "").strip().lower() not in MISSING_VALUES
 
 
 def humanize(raw: str) -> str:
@@ -53,9 +67,10 @@ def read_sheet_rows(path: str, sheet_name: str) -> list:
         return []
     headers = [str(h).strip() if h else "" for h in rows[0]]
     out = []
-    for row in rows[1:]:
+    for row_number, row in enumerate(rows[1:], start=2):   # workbook row numbers; header is row 1
         record = {headers[i]: row[i] for i in range(len(headers)) if i < len(row)}
         if any(v not in (None, "") for v in record.values()):
+            record["_row"] = row_number
             out.append(record)
     return out
 
@@ -63,47 +78,49 @@ def read_sheet_rows(path: str, sheet_name: str) -> list:
 # ── Writers ───────────────────────────────────────────────────────────
 
 def write_failure_mode_row(session, component: str, failure_mode: str,
-                            cause: str, effect: str, control_action: str):
+                            cause: str, effect: str, control_action: str,
+                            source_file: str = "", source_row: int = 0):
+    """Write one Failure Mode Data row. Cause / Effect / ControlAction are only linked when present()."""
     fm_id = f"FM-{component}-{slug(failure_mode)}"
-    cause_id = f"CAUSE-{slug(cause)}"
-    effect_id = f"EFFECT-{slug(effect)}"
-    ca_id = f"CA-{slug(control_action)}"
-
     session.run("""
         MERGE (c:Component {hasID: $component})
         ON CREATE SET c.hasName = $component
 
         MERGE (fm:FailureMode {hasID: $fm_id})
         ON CREATE SET fm.hasName = $fm_name
+        SET fm.sourceFile  = $source_file,
+            fm.sourceSheet = $sheet,
+            fm.sourceRows  = CASE WHEN $row IN coalesce(fm.sourceRows, []) THEN fm.sourceRows
+                                  ELSE coalesce(fm.sourceRows, []) + $row END
         MERGE (c)-[:hasFailureMode]->(fm)
-
-        MERGE (cause:Cause {hasID: $cause_id})
-        ON CREATE SET cause.hasName = $cause_name
-        MERGE (fm)-[:causedBy]->(cause)
-
-        MERGE (effect:Effect {hasID: $effect_id})
-        ON CREATE SET effect.hasName = $effect_name
-        MERGE (fm)-[:causes]->(effect)
-
-        MERGE (ca:ControlAction {hasID: $ca_id})
-        ON CREATE SET ca.hasName = $ca_name
-        MERGE (fm)-[:mitigatedBy]->(ca)
     """,
-        component=component,
-        fm_id=fm_id, fm_name=humanize(failure_mode),
-        cause_id=cause_id, cause_name=humanize(cause),
-        effect_id=effect_id, effect_name=humanize(effect),
-        ca_id=ca_id, ca_name=humanize(control_action),
+        component=component, fm_id=fm_id, fm_name=humanize(failure_mode),
+        source_file=source_file, sheet=FAILURE_SHEET, row=source_row,
     )
+    linked = [("Cause", "CAUSE", "causedBy", cause),
+              ("Effect", "EFFECT", "causes", effect),
+              ("ControlAction", "CA", "mitigatedBy", control_action)]
+    for label, prefix, rel, value in linked:
+        if not present(value):
+            continue
+        session.run(f"""
+            MATCH (fm:FailureMode {{hasID: $fm_id}})
+            MERGE (n:{label} {{hasID: $node_id}})
+            ON CREATE SET n.hasName = $node_name
+            MERGE (fm)-[:{rel}]->(n)
+        """, fm_id=fm_id, node_id=f"{prefix}-{slug(value)}", node_name=humanize(value))
 
 
-def write_requirement_row(session, component: str, requirement: str):
+def write_requirement_row(session, component: str, requirement: str,
+                          source_file: str = "", source_row: int = 0):
     session.run("""
         MERGE (c:Component {hasID: $component})
         ON CREATE SET c.hasName = $component
         MERGE (r:Requirement {hasName: $requirement})
-        MERGE (c)-[:satisfiesRequirement]->(r)
-    """, component=component, requirement=requirement)
+        MERGE (c)-[rel:satisfiesRequirement]->(r)
+        SET rel.sourceFile = $source_file, rel.sourceSheet = $sheet, rel.sourceRow = $row
+    """, component=component, requirement=requirement,
+         source_file=source_file, sheet=REQUIREMENT_SHEET, row=source_row)
 
 
 # ── Entry point ───────────────────────────────────────────────────────
@@ -114,8 +131,11 @@ def extract_failure_modes(path: str, driver, dry_run: bool = False) -> dict:
     fm_rows = read_sheet_rows(path, FAILURE_SHEET)
     req_rows = read_sheet_rows(path, REQUIREMENT_SHEET)
 
-    counts = {"components": 0, "failure_modes": 0, "requirement_links": 0, "skipped": 0}
+    counts = {"components": 0, "failure_modes": 0, "requirement_links": 0, "skipped": 0,
+              "without_control_action": 0}
     seen_components = set()
+    source_file = Path(path).name
+    failure_modes: dict = {}   # (component, failure mode) -> has a control action on any row
 
     for row in fm_rows:
         component = str(row.get("Component") or "").strip()
@@ -130,14 +150,18 @@ def extract_failure_modes(path: str, driver, dry_run: bool = False) -> dict:
 
         seen_components.add(component)
         counts["failure_modes"] += 1
+        key = (component, failure_mode)
+        failure_modes[key] = failure_modes.get(key, False) or present(control_action)
 
         if dry_run:
+            mitigation = control_action if present(control_action) else "(none: no mitigatedBy)"
             print(f"  [DRY] {component} -[hasFailureMode]-> {failure_mode} "
-                  f"| causedBy={cause} | causes={effect} | mitigatedBy={control_action}")
+                  f"| causedBy={cause} | causes={effect} | mitigatedBy={mitigation} | row {row['_row']}")
             continue
 
         with driver.session() as s:
-            write_failure_mode_row(s, component, failure_mode, cause, effect, control_action)
+            write_failure_mode_row(s, component, failure_mode, cause, effect, control_action,
+                                   source_file, row["_row"])
 
     for row in req_rows:
         component = str(row.get("Component") or "").strip()
@@ -155,11 +179,15 @@ def extract_failure_modes(path: str, driver, dry_run: bool = False) -> dict:
             continue
 
         with driver.session() as s:
-            write_requirement_row(s, component, requirement)
+            write_requirement_row(s, component, requirement, source_file, row["_row"])
 
     counts["components"] = len(seen_components)
+    counts["distinct_failure_modes"] = len(failure_modes)
+    counts["without_control_action"] = sum(1 for mitigated in failure_modes.values() if not mitigated)
     print(f"   ✓ Components: {counts['components']} | "
-          f"Failure modes: {counts['failure_modes']} | "
+          f"Failure mode rows: {counts['failure_modes']} "
+          f"({counts['distinct_failure_modes']} distinct, "
+          f"{counts['without_control_action']} without a control action) | "
           f"Requirement links: {counts['requirement_links']} | "
           f"Skipped: {counts['skipped']}")
     return counts

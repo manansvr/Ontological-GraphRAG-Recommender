@@ -40,6 +40,8 @@ EXPECTED_TOOLS = {
     # Phase 3: interface risk
     "get_cross_assembly_requirements", "get_assembly_dependencies", "get_shared_requirements",
     "get_interface_risk_report",
+    # FMEA coverage
+    "get_unmitigated_failure_modes",
     # Phase 4: inference (suggest and inspect only)
     "get_unassigned_requirements", "get_similar_assigned_requirements", "write_inferred_project_link",
     "get_inferred_links",
@@ -136,7 +138,7 @@ class ToolSurfaceTests(unittest.TestCase):
         registered = _registered_sr8_tools()
         self.assertEqual(len(registered), len(set(registered)), "a tool is registered twice")
         self.assertEqual(set(registered), EXPECTED_TOOLS)
-        self.assertEqual(len(registered), 38)
+        self.assertEqual(len(registered), 39)
 
 
 # ── ollama-mcp typed review commands ─────────────────────────────────────────

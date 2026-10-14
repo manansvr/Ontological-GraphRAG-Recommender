@@ -146,6 +146,12 @@ Writes:
 
 `Component` nodes are MERGEd on `hasID` = the raw component name (e.g. `BrakeDiscs`), so this attaches to whatever `Component` nodes the parts/project extractors already created.
 
+A `Cause`, `Effect` or `ControlAction` cell that is empty or a placeholder (`none`, `n/a`, `na`, `-`, `tbc`) creates no node and no edge, so a failure mode without a control action has no `mitigatedBy` relationship; sr8-mcp's `get_unmitigated_failure_modes` lists such failure modes. Provenance is stored for that tool: `FailureMode` nodes get `sourceFile`, `sourceSheet` and `sourceRows` (workbook rows, header = row 1), and `satisfiesRequirement` edges get `sourceFile`, `sourceSheet` and `sourceRow`.
+
+Dry run on the current workbook: `Components: 15 | Failure mode rows: 22 (20 distinct, 0 without a control action) | Requirement links: 23`. Every failure mode currently has a control action, so `get_unmitigated_failure_modes` returns none on this data.
+
+To propose links from these FMEA requirements to ADR requirements for human review (nothing is written to the graph), see `thesis-extension/scripts/propose-fmea-links.py`.
+
 ```bash
 python3 Scripts/run-extraction.py --only failure-modes --dry-run --uri bolt://localhost:7687 --user neo4j --password password123
 python3 Scripts/run-extraction.py --only failure-modes --uri bolt://localhost:7687 --user neo4j --password password123

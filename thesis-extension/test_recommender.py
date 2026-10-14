@@ -58,6 +58,7 @@ TOOL_DESCRIPTIONS = {
     "get_assembly_dependencies": "Assemblies coupled by shared ADRs",
     "get_shared_requirements": "Requirements shared between two projects",
     "get_interface_risk_report": "Full interface risk report",
+    "get_unmitigated_failure_modes": "Failure modes without a control action, by FMEA requirement",
     "get_unassigned_requirements": "Requirements with no project assigned",
     "get_similar_assigned_requirements": "Similar requirements that have project assignments",
     "write_inferred_project_link": "Write an inferred project link",

@@ -108,11 +108,12 @@ Reads `thesis-extraction/csv/ADR*-Requirements.csv` and writes `ADR-mapping.csv`
 | Cypher passthrough | `query_knowledge_graph` (read-only MATCH queries only) |
 | Compliance gaps | `get_compliance_gaps`, `get_verification_progress`, `get_highest_risk_gaps` |
 | Interface risk | `get_cross_assembly_requirements`, `get_assembly_dependencies`, `get_shared_requirements`, `get_interface_risk_report` |
+| FMEA coverage | `get_unmitigated_failure_modes` (components satisfying an FMEA requirement whose failure modes have no `mitigatedBy` control action, with a pointer to the workbook sheet and row) |
 | Inference | `get_unassigned_requirements`, `get_similar_assigned_requirements`, `write_inferred_project_link`, `get_inferred_links` |
 | Change impact | `get_requirements_by_keyword`, `get_requirement_chain`, `get_reverification_scope`, `write_change_impact_report`, `get_change_impact_reports` |
 | RL / feedback (read-only) | `get_feedback_stats`, `get_rl_policy` |
 
-These 38 tools are all the LLM can call. Reviewing suggestions and recording feedback are deliberately **not** MCP tools, so the model cannot confirm, modify or reject its own suggestions; see [Reviewing inferred links](#reviewing-inferred-links).
+These 39 tools are all the LLM can call. Reviewing suggestions and recording feedback are deliberately **not** MCP tools, so the model cannot confirm, modify or reject its own suggestions; see [Reviewing inferred links](#reviewing-inferred-links).
 
 ## Fixed routes in ollama-mcp
 
@@ -286,3 +287,10 @@ Each live Problem A update appends its reward to `problem_a.episode_rewards` in 
   Results go to `experiments/results/`: `<mode>-<timestamp>.csv` (one row per question and strategy: route, chosen and forced strategy, `model_cited`, `fallback_used`, `evidence_appended`, expected IDs found as count and fraction, tool calls, LLM calls, latency, `rl_updated`), `-summary.csv` (per-strategy means and Problem A's update counts), `-turns.jsonl` and `-transcript.txt`.
 
 Problem A has a single learnable state (`adr_lookup`), so training learns one overall best strategy rather than a per-question choice.
+
+## FMEA requirements and ADR requirements
+
+The FMEA workbook (`thesis-extraction/Brake_System_Failure_Mode_Data.xlsx`) creates its own `Requirement` nodes (named by `hasName`, from the "Requirement Mapping" sheet), linked to components by `satisfiesRequirement`. They are deliberately **not** linked to the ADR `ExtractedEssentialRequirement` nodes, and nothing links them automatically.
+
+`scripts/propose-fmea-links.py` (offline; no Neo4j) proposes candidates for a person to review: for each FMEA requirement it ranks the ADR requirements by name overlap (`similarity.name_overlap`, the same function as the `name_overlap` component of `get_similar_assigned_requirements`) and writes the top 3 to a CSV with empty `decision`, `reviewer` and `notes` columns (default `thesis-extension/logs/fmea-link-candidates-<date>.csv`). Nothing enters the graph from this file. On the current data it proposes 48 candidates for 17 FMEA requirements; name overlap alone gives weak matches (no stemming: "braking" does not match "brake"), so every candidate needs review.
+
