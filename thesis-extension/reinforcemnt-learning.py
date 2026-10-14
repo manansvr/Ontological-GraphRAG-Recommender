@@ -334,41 +334,44 @@ def migrate_model_file(file_path: str | Path) -> bool:
 
 
 # Designer-specified cold-start prior for Problem B, NOT learned from data: hand-chosen
-# Gaussian reward (mean, std) per evidence category and action, used only by
-# train_inference_agent to give the live agent sensible starting Q-values before any
-# human feedback exists. Real feedback from reviewers then updates the Q-table.
+# Gaussian reward (mean, std) per category and action, used only by train_inference_agent
+# to give the live agent sensible starting Q-values before any human feedback exists.
+# Real feedback from reviewers then updates the Q-table. Categories are evidence x project
+# (the confidence band does not change the prior):
+#   strong_yes: a close same-ADR neighbour exists and the proposed project already holds
+#               this ADR's requirements -> the proposal agrees with the evidence; raise it.
+#   strong_no:  a close neighbour exists but the proposed project holds none of this ADR's
+#               requirements -> the proposal contradicts the evidence; lower it.
+#   weak_yes:   no close neighbour, but the project holds this ADR's requirements; keep.
+#   weak_no:    no close neighbour and no link to the ADR; keep, leaning towards lowering.
 INFERENCE_PRIOR_REWARD_MODEL: Dict[str, Dict[Action, Tuple[float, float]]] = {
-    "strong": {
+    "strong_yes": {
         "increase_confidence": (0.8, 0.12),
         "keep_confidence":     (0.6, 0.12),
         "decrease_confidence": (-0.2, 0.08),
     },
-    "moderate": {
+    "strong_no": {
+        "increase_confidence": (-0.5, 0.12),
+        "keep_confidence":     (0.3, 0.12),
+        "decrease_confidence": (0.6, 0.12),
+    },
+    "weak_yes": {
         "increase_confidence": (0.1, 0.10),
         "keep_confidence":     (0.5, 0.12),
         "decrease_confidence": (-0.1, 0.08),
     },
-    "weak": {
-        "increase_confidence": (-0.5, 0.12),
-        "keep_confidence":     (0.3, 0.12),
-        "decrease_confidence": (0.6, 0.12),
+    "weak_no": {
+        "increase_confidence": (-0.3, 0.12),
+        "keep_confidence":     (0.4, 0.12),
+        "decrease_confidence": (0.3, 0.12),
     },
 }
 
 
 def inference_prior_category(state: State) -> str:
-    """Map an inference state to its INFERENCE_PRIOR_REWARD_MODEL category.
-
-    strong: inference_strong_* (>= 3 same-ADR requirements already assigned)
-    moderate: inference_weak_yes_* (project already holds a same-ADR requirement) or
-              inference_weak_no_mid
-    weak: inference_weak_no_high, inference_weak_no_low
-    """
-    if state.startswith("inference_strong_"):
-        return "strong"
-    if "weak_yes" in state or state.endswith("_no_mid"):
-        return "moderate"
-    return "weak"
+    """Map inference_<strong|weak>_<yes|no>_<band> to its prior category "<strong|weak>_<yes|no>"."""
+    _, evidence, project, _band = state.split("_")
+    return f"{evidence}_{project}"
 
 
 def train_inference_agent(

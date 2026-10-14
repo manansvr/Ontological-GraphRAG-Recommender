@@ -110,5 +110,54 @@ class ClauseNumberStoredTests(unittest.TestCase):
         self.assertEqual(props["clauseNumber"]["ApplicableLabels"], "ExtractedEssentialRequirement")
 
 
+
+class RequirementChainTests(tir.Base):
+    CLAUSE_ID_EXPR = "'CLAUSE-' + replace(a.hasID, 'ADR-', '') + '-' + replace(r.clauseNumber, '.', '_')"
+
+    def test_chain_starts_from_the_requirements_own_clause(self):
+        graph = self.use(tir.FakeGraph())
+        sr8.get_requirement_chain("REQ-31-005")
+        query, params = graph.queries[-1]
+        self.assertEqual(params, {"req_id": "REQ-31-005"})
+        self.assertIn(f"WITH r, a, {self.CLAUSE_ID_EXPR} AS clause_id", query)
+        self.assertIn("OPTIONAL MATCH (a)-[:hasClause]->(c:Clause {hasID: clause_id})", query)
+        self.assertNotIn("OPTIONAL MATCH (a)-[:hasClause]->(c:Clause)\n", query)   # no longer every clause
+
+    def test_clause_id_formula_reproduces_every_extracted_clause_id(self):
+        # The Cypher above applies Python-equivalent replace() calls to (ADR hasID, clauseNumber).
+        import contextlib, importlib.util, io
+        spec = importlib.util.spec_from_file_location("x_chain", REPO / "thesis-extraction/Scripts/extract-ADR.py")
+        x = importlib.util.module_from_spec(spec)
+        spec.loader.exec_module(x)
+        mine, extracted = set(), set()
+        for path in sorted((REPO / "thesis-extraction/csv").glob("*.csv")):
+            with contextlib.redirect_stdout(io.StringIO()):
+                extracted |= x.extract_one_file(str(path), None, dry_run=True)["clauses"]
+            with path.open(newline="", encoding="utf-8-sig") as f:
+                rows = x.forward_fill_adr_id([{k.strip(): v for k, v in r.items()} for r in csv.DictReader(f)])
+            for plan in x.plan_rows(rows):
+                if plan["req_id"] and plan["clause_num"]:
+                    mine.add("CLAUSE-" + plan["adr_id"].replace("ADR-", "") + "-" + plan["clause_num"].replace(".", "_"))
+        self.assertTrue(mine)
+        self.assertLessEqual(mine, extracted)   # every requirement's clause ID names a real Clause node
+
+    def test_output_has_one_clause_not_a_list(self):
+        source = tir.SR8_PATH.read_text(encoding="utf-8")
+        chain = source[source.index("def get_requirement_chain"):source.index("def get_reverification_scope")]
+        self.assertIn("AS clause,", chain)
+        self.assertIn("r.clauseNumber AS clause_number", chain)
+        self.assertNotIn("AS clauses", chain)
+
+
+class PropertyDeclarationTests(unittest.TestCase):
+    def test_applicability_properties_are_declared(self):
+        with (REPO / "thesis-ontology/csv/node-properties.csv").open(newline="") as f:
+            props = {r["PropertyName"]: r for r in csv.DictReader(f)}
+        self.assertEqual((props["applicabilityBasis"]["ApplicableLabels"], props["applicabilityBasis"]["DataType"]),
+                         ("Requirement|Clause", "string"))
+        self.assertEqual((props["needsReview"]["ApplicableLabels"], props["needsReview"]["DataType"]),
+                         ("Requirement|Clause", "boolean"))
+
+
 if __name__ == "__main__":
     unittest.main()

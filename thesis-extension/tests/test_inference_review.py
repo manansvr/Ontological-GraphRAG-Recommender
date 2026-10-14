@@ -564,22 +564,30 @@ class RlCreditTests(Base):
         self.assertIn("rel.rlAction       = $rl_action", query)
         self.assertEqual((params["rl_action"], params["base_confidence"]), ("keep_confidence", 0.65))
 
-    def test_inference_state_uses_the_uncapped_candidate_set(self):
-        # 7 same-ADR assigned requirements (more than the 5 the tool displays), none on SRP8-045.
-        others = [{"req_id": f"REQ-31-{i:03d}", "req_name": f"Rule {i}", "clause": f"5.{i}",
+    def test_many_unrelated_neighbours_are_weak_evidence(self):
+        # 7 same-ADR assigned requirements, none adjacent (target clause 5.1.1.3) or sharing words.
+        others = [{"req_id": f"REQ-31-{i:03d}", "req_name": f"Rule {i}", "clause": f"9.{i}",
                    "assigned_projects": ["SRP8-046"]} for i in range(10, 17)]
         graph = self.use(FakeGraph(candidates=others))
         out = json.loads(sr8.write_inferred_project_link("REQ-1", "SRP8-045", 0.65, "same ADR"))
-        self.assertEqual(out["same_adr_assigned"], 7)
+        self.assertEqual((out["candidate_count"], out["best_neighbour_score"]), (7, 0.0))
         self.assertFalse(out["project_has_same_adr"])
-        self.assertEqual(out["inference_state"], "inference_strong_no_mid")
+        self.assertEqual(out["inference_state"], "inference_weak_no_mid")
         self.assertEqual(graph.ran("AS target_clause")[0][1]["req_id"], "REQ-1")
 
-    def test_project_feature_comes_from_the_candidates_assigned_projects(self):
-        graph = self.use(FakeGraph(candidates=[{"req_id": "REQ-31-006", "req_name": "Brake Linings",
-                                                "clause": "5.1.1.3", "assigned_projects": ["SRP8-045"]}]))
+    def test_one_close_neighbour_is_strong_evidence(self):
+        # Target "Brake Linings" at 5.1.1.3; one neighbour with the same name and clause (score 2.0).
+        self.use(FakeGraph(candidates=[{"req_id": "REQ-31-006", "req_name": "Brake Linings",
+                                        "clause": "5.1.1.3", "assigned_projects": ["SRP8-046"]}]))
         out = json.loads(sr8.write_inferred_project_link("REQ-1", "SRP8-045", 0.65, "same ADR"))
-        self.assertEqual(out["inference_state"], "inference_weak_yes_mid")
+        self.assertEqual((out["best_neighbour_id"], out["best_neighbour_score"]), ("REQ-31-006", 2.0))
+        self.assertEqual(out["inference_state"], "inference_strong_no_mid")
+
+    def test_project_feature_comes_from_the_candidates_assigned_projects(self):
+        self.use(FakeGraph(candidates=[{"req_id": "REQ-31-006", "req_name": "Brake Linings",
+                                        "clause": "5.1.1.3", "assigned_projects": ["SRP8-045"]}]))
+        out = json.loads(sr8.write_inferred_project_link("REQ-1", "SRP8-045", 0.65, "same ADR"))
+        self.assertEqual(out["inference_state"], "inference_strong_yes_mid")
 
     def test_rejection_credits_the_stored_action_not_a_mapped_one(self):
         # The agent had chosen to INCREASE confidence; the rejection must penalise that action.
@@ -639,15 +647,19 @@ class InferenceStateTests(unittest.TestCase):
             self.assertEqual(sr8._confidence_band(confidence), band, confidence)
 
     def test_all_four_evidence_project_combinations_are_reachable(self):
-        self.assertEqual(sr8._inference_state(5, True, 0.8), "inference_strong_yes_high")
-        self.assertEqual(sr8._inference_state(5, False, 0.8), "inference_strong_no_high")   # assigned elsewhere
-        self.assertEqual(sr8._inference_state(1, True, 0.5), "inference_weak_yes_mid")
-        self.assertEqual(sr8._inference_state(0, False, 0.3), "inference_weak_no_low")
-        self.assertEqual(sr8._inference_state(2, False, 0.3), "inference_weak_no_low")
-        self.assertEqual(sr8._inference_state(3, False, 0.3), "inference_strong_no_low")    # threshold is >= 3
+        self.assertEqual(sr8._inference_state(2.0, True, 0.8), "inference_strong_yes_high")
+        self.assertEqual(sr8._inference_state(1.0, False, 0.8), "inference_strong_no_high")
+        self.assertEqual(sr8._inference_state(0.25, True, 0.5), "inference_weak_yes_mid")
+        self.assertEqual(sr8._inference_state(0.0, False, 0.3), "inference_weak_no_low")
+
+    def test_evidence_threshold_is_one_constant_at_0_5(self):
+        self.assertEqual(sr8.EVIDENCE_SCORE_THRESHOLD, 0.5)
+        self.assertTrue(sr8._inference_state(0.5, False, 0.5).startswith("inference_strong_"))
+        self.assertTrue(sr8._inference_state(0.4999, False, 0.5).startswith("inference_weak_"))
+        self.assertFalse(hasattr(sr8, "STRONG_EVIDENCE_MIN_ASSIGNED"))
 
     def test_twelve_states(self):
-        produced = {sr8._inference_state(n, p, c) for n in (0, 3) for p in (True, False) for c in (0.9, 0.5, 0.1)}
+        produced = {sr8._inference_state(n, p, c) for n in (0.0, 1.0) for p in (True, False) for c in (0.9, 0.5, 0.1)}
         self.assertEqual(produced, set(sr8._INFERENCE_STATES))
         self.assertEqual(len(produced), 12)
 

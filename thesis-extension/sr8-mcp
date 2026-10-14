@@ -65,8 +65,11 @@ WRITE_KEYWORDS = {
 #   high: > 0.7    mid: > 0.4 and <= 0.7    low: <= 0.4
 CONFIDENCE_BANDS: tuple[tuple[str, float], ...] = (("high", 0.7), ("mid", 0.4))
 
-# Same-ADR requirements already assigned (to any project) needed for "strong" evidence.
-STRONG_EVIDENCE_MIN_ASSIGNED = 3
+# "Strong" evidence: the best same-ADR assigned neighbour scores at least this much in
+# _similar_assigned_requirements (clause_adjacent 0/1 + name_overlap 0..1, so 0..2).
+# Chosen on the 45 currently unassigned requirements: 0.5 makes 31/45 (69%) strong, inside
+# the 20-80% band; the earlier rule (>= 3 same-ADR assigned requirements) made 45/45 strong.
+EVIDENCE_SCORE_THRESHOLD = 0.5
 
 # Problem B actions; the adjustment each applies to the caller's confidence.
 _RL_ACTIONS = ["increase_confidence", "keep_confidence", "decrease_confidence"]
@@ -441,16 +444,17 @@ def _confidence_band(confidence: float) -> str:
 # FIX 1: maps observable context to one of 12 state strings. The three features are
 # independent: any evidence level can occur with or without the candidate project
 # already holding a requirement from the same ADR.
-def _inference_state(same_adr_assigned: int, project_has_same_adr: bool, base_confidence: float) -> str:
+def _inference_state(best_neighbour_score: float, project_has_same_adr: bool, base_confidence: float) -> str:
     """Return inference_<strong|weak>_<yes|no>_<high|mid|low>.
 
-    same_adr_assigned: requirements from the same ADR already assignedToProject (to any
-        project); strong if >= STRONG_EVIDENCE_MIN_ASSIGNED.
+    best_neighbour_score: the highest score among the requirement's same-ADR assigned
+        candidates in _similar_assigned_requirements (0 if there are none); strong if
+        >= EVIDENCE_SCORE_THRESHOLD, i.e. there is a close neighbour.
     project_has_same_adr: the candidate project already holds at least one
         assignedToProject requirement from the same ADR (yes/no).
     base_confidence: the caller's confidence, banded by CONFIDENCE_BANDS.
     """
-    evidence = "strong" if same_adr_assigned >= STRONG_EVIDENCE_MIN_ASSIGNED else "weak"
+    evidence = "strong" if best_neighbour_score >= EVIDENCE_SCORE_THRESHOLD else "weak"
     project = "yes" if project_has_same_adr else "no"
     return f"inference_{evidence}_{project}_{_confidence_band(base_confidence)}"
 
@@ -1958,10 +1962,11 @@ def _write_inferred_project_link(
     and inferenceState, so the reviewer's feedback later credits exactly that action in
     that state.
 
-    The state is inference_<strong|weak>_<yes|no>_<high|mid|low>: strong if at least 3
-    requirements from the same ADR are already assignedToProject (to any project); yes if
-    the candidate project already holds at least one assignedToProject requirement from
-    the same ADR; and the band of the caller's confidence (high > 0.7, mid > 0.4, low <= 0.4).
+    The state is inference_<strong|weak>_<yes|no>_<high|mid|low>: strong if the best
+    same-ADR assigned neighbour (get_similar_assigned_requirements' score: clause adjacency
+    + name overlap) scores at least EVIDENCE_SCORE_THRESHOLD (0.5); yes if the candidate
+    project already holds at least one assignedToProject requirement from the same ADR;
+    and the band of the caller's confidence (high > 0.7, mid > 0.4, low <= 0.4).
 
     A suggestion a reviewer has promoted, modified or rejected is never changed:
     - Requirement already assignedToProject to this project: nothing is written;
@@ -2066,23 +2071,27 @@ def _write_inferred_project_link(
             "schema_validation": schema_validation,
         }, indent=2)
 
-    # FIX 1: gather context to compute the state before calling the agent. The evidence
-    # count is the uncapped candidate set of get_similar_assigned_requirements (same helper).
-    same_adr_assigned = 0
+    # FIX 1: gather context to compute the state before calling the agent, from the same
+    # helper as get_similar_assigned_requirements: the best neighbour's score decides the
+    # evidence, and the candidates' assigned projects decide the project feature.
+    candidate_count = 0
+    best_neighbour: dict[str, Any] | None = None
     project_has_same_adr = False
     try:
         with _neo4j_driver() as driver:
             with driver.session() as session:
                 similar = _similar_assigned_requirements(session, requirement_id)
                 if similar:
-                    same_adr_assigned = similar["candidate_count"]
+                    candidate_count = similar["candidate_count"]
+                    best_neighbour = similar["candidates"][0] if similar["candidates"] else None
                     project_has_same_adr = any(
                         project_id in c["assigned_projects"] for c in similar["candidates"]
                     )
     except Exception:
         pass
+    best_neighbour_score = best_neighbour["score"] if best_neighbour else 0.0
 
-    infer_state = _inference_state(same_adr_assigned, project_has_same_adr, confidence)
+    infer_state = _inference_state(best_neighbour_score, project_has_same_adr, confidence)
     adjusted_confidence, rl_action = _rl_adjust_confidence(confidence, infer_state)
 
     if write_mode == "revised":
@@ -2154,7 +2163,9 @@ def _write_inferred_project_link(
         "adjusted_confidence": adjusted_confidence,
         "rl_action": rl_action,
         "inference_state": infer_state,
-        "same_adr_assigned": same_adr_assigned,
+        "best_neighbour_score": best_neighbour_score,
+        "best_neighbour_id": best_neighbour["req_id"] if best_neighbour else None,
+        "candidate_count": candidate_count,
         "project_has_same_adr": project_has_same_adr,
         "reasoning": reasoning,
         "revision_count": row["revision_count"],
@@ -2539,26 +2550,38 @@ def get_requirements_by_keyword(keyword: str) -> str:
 
 @mcp.tool()
 def get_requirement_chain(requirement_id: str) -> str:
-    """Traverse the full chain for a requirement: AustralianDesignRule → Clause → ExtractedEssentialRequirement → Project → Assembly."""
+    """Traverse the chain for one requirement: AustralianDesignRule → its own Clause →
+    ExtractedEssentialRequirement → Project → Assembly.
+
+    The clause is the one the requirement was extracted from: the Clause node whose hasID
+    is CLAUSE-<ADR number>-<clauseNumber with dots replaced by underscores>, the ID
+    extract-ADR.py gives it. clause is null when the requirement has no clauseNumber
+    (graphs extracted before clauseNumber was stored) or no such Clause exists.
+    """
     if not requirement_id.strip():
         return json.dumps({"error": "requirement_id must not be empty"}, indent=2)
 
     query = """
     MATCH (r:ExtractedEssentialRequirement {hasID: $req_id})
     OPTIONAL MATCH (a:AustralianDesignRule)-[:hasExternalEssentialRequirement]->(r)
-    OPTIONAL MATCH (a)-[:hasClause]->(c:Clause)
+    WITH r, a, 'CLAUSE-' + replace(a.hasID, 'ADR-', '') + '-' + replace(r.clauseNumber, '.', '_') AS clause_id
+    OPTIONAL MATCH (a)-[:hasClause]->(c:Clause {hasID: clause_id})
     OPTIONAL MATCH (r)-[:assignedToProject]->(p:Project)
     OPTIONAL MATCH (p)-[:belongsToAssembly]->(asm:Assembly)
     RETURN r.hasID AS req_id,
            r.requirementName AS req_name,
            r.requirementDescription AS req_description,
            r.isApplicable AS is_applicable,
+           r.clauseNumber AS clause_number,
            a.hasID AS adr_id,
            a.hasName AS adr_name,
            coalesce(a.isVerified, false) AS adr_verified,
-           collect(DISTINCT {clause_id: c.hasID, clause_name: c.hasName, clause_text: c.clauseText}) AS clauses,
-           collect(DISTINCT {project_id: p.projectID, project_name: p.projectName}) AS projects,
-           collect(DISTINCT {assembly_id: asm.hasID, assembly_name: asm.hasName}) AS assemblies
+           CASE WHEN c IS NULL THEN null
+                ELSE {clause_id: c.hasID, clause_name: c.hasName, clause_text: c.clauseText} END AS clause,
+           [x IN collect(DISTINCT {project_id: p.projectID, project_name: p.projectName})
+            WHERE x.project_id IS NOT NULL] AS projects,
+           [x IN collect(DISTINCT {assembly_id: asm.hasID, assembly_name: asm.hasName})
+            WHERE x.assembly_id IS NOT NULL] AS assemblies
     """
 
     try:

@@ -244,7 +244,13 @@ class InferencePriorTests(unittest.TestCase):
         self.assertEqual(prior.config.exploration_rate, rl.inference_config().exploration_rate)
 
     def test_reward_model_is_a_named_constant(self):
-        self.assertEqual(set(rl.INFERENCE_PRIOR_REWARD_MODEL), {"strong", "moderate", "weak"})
+        model = rl.INFERENCE_PRIOR_REWARD_MODEL
+        self.assertEqual(set(model), {"strong_yes", "strong_no", "weak_yes", "weak_no"})
+        means = {cat: tuple(model[cat][a][0] for a in rl.INFERENCE_ACTIONS) for cat in model}
+        self.assertEqual(means, {"strong_yes": (0.8, 0.6, -0.2), "strong_no": (-0.5, 0.3, 0.6),
+                                 "weak_yes": (0.1, 0.5, -0.1), "weak_no": (-0.3, 0.4, 0.3)})
+        self.assertEqual(rl.inference_prior_category("inference_strong_no_mid"), "strong_no")
+        self.assertEqual(rl.inference_prior_category("inference_weak_yes_low"), "weak_yes")
         self.assertIn("NOT learned from data", RL_PATH.read_text(encoding="utf-8"))
 
 
