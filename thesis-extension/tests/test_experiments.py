@@ -46,16 +46,9 @@ def _consistent_ids():
     for path in sorted((REPO / "thesis-extraction/csv").glob("*.csv")):
         with path.open(newline="", encoding="utf-8-sig") as f:
             rows = x.forward_fill_adr_id([{k.strip(): v for k, v in r.items()} for r in csv.DictReader(f)])
-        counter = 0
-        for i, row in enumerate(rows, start=2):
-            adr = x.normalise_adr_id(x.get_col(row, "adr_id"))
-            clause, name, text = x.get_col(row, "clause"), x.get_col(row, "req_name"), x.get_col(row, "text")
-            if not adr or (not clause and not name and not text):
-                continue
-            applicable, _ = x.read_applicability(row, name) if name else (True, "")
-            if name and (text or not applicable):
-                counter += 1
-                graph[(adr, str(i))] = f"REQ-{adr.replace('ADR-', '')}-{counter:03d}"
+        for plan in x.plan_rows(rows):
+            if plan["req_id"]:
+                graph[(plan["adr_id"], str(plan["csv_row"]))] = plan["req_id"]
     mapping = json.loads((EXT_DIR / "ADR-mapping.json").read_text(encoding="utf-8"))["rows"]
     return {r["requirement_id"] for r in mapping if graph.get((r["adr_id"], r["source_pointer"])) == r["requirement_id"]}
 

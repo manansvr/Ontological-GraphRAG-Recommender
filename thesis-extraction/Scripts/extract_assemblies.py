@@ -51,8 +51,9 @@ def read_assemblies(path: str) -> dict:
 def projects_from_adr_csvs(adr_folder: str) -> tuple:
     """(project_ids, {project_id: {requirement_id, ...}}) that extract-ADR.py would write.
 
-    Uses extract-ADR.py's own row parsing: a Project is created for every row with a
-    Project ID; an assignedToProject edge only when the same row also creates a requirement.
+    Uses extract-ADR.py's own row plan (plan_rows): a Project is created for every row with
+    a real Project ID (placeholders such as "N/A" are not projects); an assignedToProject
+    edge only when the same row also creates a requirement.
     """
     spec = importlib.util.spec_from_file_location("extract_adr_module", Path(__file__).with_name("extract-ADR.py"))
     adr = importlib.util.module_from_spec(spec)
@@ -63,22 +64,12 @@ def projects_from_adr_csvs(adr_folder: str) -> tuple:
     for path in sorted(Path(adr_folder).glob("*.csv")):
         with open(path, newline="", encoding="utf-8-sig") as f:
             rows = adr.forward_fill_adr_id([{k.strip(): v for k, v in r.items()} for r in csv.DictReader(f)])
-        counter = 0
-        for row in rows:
-            adr_id = adr.normalise_adr_id(adr.get_col(row, "adr_id"))
-            clause, name, text = adr.get_col(row, "clause"), adr.get_col(row, "req_name"), adr.get_col(row, "text")
-            if not adr_id or (not clause and not name and not text):
+        for plan in adr.plan_rows(rows):
+            if plan["skip_reason"] or not plan["project_id"]:
                 continue
-            applicable, _ = adr.read_applicability(row, name) if name else (True, "")
-            req_id = None
-            if name and (text or not applicable):
-                counter += 1
-                req_id = f"REQ-{adr_id.replace('ADR-', '')}-{counter:03d}"
-            project_id = adr.get_col(row, "project_id")
-            if project_id:
-                projects.add(project_id)
-                if req_id:
-                    requirements.setdefault(project_id, set()).add(req_id)
+            projects.add(plan["project_id"])
+            if plan["req_id"]:
+                requirements.setdefault(plan["project_id"], set()).add(plan["req_id"])
     return projects, requirements
 
 

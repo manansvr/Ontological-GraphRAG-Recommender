@@ -72,7 +72,7 @@ python3 Scripts/run-extraction.py --only adrs --dry-run --uri bolt://localhost:7
 Check the output:
 - ADR IDs show as `ADR-10`, `ADR-23` etc
 - Project IDs show as `SRP8-048` etc
-- Applicable rows show `[DRY]`, not-applicable rows show `[N/A]`
+- Applicable rows show `[DRY]`, not-applicable rows show `[N/A]`; rows flagged for review end in `NEEDS REVIEW`
 
 ### Live run
 ```bash
@@ -80,27 +80,50 @@ python3 Scripts/run-extraction.py --only adrs --uri bolt://localhost:7687 --user
 ```
 
 ### Expected output
+
+Dry run on the 8 current CSVs (`csv/ADR10` … `csv/ADR95`):
+
 ```
 📁 Found 8 CSV file(s) in csv
 
 📄 ADR10-Requirements.csv
    11 rows | Headers: [...]
-   ✓ Clauses: 11 | Requirements: 11 (6 not applicable) | VPs: 0 | Links: 5
+   ✓ Requirement nodes: 11 (6 not applicable) | Clause nodes: 11 | assignedToProject edges: 5 | Unassigned: 6 | Flagged for review: 0 | Ledger rows: 11
 
-📄 ADR23-Requirements.csv  ...
-📄 ADR25-Requirements.csv  ...
-📄 ADR31-Requirements.csv  ...
-📄 ADR42-Requirements.csv  ...
-📄 ADR43-Requirements.csv  ...
-📄 ADR92-Requirements.csv  ...
-📄 ADR95-Requirements.csv  ...
+📄 ADR23-Requirements.csv  ...  Requirement nodes: 5   | Clause nodes: 4  | assignedToProject edges: 5  | Unassigned: 0
+📄 ADR25-Requirements.csv  ...  Requirement nodes: 42  | Clause nodes: 40 | assignedToProject edges: 40 | Unassigned: 2
+📄 ADR31-Requirements.csv  ...  Requirement nodes: 116 | Clause nodes: 97 | assignedToProject edges: 85 | Unassigned: 31
+📄 ADR42-Requirements.csv  ...  Requirement nodes: 2   | Clause nodes: 2  | assignedToProject edges: 2  | Unassigned: 0
+📄 ADR43-Requirements.csv  ...  Requirement nodes: 27  | Clause nodes: 13 | assignedToProject edges: 23 | Unassigned: 4
+📄 ADR92-Requirements.csv  ...  Requirement nodes: 2   | Clause nodes: 2  | assignedToProject edges: 2  | Unassigned: 0
+📄 ADR95-Requirements.csv  ...  Requirement nodes: 12  | Clause nodes: 8  | assignedToProject edges: 10 | Unassigned: 2
 
-   ── TOTAL across 8 files ──
-     clauses: 243
-     requirements: 205
-     not_applicable: 6
-     proj_links: 178
+   ── TOTAL across 8 file(s) ──
+     ledger rows:                        255
+     requirement nodes:                  217 (211 applicable, 6 not applicable)
+     distinct Clause nodes:              177
+     assignedToProject edges:            172
+     distinct projects:                  24
+     unassigned requirements:            45
+     rows flagged for review:            0
+     rows with a placeholder project ID: 2 (N/A, NA, -, TBC: no Project node, no edge)
+     rows skipped:                       0 (none)
+     rows without a requirement node:    38 (no requirement name: 31, requirement name but no text (applicable): 7)
+     row counters (rows, not nodes):     rows with a clause number 255 | rows creating a requirement 217 | rows with a project or department 190 | rows with a verification method 0
+     review list:                       logs/applicability-review.csv (0 row(s))
 ```
+
+The first block counts distinct nodes and edges as written to the graph. The last line keeps the old per-row counters, which count rows (for example, 255 rows have a clause number but they produce 177 distinct Clause nodes, because repeated clause numbers share a node). Unassigned requirements are those whose row has no real Project ID.
+
+**Project IDs.** The values `N/A`, `NA`, `-`, `TBC` and an empty cell (any case) mean "no project": no Project node and no `assignedToProject` edge are created, and the requirement counts as unassigned. In the current data two ADR-95 rows (REQ-95-003 and REQ-95-010) have `N/A`.
+
+**Applicability.** `read_applicability` uses only the `Applicability` column and the requirement name; the requirement text is never read. In order:
+
+1. If the column holds a recognised value, it decides (basis `column`): `applicable`, `yes`, `true`, `1`, `y` → applicable; `not applicable`, `no`, `false`, `0`, `n`, `n/a` → not applicable.
+2. Otherwise (column missing, empty or unrecognised), if the requirement name contains "not applicable" or "post collision", the row is not applicable (basis `name_keyword`).
+3. Otherwise it is applicable (basis `default`).
+
+Requirement and Clause nodes store `isApplicable`, `applicabilityNote`, `applicabilityBasis` and `needsReview`. A row gets `needsReview = true` only when the column has a non-empty value that is not recognised, or when a recognised column value says applicable but the name contains one of the keywords. A missing or empty column is not flagged. Flagged rows are written to `logs/applicability-review.csv` (rewritten on every run, header only when none). Only the ADR-10 file has an Applicability column; its six not-applicable rows are all decided by the column, and none is flagged.
 
 ### Run a single ADR file only
 ```bash

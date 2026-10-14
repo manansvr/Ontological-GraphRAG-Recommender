@@ -109,8 +109,9 @@ class ExtractorDryRunTests(unittest.TestCase):
 
     def test_project_set_matches_extract_adr(self):
         projects, requirements = self.x.projects_from_adr_csvs(str(EXTRACTION / "csv"))
-        self.assertEqual(len(projects), 25)                                  # includes the literal "N/A"
-        self.assertEqual(sum(len(r) for r in requirements.values()), 174)   # assignedToProject edges
+        self.assertEqual(len(projects), 24)                                  # "N/A" is not a project
+        self.assertNotIn("N/A", projects)
+        self.assertEqual(sum(len(r) for r in requirements.values()), 172)   # assignedToProject edges
 
     def test_csv_validation_and_duplicates(self):
         with tempfile.TemporaryDirectory() as tmp:
