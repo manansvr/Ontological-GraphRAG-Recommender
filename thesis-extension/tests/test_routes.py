@@ -85,6 +85,24 @@ class RouteTableTests(unittest.TestCase):
                        "Please reject the suggestion that REQ-1 belongs to SRP8-045."]:
             self.assertEqual(self.ollama._match_route(phrase), (None, None), phrase)
 
+    def test_assembly_questions_take_the_default_rl_route(self):
+        # The model can then call get_assembly; "assembly"/"build" are not redirect keywords.
+        for phrase in ["What requirements does the Front Axle assembly have?",
+                       "What are the compliance gaps in the Front Axle Assembly?",
+                       "Which projects build up the Rear Axle assembly?"]:
+            self.assertEqual(self.ollama._match_route(phrase), (None, None), phrase)
+        for keywords in (self.ollama._MANUFACTURING_KEYWORDS, self.ollama._DESIGN_KEYWORDS):
+            self.assertNotIn("assembly", keywords)
+            self.assertNotIn("build", keywords)
+
+    def test_manufacturing_questions_keep_the_redirect(self):
+        for phrase in ["What does the manufacturing section say about weld quality control?",
+                       "Which suppliers do we procure brake discs from?",
+                       "How should the bracket be fabricated?"]:
+            route, match = self.ollama._match_route(phrase)
+            self.assertEqual(route.name if route else None, "manufacturing_redirect", phrase)
+            self.assertEqual(match["query"], "Manufacturing Section", phrase)
+
     def test_first_match_wins(self):
         # A Cypher query mentioning inferred links stays a Cypher query.
         route, match = self.ollama._match_route("Run this Cypher query: MATCH (r)-[s:suggestedProject]->(p) "

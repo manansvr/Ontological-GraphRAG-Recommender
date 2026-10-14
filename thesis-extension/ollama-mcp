@@ -432,29 +432,21 @@ def _is_reference_question(text: str) -> bool:
     return "reference" in t and _extract_rule_id_from_question(text) is not None
 
 
+# Keywords for the guidance redirects. "assembly" and "build" are deliberately absent: they
+# appear in ordinary questions about assemblies (e.g. "What requirements does the Front Axle
+# assembly have?"), which belong on the default RL route where the model can call get_assembly.
+_MANUFACTURING_KEYWORDS = ["manufactur", "fabricat", "procure", "quality control"]
+_DESIGN_KEYWORDS = ["design", "prototype", "conceptual", "preliminary", "detailed"]
+
+
 def _is_design_guidance_question(text: str) -> bool:
     t = text.lower()
-    return any(
-        keyword in t
-        for keyword in [
-            "design",
-            "manufactur",
-            "fabricat",
-            "assembly",
-            "build",
-            "prototype",
-            "conceptual",
-            "preliminary",
-            "detailed",
-            "procure",
-            "quality control",
-        ]
-    )
+    return any(keyword in t for keyword in _DESIGN_KEYWORDS + _MANUFACTURING_KEYWORDS)
 
 
 def _design_guidance_redirect(text: str) -> dict[str, str] | None:
     t = text.lower()
-    if any(keyword in t for keyword in ["manufactur", "fabricat", "assembly", "procure", "quality control", "build"]):
+    if any(keyword in t for keyword in _MANUFACTURING_KEYWORDS):
         return {
             "query": "Manufacturing Section",
             "redirect": "For the detailed manufacturing checklist, see [Manufacturing Section.pdf](/Users/manan/Desktop/Honours/thesis-extraction/Design-Documentation/Manufacturing%20Section.pdf#L1) (Manufacturing).",
@@ -623,7 +615,6 @@ _SUGGEST_RE = re.compile(
     re.IGNORECASE | re.DOTALL,
 )
 _UNASSIGNED_RE = re.compile(r"\bunassigned\s+requirements?\b", re.IGNORECASE)
-_MANUFACTURING_KEYWORDS = ["manufactur", "fabricat", "assembly", "procure", "quality control", "build"]
 
 
 def _match_exit(text: str) -> dict[str, Any] | None:
@@ -881,7 +872,7 @@ ROUTES: list[Route] = [
     Route("reference", _match_reference, _handle_reference, False,
           '"reference" plus an ADR/SRP ID', "get_adr_requirements, search_local_documents"),
     Route("manufacturing_redirect", _match_manufacturing, _handle_guidance, True,
-          "manufactur, fabricat, assembly, procure, quality control, build",
+          "manufactur, fabricat, procure, quality control",
           "search_local_documents, then the model, then the Manufacturing Section redirect"),
     Route("design_guidance", _match_design, _handle_guidance, True,
           "design, prototype, conceptual, preliminary, detailed (and the manufacturing words)",
