@@ -15,9 +15,16 @@ def _csv_rows(name):
         return sum(1 for _ in csv.DictReader(f))
 
 
+def _top_level_labels():
+    """Classes with no parent in node-labels.csv (imported as SchemaLabel type 'TopLevel')."""
+    with open(_CSV_DIR / "node-labels.csv", newline="", encoding="utf-8") as f:
+        return sorted(r["Label"] for r in csv.DictReader(f) if not r["ParentLabel"].strip())
+
+
 EXPECTED_LABELS = _csv_rows("node-labels.csv")
 EXPECTED_RELATIONSHIPS = _csv_rows("relationships.csv")
 EXPECTED_PROPERTIES = _csv_rows("node-properties.csv")
+EXPECTED_TOP_LEVEL = _top_level_labels()
 
 class OntologyVerifier:
     def __init__(self, uri="bolt://localhost:7687", user="neo4j", password="password"):
@@ -310,14 +317,7 @@ class OntologyVerifier:
             """)
 
             top_level = [r['name'] for r in result]
-            expected_top = [
-                'Organization',
-                'ProjectTrackingSystem',
-                'Document',
-                'Requirement',
-                'PartsManagement',
-                'Project',
-            ]
+            expected_top = EXPECTED_TOP_LEVEL
 
             if sorted(top_level) == sorted(expected_top):
                 print(f"\n✓ All Top-Level Classes Present:")

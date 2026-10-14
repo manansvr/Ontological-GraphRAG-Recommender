@@ -234,6 +234,50 @@ class ImportScriptTests(unittest.TestCase):
                 sys.modules["neo4j"] = saved
         self.assertEqual((verify.EXPECTED_LABELS, verify.EXPECTED_RELATIONSHIPS, verify.EXPECTED_PROPERTIES), (72, 59, 70))
 
+    def _verify_module(self):
+        saved = sys.modules.get("neo4j")
+        sys.modules["neo4j"] = types.SimpleNamespace(GraphDatabase=None)
+        try:
+            return _load("verify_hierarchy_under_test", ONTOLOGY / "scripts" / "verify.py")
+        finally:
+            if saved is None:
+                sys.modules.pop("neo4j", None)
+            else:
+                sys.modules["neo4j"] = saved
+
+    def _hierarchy_passes(self, verify, top_level):
+        """Run verify_hierarchy against a fake schema layer whose TopLevel labels are top_level."""
+        class Result(list):
+            def single(self):
+                return self[0]
+
+        class Session:
+            def run(self, query, **params):
+                if "WHERE n.type = 'TopLevel'" in query:
+                    return Result({"name": n} for n in sorted(top_level))
+                return Result([{"count": 0}])
+
+            def __enter__(self):
+                return self
+
+            def __exit__(self, *exc):
+                return False
+
+        verifier = object.__new__(verify.OntologyVerifier)
+        verifier.driver = types.SimpleNamespace(session=Session)
+        with contextlib.redirect_stdout(io.StringIO()):
+            return verifier.verify_hierarchy()
+
+    def test_hierarchy_expects_the_csvs_top_level_classes(self):
+        verify = self._verify_module()
+        top = {name for name, row in _rows("node-labels.csv", "Label").items() if not row["ParentLabel"]}
+        self.assertEqual(set(verify.EXPECTED_TOP_LEVEL), top)
+        self.assertEqual(len(top), 11)
+        self.assertTrue({"FailureMode", "Cause", "Effect", "ControlAction", "FeedbackEvent"} <= top)
+        self.assertTrue(self._hierarchy_passes(verify, top))
+        self.assertFalse(self._hierarchy_passes(verify, top - {"FeedbackEvent"}))
+        self.assertFalse(self._hierarchy_passes(verify, top | {"Unexpected"}))
+
 
 if __name__ == "__main__":
     unittest.main()

@@ -135,9 +135,9 @@ cd ..
 
 > **Expected (code):**
 > - `import.py` creates the schema-layer constraints and indexes and the 12 instance uniqueness constraints with no errors.
-> - In `verify.py`:
->   - Node Labels, Relationships, Properties and Validation/Verification Rules **pass**, with `All 72 Node Labels`, `All 59 Relationship Types` and `All 70 Properties`.
->   - **Hierarchy fails** and `verify.py` exits with code 1. This is a known bug: its list of expected top-level classes still has the 6 original ones (Organization, ProjectTrackingSystem, Document, Requirement, PartsManagement, Project). The ontology now also has FailureMode, Cause, Effect, ControlAction and FeedbackEvent at the top level, 11 in all. The import is correct; the check is out of date.
+> - `verify.py` passes all five checks (Node Labels, Relationships, Properties, Hierarchy, Validation/Verification Rules) and exits with code 0:
+>   - `All 72 Node Labels`, `All 59 Relationship Types` and `All 70 Properties`;
+>   - the 11 top-level classes, which it reads from `csv/node-labels.csv`: Cause, ControlAction, Document, Effect, FailureMode, FeedbackEvent, Organization, PartsManagement, Project, ProjectTrackingSystem and Requirement.
 >
 > **Save:** `evidence/02-import.txt`, `evidence/02-verify.txt`.
 
