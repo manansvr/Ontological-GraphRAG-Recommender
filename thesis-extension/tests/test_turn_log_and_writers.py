@@ -70,7 +70,8 @@ class ToolClassificationTests(unittest.TestCase):
 
 class TurnLogTests(unittest.TestCase):
     FIELDS = {"timestamp", "session_id", "question", "route", "rl_state", "rl_action", "forced_strategy",
-              "model", "tool_calls", "reward_components", "evidence_appended", "answer", "latency_ms", "llm_calls"}
+              "model", "tool_calls", "reward_components", "rl_updated", "evidence_appended", "answer",
+              "latency_ms", "llm_calls"}
 
     @classmethod
     def setUpClass(cls):

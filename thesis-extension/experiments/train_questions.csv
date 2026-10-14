@@ -1,0 +1,31 @@
+question_id,category,adr_ids,question,expected_requirement_ids
+T01,requirement_lookup,ADR-43,List the ADR 43 requirements about retractable axles.,REQ-43-024;REQ-43-025;REQ-43-026;REQ-43-027
+T02,requirement_lookup,ADR-43,What does ADR 43 require about the rear overhang of a motor vehicle?,REQ-43-005;REQ-43-006;REQ-43-007
+T03,requirement_lookup,ADR-43,"What overall width limits does ADR 43 set, and which projects carry them?",REQ-43-013;REQ-43-014;REQ-43-015;REQ-43-016;REQ-43-017
+T04,requirement_lookup,ADR-43,What running clearance does ADR 43 require?,REQ-43-018;REQ-43-019;REQ-43-020
+T05,requirement_lookup,ADR-43,What does ADR 43 say about load sharing suspension in an axle group?,REQ-43-022;REQ-43-023
+T06,requirement_lookup,ADR-31,What does ADR 31 require of the service braking system acting on all wheels?,REQ-31-022;REQ-31-059
+T07,requirement_lookup,ADR-31,Which ADR 31 requirements cover warning signals for a hydraulic transmission failure?,REQ-31-014;REQ-31-052;REQ-31-053;REQ-31-054
+T08,requirement_lookup,ADR-31,What does ADR 31 say about electric regenerative braking?,REQ-31-024;REQ-31-060
+T09,requirement_lookup,ADR-31,What does ADR 31 require for brake fluid filling ports and the type of fluid?,REQ-31-044;REQ-31-045
+T10,requirement_lookup,ADR-31,Which ADR 31 requirements deal with checking brake lining and brake disc wear?,REQ-31-041;REQ-31-042
+T11,requirement_lookup,ADR-31,What does ADR 31 require of the two independent brake controls?,REQ-31-021;REQ-31-023
+T12,requirement_lookup,ADR-31,Which ADR 31 requirement covers differences in transverse braking pressure?,REQ-31-030;REQ-31-064
+T13,requirement_lookup,ADR-25,What does ADR 25 require before the engine can be started?,REQ-25-001
+T14,requirement_lookup,ADR-25,Which ADR 25 requirements cover lock cylinders with pin tumblers?,REQ-25-010;REQ-25-011
+T15,requirement_lookup,ADR-25,Which ADR 25 requirements cover lock cylinders with disc tumblers?,REQ-25-012;REQ-25-013
+T16,requirement_lookup,ADR-25,What does ADR 25 say about a driver warning feature?,REQ-25-018
+T17,requirement_lookup,ADR-25,When may power assistance be used under ADR 25?,REQ-25-016
+T18,requirement_lookup,ADR-25,What does ADR 25 require about dismantling the protective device?,REQ-25-006
+T19,requirement_lookup,ADR-10,What happens in the ADR 10 test where the steering control is struck by a body block?,REQ-10-004
+T20,requirement_lookup,ADR-10,What does ADR 10 require when the steering control is struck by an impactor?,REQ-10-005
+T21,requirement_lookup,ADR-10,What are the ADR 10 steering column angle requirements for general steering controls?,REQ-10-009;REQ-10-010
+T22,requirement_lookup,ADR-10,How far may the steering column move in the ADR 10 barrier collision test?,REQ-10-001
+T23,requirement_lookup,ADR-95,What does ADR 95 require about the maximum load rating of class C1 tyres?,REQ-95-011;REQ-95-012
+T24,requirement_lookup,ADR-95,What single formation load capacity does ADR 95 require?,REQ-95-004;REQ-95-005
+T25,requirement_lookup,ADR-95,What does ADR 95 say about temporary-use spare units or run flat tyres?,REQ-95-010
+T26,requirement_lookup,ADR-95,"Under ADR 95, may an alternative testing procedure be used?",REQ-95-003
+T27,requirement_lookup,ADR-92,What does ADR 92 allow for door or luggage compartment component projections?,REQ-92-002
+T28,requirement_lookup,ADR-42,What does ADR 42 require when a panel opening from the front obstructs the driver's view?,REQ-42-002
+T29,requirement_lookup,ADR-23,Which ADR 23 requirement applies to the rear wheels project?,REQ-23-002
+T30,requirement_lookup,ADR-43,What total length limits does ADR 43 set?,REQ-43-002;REQ-43-003;REQ-43-004

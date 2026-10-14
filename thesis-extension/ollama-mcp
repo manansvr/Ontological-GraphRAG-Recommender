@@ -25,6 +25,29 @@ def _rl_enabled() -> bool:
     return os.getenv("RL_ENABLED", "true").lower() == "true"
 
 
+def _rl_learning() -> bool:
+    """RL_LEARNING=true|false (default true). When false the learned policy is used
+    greedily (no exploration) and the model file is neither updated nor saved."""
+    return os.getenv("RL_LEARNING", "true").strip().lower() != "false"
+
+
+RETRIEVAL_STRATEGIES = ("graph_first", "documents_first", "hybrid")
+
+
+def _forced_strategy() -> str | None:
+    """RETRIEVAL_STRATEGY=rl|graph_first|documents_first|hybrid (default rl).
+
+    Returns None for rl (the agent chooses), otherwise the fixed strategy used for every
+    adr_lookup turn. Raises ValueError for any other value.
+    """
+    value = os.getenv("RETRIEVAL_STRATEGY", "rl").strip().lower() or "rl"
+    if value == "rl":
+        return None
+    if value not in RETRIEVAL_STRATEGIES:
+        raise ValueError(f"RETRIEVAL_STRATEGY must be rl or one of {RETRIEVAL_STRATEGIES}, not {value!r}")
+    return value
+
+
 EXTENSION_DIR = Path(__file__).resolve().parent
 
 
@@ -50,10 +73,11 @@ def _new_turn(session_id: str, model: str, question: str) -> dict[str, Any]:
         "route": None,
         "rl_state": None,
         "rl_action": None,
-        "forced_strategy": None,  # no strategy-forcing option exists yet; always null
+        "forced_strategy": None,  # RETRIEVAL_STRATEGY, when it overrides the RL choice
         "model": model,
         "tool_calls": [],
         "reward_components": None,
+        "rl_updated": False,
         "evidence_appended": False,
         "answer": None,
         "latency_ms": None,
@@ -181,27 +205,39 @@ class _RLBridge:
         if not self.enabled or not actions:
             return None
         try:
+            if not _rl_learning():
+                # Evaluation: use the learned policy as it is, without exploring.
+                return self._agent.greedy_action(state, actions)
             return self._agent.choose_action(state, actions)
         except Exception as exc:
             print(f"[rl] choose_action failed: {exc}")
             return None
 
-    def update_and_save(self, state: str, action: str | None, reward: float, next_state: str, next_actions: list[str]) -> None:
-        if not self.enabled or not action:
-            return
+    def update_and_save(self, state: str, action: str | None, reward: float, next_state: str, next_actions: list[str]) -> bool:
+        """Update Q(state, action) and save; returns True if the model was updated.
+
+        Nothing happens when RL is disabled, no action was chosen, or RL_LEARNING=false.
+        Each live reward is also appended to problem_a's episode_rewards, so its length is
+        the number of updates Problem A has received.
+        """
+        if not self.enabled or not action or not _rl_learning():
+            return False
         try:
             transition = self._transition_cls(state, action, reward, next_state, next_actions)
 
             def apply(latest: Any) -> None:
                 latest.update(transition)
                 latest.decay_exploration()
+                latest.episode_rewards.append(reward)
 
             # Apply this turn's update to the latest saved model under the shared lock,
             # so feedback saved meanwhile by sr8-mcp or a review command is not overwritten
             # by this process's in-memory copy; then use the result as the new copy.
             self._agent = self._locked_update(self._model_path, apply)
+            return True
         except Exception as exc:
             print(f"[rl] update/save failed: {exc}")
+            return False
 
 
 def _rl_state_and_actions(user_input: str) -> tuple[str, list[str]]:
@@ -551,6 +587,7 @@ def _post_chat(model: str, messages: list[dict[str, Any]], tools: list[dict[str,
 
 
 async def run_chat(model: str, server_command: str, server_args: list[str]) -> None:
+    _forced_strategy()  # fail fast on an invalid RETRIEVAL_STRATEGY
     server_params = StdioServerParameters(command=server_command, args=server_args)
 
     async with stdio_client(server_params) as (reader, writer):
@@ -787,8 +824,11 @@ async def run_chat(model: str, server_command: str, server_args: list[str]) -> N
 
                     # RL-guided prefetch stage for standard questions.
                     rl_state, rl_actions = _rl_state_and_actions(user_input)
-                    rl_action = rl_bridge.choose_action(rl_state, rl_actions)
-                    turn.update(route="rl_prefetch", rl_state=rl_state, rl_action=rl_action)
+                    # RETRIEVAL_STRATEGY can fix the strategy for adr_lookup turns (experiments).
+                    forced_strategy = _forced_strategy() if rl_state == "adr_lookup" else None
+                    rl_action = forced_strategy or rl_bridge.choose_action(rl_state, rl_actions)
+                    turn.update(route="rl_prefetch", rl_state=rl_state, rl_action=rl_action,
+                                forced_strategy=forced_strategy)
                     if rl_action:
                         print(f"\n[rl] state={rl_state} action={rl_action}")
 
@@ -865,8 +905,9 @@ async def run_chat(model: str, server_command: str, server_args: list[str]) -> N
                                 raw_content, tool_used_this_turn, evidence_refs_this_turn, fallback_substituted,
                             )
                             turn["reward_components"] = reward_components
-                            if _rl_learnable(rl_actions):
-                                rl_bridge.update_and_save(
+                            # A forced strategy was not chosen by the policy, so it does not train it.
+                            if _rl_learnable(rl_actions) and forced_strategy is None:
+                                turn["rl_updated"] = rl_bridge.update_and_save(
                                     state=rl_state,
                                     action=rl_action,
                                     reward=reward_components["total"],

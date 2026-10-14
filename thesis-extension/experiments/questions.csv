@@ -1,0 +1,26 @@
+question_id,category,adr_ids,question,expected_requirement_ids
+E01,requirement_count,ADR-42,"What is the total number of requirements extracted from ADR 42, and what are they?",REQ-42-001;REQ-42-002
+E02,requirement_count,ADR-92,List every requirement recorded for ADR 92 with its ID.,REQ-92-001;REQ-92-002
+E03,requirement_count,ADR-10,Which requirements were extracted for ADR 10? Give the total and every requirement ID.,REQ-10-001;REQ-10-002;REQ-10-003;REQ-10-004;REQ-10-005;REQ-10-006;REQ-10-007;REQ-10-008;REQ-10-009;REQ-10-010;REQ-10-011
+E04,requirement_count,ADR-95,Give the full list of requirement IDs for ADR 95 and state the total.,REQ-95-001;REQ-95-002;REQ-95-003;REQ-95-004;REQ-95-005;REQ-95-006;REQ-95-007;REQ-95-008;REQ-95-009;REQ-95-010;REQ-95-011;REQ-95-012
+E05,requirement_lookup,ADR-31,Which ADR 31 requirements say that brake linings must not contain asbestos?,REQ-31-005;REQ-31-006
+E06,requirement_lookup,ADR-25,What does ADR 25 require about the number of different key combinations?,REQ-25-007
+E07,requirement_lookup,ADR-43,"What is the maximum vehicle height allowed under ADR 43, and which requirement IDs state it?",REQ-43-008;REQ-43-009
+E08,requirement_lookup,ADR-95,What does ADR 95 say about the speed category marked on tyres?,REQ-95-006;REQ-95-007
+E09,requirement_lookup,ADR-10,"For an electric vehicle in the ADR 10 impact test, what must happen to the monoblocs?",REQ-10-002;REQ-10-003
+E10,requirement_lookup,ADR-42,What does ADR 42 require for a movable body panel forward of the windscreen?,REQ-42-001
+E11,requirement_lookup,ADR-23,"Which ADR 23 requirements apply to vehicles fitted with passenger car tyres (Class C1), and which projects are they assigned to?",REQ-23-001;REQ-23-002
+E12,requirement_lookup,ADR-92,What is the maximum projection allowed for luggage compartment components under ADR 92?,REQ-92-001
+E13,verification_method,ADR-31,How is compliance with the ADR 31 static braking force requirement to be verified?,REQ-31-015
+E14,verification_method,ADR-10,What verification method is recorded for the ADR 10 steering control surface requirements?,REQ-10-006;REQ-10-008
+E15,verification_method,ADR-25,How should the ADR 25 torque test on the lock cylinder be verified?,REQ-25-009
+E16,evidence_source,ADR-43,Which source file and row support the ADR 43 turning circle requirement?,REQ-43-001
+E17,evidence_source,ADR-95,Cite the document and row that state the ADR 95 spare wheel requirement.,REQ-95-008;REQ-95-009
+E18,evidence_source,ADR-31,Where in the source data is the ADR 31 automatic wear adjustment requirement stated? Give the file and row.,REQ-31-039
+E19,evidence_source,ADR-25,Show the evidence for the ADR 25 requirement that the key and lock must not be visibly coded.,REQ-25-008
+E20,evidence_source,ADR-10,Which file and row record the ADR 10 adaptor demonstration requirement?,REQ-10-011
+E21,cross_adr,ADR-23;ADR-95,Which requirements in ADR 23 and ADR 95 apply to the front wheels project SRP8-050?,REQ-23-001;REQ-95-001;REQ-95-004;REQ-95-006;REQ-95-008;REQ-95-011
+E22,cross_adr,ADR-43;ADR-95,"Comparing ADR 43 ground clearance and ADR 95 wheel space, which requirement IDs cover the rear wheels project SRP8-051?",REQ-43-011;REQ-95-002
+E23,cross_adr,ADR-25;ADR-10,Which ADR 25 and ADR 10 requirements are assigned to the steering column project SRP8-048?,REQ-25-017;REQ-25-018;REQ-10-009;REQ-10-010;REQ-10-011
+E24,cross_adr,ADR-42;ADR-92,Which ADR 42 and ADR 92 requirements apply to the bonnet and boot projects SRP8-005 and SRP8-004?,REQ-42-001;REQ-42-002;REQ-92-001;REQ-92-002
+E25,cross_adr,ADR-43;ADR-31,Which ADR 43 load sharing suspension requirement and which ADR 31 secondary braking requirements apply to SRP8-044 and SRP8-046?,REQ-43-023;REQ-31-011;REQ-31-043

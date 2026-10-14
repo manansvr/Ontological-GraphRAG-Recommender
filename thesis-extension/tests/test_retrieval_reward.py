@@ -83,8 +83,9 @@ class TurnHandlingTests(unittest.TestCase):
     def test_update_is_guarded_by_rl_learnable(self):
         guarded = []
         for node in ast.walk(self.run_chat):
-            if isinstance(node, ast.If) and isinstance(node.test, ast.Call) \
-                    and getattr(node.test.func, "id", None) == "_rl_learnable":
+            if isinstance(node, ast.If) and any(
+                    isinstance(c, ast.Call) and getattr(c.func, "id", None) == "_rl_learnable"
+                    for c in ast.walk(node.test)):
                 guarded += [n for n in ast.walk(node) if isinstance(n, ast.Attribute) and n.attr == "update_and_save"]
         all_updates = [n for n in ast.walk(self.run_chat) if isinstance(n, ast.Attribute) and n.attr == "update_and_save"]
         self.assertEqual(len(all_updates), 1)

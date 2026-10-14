@@ -255,3 +255,26 @@ Both programs append one JSON object per line to `thesis-extension/logs/` (creat
 | `answer`, `latency_ms`, `llm_calls` | text shown to the user, turn duration, number of Ollama chat calls |
 
 **`logs/inference.jsonl`** (`sr8-mcp`, one line per `write_inferred_project_link` call and per review event: `promote`, `modify`, `reject`, `record_feedback`, including refused ones): `event`, `outcome`, `error`, `requirement_id`, `project_id` (and `new_project_id` for modify), `base_confidence`, `adjusted_confidence`, `inference_state`, `rl_action`, `reward`, `overconfidence_penalty_applied`, `rl_updated`, `reviewer`, `reason`, `schema_validation` (the write-time check, or the `schemaValidated` flag stored on the suggestion for review events), `write_mode` and `previous_decision`.
+
+## Retrieval-strategy experiment
+
+Two environment variables control Problem A for experiments (both read by `ollama-mcp`):
+
+- `RETRIEVAL_STRATEGY=rl|graph_first|documents_first|hybrid` (default `rl`). When not `rl`, every `adr_lookup` turn uses that strategy instead of the agent's choice; the turn log records it as `forced_strategy`, and a forced turn never updates the Q-table.
+- `RL_LEARNING=true|false` (default `true`). When `false`, the learned policy is used greedily (no exploration) and the model file is neither updated nor saved.
+
+Each live Problem A update appends its reward to `problem_a.episode_rewards` in `.rl-model.json`, so its length is the number of updates Problem A has received; each turn record also has `rl_updated`.
+
+`experiments/` holds the question sets and the runner:
+
+- `questions.csv`: 25 evaluation questions over all 8 ADRs (requirement counts, specific lookups, verification methods, evidence/source questions, cross-ADR questions).
+- `train_questions.csv`: 30 different training questions.
+- Both have `expected_requirement_ids`. These are IDs from `ADR-mapping.json`, restricted to requirements whose mapping ID equals the graph ID that `extract-ADR.py` assigns; for ADR-23, ADR-25 and ADR-31 the two numberings differ for many rows. Every question is worded so it takes the RL route (no "how many … requirement", "reference" or design/manufacturing keywords), which `tests/test_experiments.py` checks.
+- `run-baseline.py` runs each question through `ollama-mcp`'s own chat loop in a fresh session:
+  - `--train --passes N`: `train_questions.csv`, N times, strategy `rl`, learning on.
+  - `--evaluate`: `questions.csv` for `graph_first`, `documents_first`, `hybrid` and `rl`, learning off.
+  - `--limit K` runs only the first K questions (a quick check).
+
+  Results go to `experiments/results/`: `<mode>-<timestamp>.csv` (one row per question and strategy: route, chosen and forced strategy, `model_cited`, `fallback_used`, `evidence_appended`, expected IDs found as count and fraction, tool calls, LLM calls, latency, `rl_updated`), `-summary.csv` (per-strategy means and Problem A's update counts), `-turns.jsonl` and `-transcript.txt`.
+
+Problem A has a single learnable state (`adr_lookup`), so training learns one overall best strategy rather than a per-question choice.
