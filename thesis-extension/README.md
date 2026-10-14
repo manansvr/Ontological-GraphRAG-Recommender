@@ -133,7 +133,7 @@ Node labels used by the MCP tools:
 - `Project` — an SR8 project area; `projectID`, `projectName`
 - `Assembly` — a group of projects; `hasID` (e.g. `ASM-FRONT-AXLE`, `ASM-STEERING`, `ASM-REAR-AXLE`), `hasName`. Created by `thesis-extraction/Scripts/run-extraction.py --only assemblies` from `thesis-extraction/data/assemblies.csv`
 - `ChangeImpactReport` — written by `write_change_impact_report`; `hasID`, `changeDescription`, `riskSummary`, `createdAt`
-- `FeedbackEvent` — written when a person reviews a suggestion (`promote_inferred_link`, `modify_inferred_link`, `reject_inferred_link`; also the uncalled `record_feedback` function); `hasID`, `requirementID`, `projectID`, `action`, `reward`, `inferenceState`, `overconfidencePenaltyApplied`, `rlAction` (the action credited), `reviewer` (null when written by `record_feedback`), `timestamp`
+- `FeedbackEvent` — written when a person reviews a suggestion (`promote_inferred_link`, `modify_inferred_link`, `reject_inferred_link`; also the uncalled `record_feedback` function); `hasID`, `requirementID`, `projectID`, `action`, `reward`, `inferenceState`, `overconfidencePenaltyApplied`, `rlAction` (the action credited), `reviewer` (null when written by `record_feedback`), `hasTimestamp` (older events have `timestamp`)
 
 Relationship types:
 

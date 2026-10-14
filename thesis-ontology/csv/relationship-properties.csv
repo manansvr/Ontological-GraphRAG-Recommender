@@ -1,0 +1,33 @@
+RelationshipType,PropertyName,DataType,Description
+assignedToProject,source,string,"extracted (extract-ADR.py), inferred (promote_inferred_link) or inferred-modified (modify_inferred_link)"
+assignedToProject,promotedAt,datetime,When a reviewer promoted the suggestion
+assignedToProject,promotedBy,string,Reviewer who promoted it (human-review on links made by the old code)
+assignedToProject,promotedFromConfidence,float,Confidence of the suggestion when it was promoted
+assignedToProject,inferenceReasoning,string,Reasoning copied from the suggestion
+assignedToProject,inferredBy,string,"Who wrote the suggestion, copied from it"
+assignedToProject,inferredAt,datetime,"When the suggestion was written, copied from it"
+assignedToProject,inferenceState,string,"Problem B state of the suggestion, copied from it"
+assignedToProject,modifiedFromProject,string,"Project the suggestion proposed, when the reviewer assigned a different one"
+assignedToProject,modificationReason,string,Reviewer's reason for assigning a different project
+satisfiesRequirement,sourceFile,string,FMEA workbook file the link came from
+satisfiesRequirement,sourceSheet,string,Workbook sheet (Requirement Mapping)
+satisfiesRequirement,sourceRow,integer,Workbook row of the link (header is row 1)
+suggestedProject,confidence,float,Confidence after the RL adjustment
+suggestedProject,baseConfidence,float,"Confidence given by the caller, before the RL adjustment"
+suggestedProject,reasoning,string,Why the link was suggested
+suggestedProject,inferredBy,string,Who wrote the suggestion (Ollama-MCP)
+suggestedProject,inferredAt,datetime,When the suggestion was written
+suggestedProject,inferenceState,string,Problem B state when written: inference_<strong|weak>_<yes|no>_<high|mid|low>
+suggestedProject,rlAction,string,"Action the RL agent chose: increase_confidence, keep_confidence or decrease_confidence"
+suggestedProject,schemaValidated,boolean,True when the write passed the schema-layer check
+suggestedProject,schemaCheckedAt,datetime,When the schema-layer check ran
+suggestedProject,previousConfidence,float,Confidence before the last revision of a pending suggestion
+suggestedProject,previousReasoning,string,Reasoning before the last revision of a pending suggestion
+suggestedProject,revisionCount,integer,Number of revisions of a pending suggestion
+suggestedProject,resubmissionOf,datetime,inferredAt of the reviewed suggestion this one resubmits
+suggestedProject,status,string,"Review outcome: promoted, modified or rejected; absent while pending"
+suggestedProject,reviewedBy,string,Reviewer who decided
+suggestedProject,reviewedAt,datetime,When the reviewer decided
+suggestedProject,rejectionReason,string,Reviewer's reason for rejecting
+suggestedProject,modifiedTo,string,Project the reviewer assigned instead (status modified)
+suggestedProject,modificationReason,string,Reviewer's reason for assigning a different project

@@ -189,7 +189,7 @@ On the first review command of the session `ollama-mcp` asks for your name. The 
 
 **Verify in Neo4j:**
 
-> Run this Cypher query: MATCH (fe:FeedbackEvent) RETURN fe.action, fe.reward, fe.overconfidencePenaltyApplied ORDER BY fe.timestamp DESC LIMIT 3
+> Run this Cypher query: MATCH (fe:FeedbackEvent) RETURN fe.action, fe.reward, fe.overconfidencePenaltyApplied ORDER BY fe.hasTimestamp DESC LIMIT 3
 
 ---
 
@@ -225,7 +225,7 @@ Alternatively run `python3 thesis-extension/scripts/review-links.py --reviewer "
 
 **Step 5b-4 — The FeedbackEvent names the reviewer:**
 
-> Run this Cypher query: MATCH (fe:FeedbackEvent {requirementID: "[req_id]", projectID: "[project_id]"}) RETURN fe.action, fe.reward, fe.reviewer, fe.timestamp ORDER BY fe.timestamp DESC
+> Run this Cypher query: MATCH (fe:FeedbackEvent {requirementID: "[req_id]", projectID: "[project_id]"}) RETURN fe.action, fe.reward, fe.reviewer, fe.hasTimestamp ORDER BY fe.hasTimestamp DESC
 
 **Step 5b-5 — A second decision on the same pair is refused:**
 

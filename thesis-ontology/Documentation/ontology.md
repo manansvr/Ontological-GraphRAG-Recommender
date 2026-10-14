@@ -7,10 +7,12 @@ This ontology formally represents the knowledge domain of the Sunswift Racing SR
 **Authors**: Manan Rathi, Ilina Sharma
 
 **Ontology Statistics:**
-- **Classes**: 65 (Node Labels)
-- **Object Properties**: 48 (Relationships)
-- **Data Properties**: 49 (Attributes)
-- **Total Elements**: 200+
+- **Classes**: 72 (Node Labels)
+- **Object Properties**: 59 (Relationships)
+- **Data Properties**: 70 (Node Attributes)
+- **Edge Properties**: 32 (properties stored on relationships; `edgeProperty` annotations)
+
+`ontology.owl` is the single source of truth. The schema CSVs in `csv/` (`node-labels.csv`, `relationships.csv`, `node-properties.csv`, `relationship-properties.csv`) are generated from it with `python3 scripts/owl-to-csv.py`; `python3 scripts/validate.py` fails if they differ. Edit the OWL file, then regenerate.
 
 ---
 
@@ -293,8 +295,14 @@ Requirement
 │           └── ADRTestingProcedure
 
 PartsManagement
-└── Assembly
-    └── Component
+├── Assembly
+└── Component        (an Assembly is assembledFrom Components; a Component is not a kind of Assembly)
+
+Classes written by the extractors and sr8-mcp
+├── FailureMode, Cause, Effect, ControlAction   (FMEA workbook; top-level)
+├── FeedbackEvent                               (a reviewer's decision on an inferred link; top-level)
+└── Document
+    └── ChangeImpactReport                      (written by write_change_impact_report)
 ```
 
 ---
@@ -362,9 +370,20 @@ PartsManagement
 - `hasRisk` - All → Requirement
 - `propagatesRiskTo` - Subsystem → Subsystem
 
+### Relationships Written By The Extractors And sr8-mcp
+- `hasFailureMode` - Component → FailureMode; `causedBy` - FailureMode → Cause; `causes` - FailureMode → Effect; `mitigatedBy` - FailureMode → ControlAction; `satisfiesRequirement` - Component → Requirement (FMEA)
+- `suggestedProject` - ExtractedEssentialRequirement → Project (machine inference, pending review)
+- `belongsToAssembly` - Project → Assembly
+- `recordedFor` - FeedbackEvent → ExtractedEssentialRequirement | Project
+- `affectsRequirement` - ChangeImpactReport → Requirement; `affectsProject` - ChangeImpactReport → Project
+
+Properties stored on relationships (`suggestedProject`, `assignedToProject`, `satisfiesRequirement`) are listed in `csv/relationship-properties.csv`.
+
 ### Property Characteristics
 - **Symmetric**: `interface`, `collaboratesWith`
-- **Transitive**: `dependsOn`, `hasComponent`
+- **Transitive**: `dependsOn`, `hasComponent`, `partOfBOM`
+
+All five are declared in `ontology.owl` (`owl:SymmetricProperty` / `owl:TransitiveProperty`). They are documentation only: no query relies on them.
 
 ---
 
@@ -420,10 +439,9 @@ graph LR
 - `hasID` (string) - Unique identifier
 - `hasName` (string) - Entity name
 - `hasDescription` (string) - Detailed description
-- `hasTimestamp` (dateTime) - Temporal metadata
+- `hasTimestamp` (dateTime) - Temporal metadata (FeedbackEvent nodes store it)
 
 ### Provenance & Confidence
-- `hasSource` (string) - Data source
 - `hasProvenance` (string) - Origin & history
 - `hasConfidenceScore` (float, 0-1) - Extraction confidence
 

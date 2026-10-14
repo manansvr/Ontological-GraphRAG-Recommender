@@ -1,6 +1,23 @@
 #!/usr/bin/env python3
 
+import importlib.util
+import sys
 import xml.etree.ElementTree as ET
+from pathlib import Path
+
+
+def check_csvs_match_owl():
+    """True if the four schema CSVs are exactly what scripts/owl-to-csv.py generates from ontology.owl."""
+    spec = importlib.util.spec_from_file_location(
+        "owl_to_csv", Path(__file__).resolve().with_name("owl-to-csv.py"))
+    owl_to_csv = importlib.util.module_from_spec(spec)
+    spec.loader.exec_module(owl_to_csv)
+    diffs = owl_to_csv.differences()
+    if diffs:
+        print(f"   ✗ CSVs out of date with ontology.owl: {', '.join(diffs)} (run scripts/owl-to-csv.py)")
+        return False
+    print("   ✓ node-labels.csv, relationships.csv, node-properties.csv and relationship-properties.csv match ontology.owl")
+    return True
 
 def analyze_ontology():
     tree = ET.parse('ontology.owl')
@@ -79,6 +96,13 @@ def analyze_ontology():
     print(f"   ✓ All Classes Have Labels")
     print(f"   ✓ Ontology Meta-Data complete")
 
+    print(f"\n🔁 SCHEMA CSVs:")
+    if not check_csvs_match_owl():
+        print(f"\n" + "="*60)
+        print("ONTOLOGY AND CSVs DIFFER")
+        print("="*60)
+        return False
+
     print(f"\n" + "="*60)
     print("ONTOLOGY READY FOR USE")
     print("="*60)
@@ -89,4 +113,4 @@ def analyze_ontology():
     print()
 
 if __name__ == '__main__':
-    analyze_ontology()
+    sys.exit(0 if analyze_ontology() is not False else 1)

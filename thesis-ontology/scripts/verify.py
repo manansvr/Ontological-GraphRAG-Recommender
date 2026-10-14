@@ -1,7 +1,23 @@
 #!/usr/bin/env python3
 
 from neo4j import GraphDatabase
+import csv
 import sys
+from pathlib import Path
+
+# Expected counts come from the generated CSVs (scripts/owl-to-csv.py writes them from
+# ontology.owl), so they cannot drift from the ontology.
+_CSV_DIR = Path(__file__).resolve().parent.parent / "csv"
+
+
+def _csv_rows(name):
+    with open(_CSV_DIR / name, newline="", encoding="utf-8") as f:
+        return sum(1 for _ in csv.DictReader(f))
+
+
+EXPECTED_LABELS = _csv_rows("node-labels.csv")
+EXPECTED_RELATIONSHIPS = _csv_rows("relationships.csv")
+EXPECTED_PROPERTIES = _csv_rows("node-properties.csv")
 
 class OntologyVerifier:
     def __init__(self, uri="bolt://localhost:7687", user="neo4j", password="password"):
@@ -25,11 +41,11 @@ class OntologyVerifier:
             result = session.run("MATCH (n:SchemaLabel) RETURN count(n) as count")
             count = result.single()['count']
 
-            if count == 65:
-                print(f"✓ All 65 Node Labels Imported Correctly")
+            if count == EXPECTED_LABELS:
+                print(f"✓ All {EXPECTED_LABELS} Node Labels Imported Correctly")
 
             else:
-                print(f"✗ Expected 65 Node Labels, Found {count}")
+                print(f"✗ Expected {EXPECTED_LABELS} Node Labels, Found {count}")
                 return False
 
             result = session.run("""
@@ -73,11 +89,11 @@ class OntologyVerifier:
             result = session.run("MATCH (r:SchemaRelationship) RETURN count(r) as count")
             count = result.single()['count']
 
-            if count == 48:
-                print(f"✓ All 48 Relationship Types Imported Correctly")
+            if count == EXPECTED_RELATIONSHIPS:
+                print(f"✓ All {EXPECTED_RELATIONSHIPS} Relationship Types Imported Correctly")
 
             else:
-                print(f"✗ Expected 48 Relationships, Found {count}")
+                print(f"✗ Expected {EXPECTED_RELATIONSHIPS} Relationships, Found {count}")
                 return False
 
             key_relationships = [
@@ -214,11 +230,11 @@ class OntologyVerifier:
             result = session.run("MATCH (p:SchemaProperty) RETURN count(p) as count")
             count = result.single()['count']
 
-            if count == 49:
-                print(f"✓ All 49 Properties Imported Correctly")
+            if count == EXPECTED_PROPERTIES:
+                print(f"✓ All {EXPECTED_PROPERTIES} Properties Imported Correctly")
 
             else:
-                print(f"✗ Expected 49 Properties, Found {count}")
+                print(f"✗ Expected {EXPECTED_PROPERTIES} Properties, Found {count}")
                 return False
 
             result = session.run("""

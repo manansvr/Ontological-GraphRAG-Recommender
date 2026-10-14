@@ -44,28 +44,30 @@ ExtractedRecommendedRequirement,ExtractedRequirement,Contextual External Require
 ValidationScenario,Requirement,Operational Context Used To Validate Intended Use,Derived,Artifact
 AcceptanceCriterion,ValidationScenario,Measurable Criterion Defining Validation Success,Derived,Artifact
 ValidationResult,Requirement,Outcome Record For Validation Execution,Derived,Artifact
-PartsManagement,,,TopLevel,Artifact
-Assembly,PartsManagement,,Derived,Artifact
-Component,Assembly,,Derived,Artifact
-FailureMode,Component,Way In Which A Component Can Fail (FMEA),Derived,Artifact
-Cause,FailureMode,Root Cause Of A Failure Mode (FMEA),Derived,Artifact
-Effect,FailureMode,Consequence Of A Failure Mode (FMEA),Derived,Artifact
-ControlAction,FailureMode,Mitigation Or Control Action For A Failure Mode (FMEA),Derived,Artifact
+PartsManagement,,Parts Management Domain For Components And Assemblies,TopLevel,Artifact
+Assembly,PartsManagement,A Higher-Level Build Unit Composed Of Multiple Components,Derived,Artifact
+Component,PartsManagement,,Derived,Artifact
 Subsystem,System,Functional Unit Within A System,Derived,Artifact
-Project,,Engineering Project With ID Name And Description (189 Concurrent Projects),TopLevel,Artifact
+Project,,"Engineering Project With ID, Name, And Description (189 Concurrent Projects)",TopLevel,Artifact
 VerificationProcedure,Requirement,Detailed Procedure For Verifying ADR Compliance,Derived,Artifact
 VerificationMethod,VerificationProcedure,Method Used To Verify Compliance With Requirements,Derived,Artifact
 Inspection,VerificationMethod,Visual Or Manual Inspection Verification Method,Derived,Artifact
 Demonstration,VerificationMethod,Demonstration-Based Verification Method,Derived,Artifact
 Test,VerificationMethod,Physical Or Functional Test Verification Method,Derived,Artifact
-Analysis,VerificationMethod,Analytical Verification Including Simulations And Calculations,Derived,Artifact
+Analysis,VerificationMethod,Analytical Verification Including Simulations & Calculations,Derived,Artifact
 ADRAnnex,VerificationMethod,Verification Through ADR Annex Procedures,Derived,Artifact
 ADRTestingProcedure,VerificationMethod,Official ADR Testing Procedure Verification Method,Derived,Artifact
-TestingEvidence,Document,Evidence Supporting Verification Of Compliance Formed When Multiple Components Work Together,Derived,Artifact
+TestingEvidence,Document,"Evidence Supporting Verification Of Compliance, Formed When Multiple Components Work Together To Pass Testing Procedures",Derived,Artifact
 InspectionEvidence,TestingEvidence,Evidence Obtained Through Visual Or Manual Inspection,Derived,Artifact
 DemonstrationEvidence,TestingEvidence,Evidence Obtained Through Functional Demonstration,Derived,Artifact
 TestEvidence,TestingEvidence,Evidence Obtained Through Physical Or Functional Testing,Derived,Artifact
-AnalysisEvidence,TestingEvidence,Evidence Obtained Through Simulations And Calculations,Derived,Artifact
+AnalysisEvidence,TestingEvidence,"Evidence Obtained Through Simulations & Calculations (CFD, FEA, Etc.)",Derived,Artifact
 ADRAnnexEvidence,TestingEvidence,Evidence Obtained Through ADR Annex Procedures,Derived,Artifact
 ADRTestingProcedureEvidence,TestingEvidence,Evidence Obtained Through Official ADR Testing Procedures,Derived,Artifact
 Clause,Requirement,Specific Clause Within An ADR (Each Clause Is A New Node Connected To 1 ADR),Derived,Artifact
+FailureMode,,Way In Which A Component Can Fail (FMEA),TopLevel,Artifact
+Cause,,Root Cause Of A Failure Mode (FMEA),TopLevel,Artifact
+Effect,,Consequence Of A Failure Mode (FMEA),TopLevel,Artifact
+ControlAction,,Mitigation Or Control Action For A Failure Mode (FMEA),TopLevel,Artifact
+FeedbackEvent,,"A Reviewer's Decision On An Inferred Project Link, With The Reward Given To The RL Agent",TopLevel,Artifact
+ChangeImpactReport,Document,Report Of The Requirements And Projects Affected By A Proposed Change,Derived,Artifact

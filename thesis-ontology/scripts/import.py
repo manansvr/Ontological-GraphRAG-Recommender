@@ -1,4 +1,9 @@
 #!/usr/bin/env python3
+"""Import the schema layer (SchemaLabel, SchemaRelationship, SchemaProperty) from the CSVs.
+
+The CSVs are generated from ontology.owl by scripts/owl-to-csv.py; edit the OWL file, then
+regenerate. Also creates instance-level uniqueness constraints for the extractors' keys.
+"""
 
 import csv
 from neo4j import GraphDatabase
@@ -35,6 +40,47 @@ class SR8OntologyImporter:
 
                 except Exception as e:
                     print(f"  (Already exists or error: {constraint.split()[1]})")
+
+    # Instance-level uniqueness for the keys the extractors and sr8-mcp MERGE on.
+    # Not constrained: the FMEA Requirement nodes, MERGEd on hasName. Their names are unique
+    # today, but extract-ADR.py also gives VerificationMethod nodes the Requirement label with
+    # hasName = the method (e.g. "Test"), once per clause, so Requirement.hasName repeats as
+    # soon as verification methods are filled in.
+    INSTANCE_KEYS = [
+        ("Project", "projectID"),
+        ("Clause", "hasID"),
+        ("ExtractedEssentialRequirement", "hasID"),
+        ("AustralianDesignRule", "hasID"),
+        ("Component", "hasID"),
+        ("Assembly", "hasID"),
+        ("FeedbackEvent", "hasID"),
+        ("ChangeImpactReport", "hasID"),
+        ("FailureMode", "hasID"),
+        ("Cause", "hasID"),
+        ("Effect", "hasID"),
+        ("ControlAction", "hasID"),
+    ]
+
+    def create_instance_constraints(self):
+        """Create a uniqueness constraint per INSTANCE_KEYS entry (idempotent).
+
+        Creation fails if existing data already has duplicate values for a key; that is
+        reported and the remaining constraints are still created.
+        """
+        created, failed = [], []
+        with self.driver.session() as session:
+            for label, prop in self.INSTANCE_KEYS:
+                name = f"unique_{label.lower()}_{prop.lower()}"
+                try:
+                    session.run(f"CREATE CONSTRAINT {name} IF NOT EXISTS "
+                                f"FOR (n:{label}) REQUIRE n.{prop} IS UNIQUE")
+                    created.append(name)
+                except Exception as e:
+                    failed.append((name, str(e)))
+        print(f"✓ Instance constraints: {len(created)} created or already present")
+        for name, error in failed:
+            print(f"  ⚠️  {name} not created (duplicate data?): {error}")
+        return created, failed
 
     def import_node_labels(self, csv_file="csv/node-labels.csv"):
         print(f"\n📊 Importing Node Labels From {csv_file}...")
@@ -210,8 +256,9 @@ class SR8OntologyImporter:
             if response.lower() == 'yes':
                 self.clear_database()
 
-        # Create Constraints
+        # Create Constraints (schema layer, then instance keys)
         self.create_constraints()
+        self.create_instance_constraints()
 
         # Import Data
         labels_count = self.import_node_labels()
@@ -240,6 +287,8 @@ def main():
     parser.add_argument('--user', default='neo4j', help='neo4j username')
     parser.add_argument('--password', default='password', help='neo4j password')
     parser.add_argument('--clear', action='store_true', help='Clear DB Before Import')
+    parser.add_argument('--constraints-only', action='store_true',
+                        help='Only create the instance-level uniqueness constraints')
 
     args = parser.parse_args()
 
@@ -247,8 +296,11 @@ def main():
     importer = SR8OntologyImporter(args.uri, args.user, args.password)
 
     try:
-        # Run Full Import
-        importer.full_import(clear_first=args.clear)
+        if args.constraints_only:
+            importer.create_instance_constraints()
+        else:
+            # Run Full Import
+            importer.full_import(clear_first=args.clear)
 
     except Exception as e:
         print(f"\n❌ Error: {e}")

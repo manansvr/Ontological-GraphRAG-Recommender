@@ -695,7 +695,7 @@ def _record_feedback_internal(
             fe.overconfidencePenaltyApplied = $penalty_applied,
             fe.rlAction = $rl_action,
             fe.reviewer = $reviewer,
-            fe.timestamp = datetime()
+            fe.hasTimestamp = datetime()
     """,
         feid=fe_id,
         req_id=requirement_id,
@@ -2937,8 +2937,8 @@ def get_feedback_stats() -> str:
            fe.reward AS reward,
            fe.inferenceState AS inference_state,
            fe.overconfidencePenaltyApplied AS penalty_applied,
-           toString(fe.timestamp) AS timestamp
-    ORDER BY fe.timestamp DESC
+           toString(coalesce(fe.hasTimestamp, fe.timestamp)) AS timestamp
+    ORDER BY coalesce(fe.hasTimestamp, fe.timestamp) DESC
     LIMIT 5
     """
 
