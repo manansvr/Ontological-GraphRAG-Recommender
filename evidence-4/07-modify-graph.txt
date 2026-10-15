@@ -1,0 +1,13 @@
+Cypher:
+MATCH (r {hasID:'REQ-31-008'})-[s:suggestedProject]->(p {projectID:'SRP8-043'}) RETURN properties(s) ORDER BY s.inferredAt;
+
+Output:
+properties(s)
+{'inferredAt': neo4j.time.DateTime(2026, 10, 15, 5, 0, 45, 94000000, tzinfo=<UTC>), 'reasoning': 'it shares ADR and wording with requirements already assigned to SRP8-043', 'confidence': 0.55, 'reviewedAt': neo4j.time.DateTime(2026, 10, 15, 5, 1, 34, 600000000, tzinfo=<UTC>), 'inferredBy': 'Ollama-MCP', 'baseConfidence': 0.65, 'schemaValidated': True, 'rlAction': 'decrease_confidence', 'reviewedBy': 'Ilina', 'schemaCheckedAt': neo4j.time.DateTime(2026, 10, 15, 5, 0, 45, 94000000, tzinfo=<UTC>), 'rejectionReason': 'the requirement concerns the braking system, not the suspension', 'inferenceState': 'inference_strong_no_mid', 'status': 'rejected'}
+{'inferredAt': neo4j.time.DateTime(2026, 10, 15, 5, 4, 38, 117000000, tzinfo=<UTC>), 'modificationReason': 'Corrected from the suspension project to the rear brakes project after human review.', 'confidence': 0.55, 'reasoning': 'Re-evaluated wrong project before human correction.', 'reviewedAt': neo4j.time.DateTime(2026, 10, 15, 5, 5, 1, 440000000, tzinfo=<UTC>), 'inferredBy': 'Ollama-MCP', 'baseConfidence': 0.65, 'rlAction': 'decrease_confidence', 'schemaValidated': True, 'reviewedBy': 'Ilina Sharma', 'schemaCheckedAt': neo4j.time.DateTime(2026, 10, 15, 5, 4, 38, 117000000, tzinfo=<UTC>), 'modifiedTo': 'SRP8-046', 'inferenceState': 'inference_strong_no_mid', 'status': 'modified', 'resubmissionOf': neo4j.time.DateTime(2026, 10, 15, 5, 0, 45, 94000000, tzinfo=<UTC>)}
+Cypher:
+MATCH (r {hasID:'REQ-31-008'})-[a:assignedToProject]->(p {projectID:'SRP8-046'}) RETURN properties(a);
+
+Output:
+properties(a)
+{'modifiedFromProject': 'SRP8-043', 'inferredAt': neo4j.time.DateTime(2026, 10, 15, 5, 4, 38, 117000000, tzinfo=<UTC>), 'inferenceReasoning': 'Re-evaluated wrong project before human correction.', 'modificationReason': 'Corrected from the suspension project to the rear brakes project after human review.', 'promotedAt': neo4j.time.DateTime(2026, 10, 15, 5, 5, 1, 440000000, tzinfo=<UTC>), 'inferredBy': 'Ollama-MCP', 'source': 'inferred-modified', 'promotedBy': 'Ilina Sharma', 'inferenceState': 'inference_strong_no_mid', 'promotedFromConfidence': 0.55}

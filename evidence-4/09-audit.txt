@@ -1,0 +1,41 @@
+Cypher:
+MATCH ()-[a:assignedToProject {source:'extracted'}]->() RETURN count(a) AS extracted;
+
+Output:
+extracted
+[172]
+Cypher:
+MATCH ()-[s:suggestedProject]->() WHERE s.status IS NULL RETURN count(s) AS pending;
+
+Output:
+pending
+[0]
+Cypher:
+MATCH (r)-[a:assignedToProject {source:'inferred'}]->(p) MATCH (r)-[s:suggestedProject {status:'promoted'}]->(p) RETURN count(*) AS human_confirmed;
+
+Output:
+human_confirmed
+[1]
+Cypher:
+MATCH (r)-[a:assignedToProject {source:'inferred-modified'}]->(p) MATCH (r)-[s:suggestedProject {status:'modified', modifiedTo:p.projectID}]->(sp) RETURN r.hasID, sp.projectID AS suggested, p.projectID AS assigned, a.promotedBy, a.modificationReason;
+
+Output:
+r.hasID,suggested,assigned,a.promotedBy,a.modificationReason
+['REQ-31-008', 'SRP8-043', 'SRP8-046', 'Ilina Sharma', 'Corrected from the suspension project to the rear brakes project after human review.']
+Cypher:
+MATCH (r {hasID:'REQ-31-008'})-[e]->(p:Project) RETURN type(e) AS edge, p.projectID, e.source, e.status, e.confidence ORDER BY edge, p.projectID;
+
+Output:
+edge,p.projectID,e.source,e.status,e.confidence
+['assignedToProject', 'SRP8-045', 'inferred', None, None]
+['assignedToProject', 'SRP8-046', 'inferred-modified', None, None]
+['suggestedProject', 'SRP8-043', None, 'modified', 0.55]
+['suggestedProject', 'SRP8-043', None, 'rejected', 0.55]
+['suggestedProject', 'SRP8-045', None, 'promoted', 0.75]
+['suggestedProject', 'SRP8-048', None, 'rejected', 0.85]
+Cypher:
+MATCH (r:ExtractedEssentialRequirement) WHERE NOT (r)-[:assignedToProject]->() RETURN count(r) AS unassigned;
+
+Output:
+unassigned
+[44]

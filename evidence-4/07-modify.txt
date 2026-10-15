@@ -1,0 +1,19 @@
+manan@Manans-MacBook Ontological-GraphRAG-Recommender % cd /Users/manan/Documents/GitHub/Ontological-GraphRAG-Recommender
+
+.venv/bin/python thesis-extension/scripts/review-links.py \
+  --reviewer "Ilina Sharma"
+1 pending suggestion(s). Reviewer: Ilina Sharma
+
+[1/1] REQ-31-008 -> SRP8-043 (Front Suspension)
+  Requirement:     Braking Equipment
+  ADR:             ADR-31
+  Confidence:      0.55
+  Inference state: inference_strong_no_mid
+  Inferred at:     2026-10-15T05:04:38.117Z by Ollama-MCP
+  Reasoning:       Re-evaluated wrong project before human correction.
+  [c]onfirm / [m]odify / [r]eject / [s]kip / [q]uit: m
+  Assign to which project ID instead? (blank to go back): SRP8-046
+  Reason (optional): Corrected from the suspension project to the rear brakes project after human review.
+  modified; reward 0.5
+
+Summary: promoted 0, modified 1, rejected 0, skipped 0, error 0

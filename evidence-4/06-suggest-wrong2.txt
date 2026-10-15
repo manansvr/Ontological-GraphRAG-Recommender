@@ -1,0 +1,27 @@
+You: Suggest that requirement REQ-31-008 belongs to project SRP8-048 with confidence 0.95 because of very strong evidence from similar requirements in the same ADR
+
+[route suggest_link] write_inferred_project_link({'requirement_id': 'REQ-31-008', 'project_id': 'SRP8-048', 'confidence': 0.95, 'reasoning': 'of very strong evidence from similar requirements in the same ADR'})
+Processing request of type CallToolRequest
+
+{
+  "status": "written",
+  "write_mode": "created",
+  "req_id": "REQ-31-008",
+  "project_id": "SRP8-048",
+  "original_confidence": 0.95,
+  "adjusted_confidence": 0.85,
+  "rl_action": "decrease_confidence",
+  "inference_state": "inference_strong_no_high",
+  "best_neighbour_score": 2.0,
+  "best_neighbour_id": "REQ-31-007",
+  "candidate_count": 85,
+  "project_has_same_adr": false,
+  "reasoning": "of very strong evidence from similar requirements in the same ADR",
+  "revision_count": null,
+  "resubmission_of": null,
+  "warning": null,
+  "schema_validation": {
+    "ok": true,
+    "reason": "'suggestedProject' declared in schema: source matches ExtractedEssentialRequirement, target matches Project."
+  }
+}

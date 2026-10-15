@@ -1,0 +1,97 @@
+Processing request of type ListToolsRequest
+[rl] loaded model from /Users/manan/Documents/GitHub/Ontological-GraphRAG-Recommender/thesis-extension/.rl-model.json
+Connected. Type your prompt, or /exit to quit.
+Review commands:
+  confirm link <REQ> -> <PROJECT>
+  reject link <REQ> -> <PROJECT> because <reason>
+Fixed routes (answered without the model unless uses_llm is true):
+name                    | trigger                                                                                         | tool                                                                            | uses_llm
+------------------------+-------------------------------------------------------------------------------------------------+---------------------------------------------------------------------------------+---------
+exit                    | "exit", "quit" or "/exit"                                                                       | (ends the session)                                                              | false   
+review_confirm          | "confirm link <REQ> -> <PROJECT>"                                                               | promote_inferred_link (human review, not an MCP tool)                           | false   
+review_reject           | "reject link <REQ> -> <PROJECT> because <reason>"                                               | reject_inferred_link (human review, not an MCP tool)                            | false   
+review_usage            | malformed "confirm link" / "reject link"                                                        | (prints the review command usage)                                               | false   
+cypher_query            | "cypher query: <query>" or "run this cypher query: <query>"                                     | query_knowledge_graph (read-only MATCH)                                         | false   
+suggest_link            | "suggest that requirement <REQ> belongs to project <PROJ> with confidence <x> because <reason>" | write_inferred_project_link                                                     | false   
+rl_policy               | "rl policy" or "q-values"                                                                       | get_rl_policy                                                                   | false   
+unassigned_requirements | "unassigned requirement(s)"                                                                     | get_unassigned_requirements                                                     | false   
+list_all_projects       | "list all projects"                                                                             | list_all_projects                                                               | false   
+inferred_links          | "inferred" and "link"                                                                           | get_inferred_links                                                              | false   
+count_requirements      | "how many" and "requir" plus an ADR/SRP ID                                                      | get_adr_requirements                                                            | false   
+reference               | "reference" plus an ADR/SRP ID                                                                  | get_adr_requirements, search_local_documents                                    | false   
+manufacturing_redirect  | manufactur, fabricat, procure, quality control                                                  | search_local_documents, then the model, then the Manufacturing Section redirect | true    
+design_guidance         | design, prototype, conceptual, preliminary, detailed (and the manufacturing words)              | search_local_documents, then the model, then the Design Manual redirect         | true    
+rl_prefetch (default)   | anything else                                                                                   | RL-chosen prefetch, then the model                                              | true    
+Model: qwen2.5:14b-instruct
+Tools:
+  - list_documents
+  - run_extraction_for_requirements
+  - search_local_documents
+  - suggest_requirement_sources
+  - read_document
+  - query_knowledge_graph
+  - get_adr_requirements
+  - adr_mapping_stats
+  - summarize_document
+  - extraction_report
+  - search_keywords
+  - search_braking
+  - search_tyre
+  - search_manufacturing
+  - get_project
+  - get_adr
+  - get_assembly
+  - search_requirements
+  - list_all_projects
+  - list_all_adrs
+  - get_compliance_gaps
+  - get_verification_progress
+  - get_highest_risk_gaps
+  - get_cross_assembly_requirements
+  - get_assembly_dependencies
+  - get_shared_requirements
+  - get_interface_risk_report
+  - get_unmitigated_failure_modes
+  - get_unassigned_requirements
+  - get_similar_assigned_requirements
+  - write_inferred_project_link
+  - get_inferred_links
+  - get_requirements_by_keyword
+  - get_requirement_chain
+  - get_reverification_scope
+  - write_change_impact_report
+  - get_change_impact_reports
+  - get_feedback_stats
+  - get_rl_policy
+
+You: Processing request of type CallToolRequest
+
+[route rl_policy] get_rl_policy({})
+
+SR8 RL Policy Report
+================================================
+Exploration rate (epsilon) : 0.0200
+Discount factor            : 0.0 (single-step)
+Converged                  : Yes (threshold: 0.05)
+
+State                                   Greedy action             Q-values (↑ keep ↓)
+------------------------------------------------------------------------------------------
+inference_strong_no_high                keep_confidence           ↑-0.475  keep+0.188  ↓+0.078
+inference_strong_no_low                 decrease_confidence       ↑-0.363  keep+0.208  ↓+0.649
+inference_strong_no_mid                 decrease_confidence       ↑-0.508  keep+0.163  ↓+0.401
+inference_strong_yes_high               increase_confidence       ↑+0.754  keep+0.486  ↓-0.226
+inference_strong_yes_low                increase_confidence       ↑+0.787  keep+0.728  ↓-0.126
+inference_strong_yes_mid                increase_confidence       ↑+0.857  keep+0.720  ↓-0.149
+inference_weak_no_high                  keep_confidence           ↑-0.253  keep+0.376  ↓+0.281
+inference_weak_no_low                   keep_confidence           ↑-0.280  keep+0.373  ↓+0.267
+inference_weak_no_mid                   keep_confidence           ↑-0.385  keep+0.336  ↓+0.170
+inference_weak_yes_high                 keep_confidence           ↑+0.048  keep+0.493  ↓-0.102
+inference_weak_yes_low                  keep_confidence           ↑+0.049  keep+0.482  ↓-0.139
+inference_weak_yes_mid                  keep_confidence           ↑+0.093  keep+0.475  ↓-0.153
+
+Total feedback events      : 4
+Average reward             : -0.375
+
+Recommendation: promote inferred links only when confidence >= 0.6 and the greedy action is 'keep_confidence' or 'increase_confidence'.
+
+You: 

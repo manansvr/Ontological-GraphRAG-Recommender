@@ -1,0 +1,22 @@
+{
+  "status": "written",
+  "write_mode": "resubmitted",
+  "req_id": "REQ-31-008",
+  "project_id": "SRP8-043",
+  "original_confidence": 0.65,
+  "adjusted_confidence": 0.55,
+  "rl_action": "decrease_confidence",
+  "inference_state": "inference_strong_no_mid",
+  "best_neighbour_score": 2.0,
+  "best_neighbour_id": "REQ-31-007",
+  "candidate_count": 85,
+  "project_has_same_adr": false,
+  "reasoning": "Re-evaluated wrong project before human correction.",
+  "revision_count": null,
+  "resubmission_of": "2026-10-15T05:00:45.094000000+00:00",
+  "warning": null,
+  "schema_validation": {
+    "ok": true,
+    "reason": "'suggestedProject' declared in schema: source matches ExtractedEssentialRequirement, target matches Project."
+  }
+}

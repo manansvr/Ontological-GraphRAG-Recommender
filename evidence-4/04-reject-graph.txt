@@ -1,0 +1,6 @@
+Cypher:
+MATCH (r {hasID:'REQ-31-008'})-[s:suggestedProject]->(p {projectID:'SRP8-043'}) RETURN s.status, s.reviewedBy, s.rejectionReason;
+
+Output:
+s.status,s.reviewedBy,s.rejectionReason
+'rejected','Ilina','the requirement concerns the braking system, not the suspension'

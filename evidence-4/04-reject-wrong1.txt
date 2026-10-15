@@ -1,0 +1,4 @@
+You: reject link REQ-31-008 -> SRP8-043 because the requirement concerns the braking system, not the suspension
+Reviewer name (recorded on every review decision this session): Ilina
+
+[review] Rejected REQ-31-008 -> SRP8-043 as Ilina; reward -1.0.

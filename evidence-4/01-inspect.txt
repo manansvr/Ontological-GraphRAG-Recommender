@@ -1,0 +1,42 @@
+Step 1.1
+Cypher:
+MATCH (r:ExtractedEssentialRequirement {hasID:'REQ-31-008'})
+RETURN r.hasID, r.requirementName, r.clauseNumber, r.isApplicable,
+       EXISTS((r)-[:assignedToProject]->()) AS already_assigned,
+       left(r.requirementDescription, 200) AS text;
+Output:
+r.hasID,r.requirementName,r.clauseNumber,r.isApplicable,already_assigned,text
+'REQ-31-008','Braking Equipment','5.1.1.4',True,False,'The effectiveness of the braking equipment shall not be adversely affected by magnetic or electrical fields. This shall be demonstrated by fulfilling the technical requirements and respecting the tran'
+Step 1.2
+Cypher:
+MATCH (n:ExtractedEssentialRequirement)-[:assignedToProject]->(p:Project)
+WHERE n.hasID STARTS WITH 'REQ-31-' AND n.hasID <> 'REQ-31-008'
+RETURN n.hasID, n.clauseNumber, n.requirementName, collect(p.projectID) AS projects
+ORDER BY n.hasID LIMIT 25;
+Output:
+n.hasID,n.clauseNumber,n.requirementName,projects
+'REQ-31-001','5.1.1.1','Braking Equipment',['SRP8-045']
+'REQ-31-002','5.1.1.1','Braking Equipment',['SRP8-046']
+'REQ-31-003','5.1.1.2','Braking Equipment',['SRP8-045']
+'REQ-31-004','5.1.1.2','Braking Equipment',['SRP8-046']
+'REQ-31-005','5.1.1.3','Brake Linings',['SRP8-045']
+'REQ-31-006','5.1.1.3','Brake Linings',['SRP8-046']
+'REQ-31-007','5.1.1.4','Braking Equipment',['SRP8-045']
+'REQ-31-010','5.1.2.1','Service braking system',['SRP8-046']
+'REQ-31-011','5.1.2.2','Secondary braking system',['SRP8-046']
+'REQ-31-012','5.1.4.1','Wear Assessment',['SRP8-046']
+'REQ-31-014','5.2.3','Warning Signals',['SRP8-045']
+'REQ-31-015','5.1.4.3','Static braking force test',['SRP8-046']
+'REQ-31-017','5.2.4.1','Transmission Failure',['SRP8-045']
+'REQ-31-020','5.2.5','Relates to 5.2.2, 5.2.3, 5.2.4',['SRP8-045']
+'REQ-31-021','5.2.2.1','Brake Controls',['SRP8-046']
+'REQ-31-022','5.2.6','Service Braking System',['SRP8-045']
+'REQ-31-023','5.2.2.1','Brake Controls',['SRP8-047']
+'REQ-31-024','5.2.7','Electric Rengerative Braking',['SRP8-045']
+'REQ-31-025','5.2.7.1','Electric Rengerative Braking',['SRP8-14']
+'REQ-31-026','5.2.2.2','Brake Controls',['SRP8-046']
+'REQ-31-027','5.2.8','Service Braking System',['SRP8-045']
+'REQ-31-028','5.2.2.2','Brake Controls',['SRP8-047']
+'REQ-31-029','5.2.8.1','Warning Signals',['SRP8-029']
+'REQ-31-030','5.2.8.1.1','Transverse Braking Pressure',['SRP8-045']
+'REQ-31-032','5.2.8.1.2','Individual Compensating Value',['SRP8-045']

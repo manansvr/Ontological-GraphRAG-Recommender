@@ -1,0 +1,6 @@
+Cypher:
+MATCH (r {hasID:'REQ-31-008'})-[s:suggestedProject]->(p {projectID:'SRP8-043'}) RETURN properties(s);
+
+Output:
+properties(s)
+{'inferredAt': neo4j.time.DateTime(2026, 10, 15, 5, 0, 45, 94000000, tzinfo=<UTC>), 'reasoning': 'it shares ADR and wording with requirements already assigned to SRP8-043', 'confidence': 0.55, 'inferredBy': 'Ollama-MCP', 'baseConfidence': 0.65, 'schemaValidated': True, 'rlAction': 'decrease_confidence', 'inferenceState': 'inference_strong_no_mid', 'schemaCheckedAt': neo4j.time.DateTime(2026, 10, 15, 5, 0, 45, 94000000, tzinfo=<UTC>)}

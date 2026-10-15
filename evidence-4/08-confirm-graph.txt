@@ -1,0 +1,12 @@
+Cypher:
+MATCH (r {hasID:'REQ-31-008'})-[a:assignedToProject]->(p {projectID:'SRP8-045'}) RETURN properties(a);
+
+Output:
+properties(a)
+{'inferredAt': neo4j.time.DateTime(2026, 10, 15, 5, 9, 41, 985000000, tzinfo=<UTC>), 'inferenceReasoning': 'its nearest same-ADR neighbours are assigned to SRP8-045', 'promotedAt': neo4j.time.DateTime(2026, 10, 15, 5, 10, 41, 44000000, tzinfo=<UTC>), 'inferredBy': 'Ollama-MCP', 'source': 'inferred', 'promotedBy': 'Ilina Sharma', 'inferenceState': 'inference_strong_yes_mid', 'promotedFromConfidence': 0.75}
+Cypher:
+MATCH (r {hasID:'REQ-31-008'})-[s:suggestedProject]->(p {projectID:'SRP8-045'}) RETURN s.status, s.reviewedBy, s.inferredBy;
+
+Output:
+s.status,s.reviewedBy,s.inferredBy
+['promoted', 'Ilina Sharma', 'Ollama-MCP']

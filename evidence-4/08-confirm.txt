@@ -1,0 +1,17 @@
+manan@Manans-MacBook Ontological-GraphRAG-Recommender % cd /Users/manan/Documents/GitHub/Ontological-GraphRAG-Recommender
+
+.venv/bin/python thesis-extension/scripts/review-links.py \
+  --reviewer "Ilina Sharma"
+1 pending suggestion(s). Reviewer: Ilina Sharma
+
+[1/1] REQ-31-008 -> SRP8-045 (Front Brakes)
+  Requirement:     Braking Equipment
+  ADR:             ADR-31
+  Confidence:      0.75
+  Inference state: inference_strong_yes_mid
+  Inferred at:     2026-10-15T05:09:41.985Z by Ollama-MCP
+  Reasoning:       its nearest same-ADR neighbours are assigned to SRP8-045
+  [c]onfirm / [m]odify / [r]eject / [s]kip / [q]uit: c
+  promoted; reward 1.0
+
+Summary: promoted 1, modified 0, rejected 0, skipped 0, error 0

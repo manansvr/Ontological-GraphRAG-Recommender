@@ -1,0 +1,329 @@
+Processing request of type ListToolsRequest
+[rl] loaded model from /Users/manan/Documents/GitHub/Ontological-GraphRAG-Recommender/thesis-extension/.rl-model.json
+Connected. Type your prompt, or /exit to quit.
+Review commands:
+  confirm link <REQ> -> <PROJECT>
+  reject link <REQ> -> <PROJECT> because <reason>
+Fixed routes (answered without the model unless uses_llm is true):
+name                    | trigger                                                                                         | tool                                                                            | uses_llm
+------------------------+-------------------------------------------------------------------------------------------------+---------------------------------------------------------------------------------+---------
+exit                    | "exit", "quit" or "/exit"                                                                       | (ends the session)                                                              | false   
+review_confirm          | "confirm link <REQ> -> <PROJECT>"                                                               | promote_inferred_link (human review, not an MCP tool)                           | false   
+review_reject           | "reject link <REQ> -> <PROJECT> because <reason>"                                               | reject_inferred_link (human review, not an MCP tool)                            | false   
+review_usage            | malformed "confirm link" / "reject link"                                                        | (prints the review command usage)                                               | false   
+cypher_query            | "cypher query: <query>" or "run this cypher query: <query>"                                     | query_knowledge_graph (read-only MATCH)                                         | false   
+suggest_link            | "suggest that requirement <REQ> belongs to project <PROJ> with confidence <x> because <reason>" | write_inferred_project_link                                                     | false   
+rl_policy               | "rl policy" or "q-values"                                                                       | get_rl_policy                                                                   | false   
+unassigned_requirements | "unassigned requirement(s)"                                                                     | get_unassigned_requirements                                                     | false   
+list_all_projects       | "list all projects"                                                                             | list_all_projects                                                               | false   
+inferred_links          | "inferred" and "link"                                                                           | get_inferred_links                                                              | false   
+count_requirements      | "how many" and "requir" plus an ADR/SRP ID                                                      | get_adr_requirements                                                            | false   
+reference               | "reference" plus an ADR/SRP ID                                                                  | get_adr_requirements, search_local_documents                                    | false   
+manufacturing_redirect  | manufactur, fabricat, procure, quality control                                                  | search_local_documents, then the model, then the Manufacturing Section redirect | true    
+design_guidance         | design, prototype, conceptual, preliminary, detailed (and the manufacturing words)              | search_local_documents, then the model, then the Design Manual redirect         | true    
+rl_prefetch (default)   | anything else                                                                                   | RL-chosen prefetch, then the model                                              | true    
+Model: qwen2.5:14b-instruct
+Tools:
+  - list_documents
+  - run_extraction_for_requirements
+  - search_local_documents
+  - suggest_requirement_sources
+  - read_document
+  - query_knowledge_graph
+  - get_adr_requirements
+  - adr_mapping_stats
+  - summarize_document
+  - extraction_report
+  - search_keywords
+  - search_braking
+  - search_tyre
+  - search_manufacturing
+  - get_project
+  - get_adr
+  - get_assembly
+  - search_requirements
+  - list_all_projects
+  - list_all_adrs
+  - get_compliance_gaps
+  - get_verification_progress
+  - get_highest_risk_gaps
+  - get_cross_assembly_requirements
+  - get_assembly_dependencies
+  - get_shared_requirements
+  - get_interface_risk_report
+  - get_unmitigated_failure_modes
+  - get_unassigned_requirements
+  - get_similar_assigned_requirements
+  - write_inferred_project_link
+  - get_inferred_links
+  - get_requirements_by_keyword
+  - get_requirement_chain
+  - get_reverification_scope
+  - write_change_impact_report
+  - get_change_impact_reports
+  - get_feedback_stats
+  - get_rl_policy
+
+You: Processing request of type CallToolRequest
+Ignoring wrong pointing object 6 0 (offset 0)
+Ignoring wrong pointing object 8 0 (offset 0)
+Ignoring wrong pointing object 10 0 (offset 0)
+Ignoring wrong pointing object 6 0 (offset 0)
+Ignoring wrong pointing object 8 0 (offset 0)
+Ignoring wrong pointing object 10 0 (offset 0)
+Ignoring wrong pointing object 12 0 (offset 0)
+Ignoring wrong pointing object 23 0 (offset 0)
+Ignoring wrong pointing object 47 0 (offset 0)
+Ignoring wrong pointing object 49 0 (offset 0)
+Ignoring wrong pointing object 72 0 (offset 0)
+Ignoring wrong pointing object 74 0 (offset 0)
+Ignoring wrong pointing object 79 0 (offset 0)
+Ignoring wrong pointing object 84 0 (offset 0)
+Ignoring wrong pointing object 118 0 (offset 0)
+Ignoring wrong pointing object 120 0 (offset 0)
+Ignoring wrong pointing object 144 0 (offset 0)
+Ignoring wrong pointing object 6 0 (offset 0)
+Ignoring wrong pointing object 8 0 (offset 0)
+Ignoring wrong pointing object 18 0 (offset 0)
+Ignoring wrong pointing object 20 0 (offset 0)
+Ignoring wrong pointing object 22 0 (offset 0)
+Ignoring wrong pointing object 24 0 (offset 0)
+Ignoring wrong pointing object 26 0 (offset 0)
+Ignoring wrong pointing object 28 0 (offset 0)
+Ignoring wrong pointing object 30 0 (offset 0)
+Ignoring wrong pointing object 32 0 (offset 0)
+Ignoring wrong pointing object 34 0 (offset 0)
+Ignoring wrong pointing object 39 0 (offset 0)
+Ignoring wrong pointing object 41 0 (offset 0)
+Ignoring wrong pointing object 43 0 (offset 0)
+Ignoring wrong pointing object 45 0 (offset 0)
+Ignoring wrong pointing object 50 0 (offset 0)
+Ignoring wrong pointing object 59 0 (offset 0)
+Ignoring wrong pointing object 61 0 (offset 0)
+Ignoring wrong pointing object 63 0 (offset 0)
+Ignoring wrong pointing object 71 0 (offset 0)
+Ignoring wrong pointing object 73 0 (offset 0)
+Ignoring wrong pointing object 91 0 (offset 0)
+Ignoring wrong pointing object 6 0 (offset 0)
+Ignoring wrong pointing object 8 0 (offset 0)
+Ignoring wrong pointing object 10 0 (offset 0)
+Ignoring wrong pointing object 12 0 (offset 0)
+Ignoring wrong pointing object 23 0 (offset 0)
+Ignoring wrong pointing object 47 0 (offset 0)
+Ignoring wrong pointing object 49 0 (offset 0)
+Ignoring wrong pointing object 72 0 (offset 0)
+Ignoring wrong pointing object 74 0 (offset 0)
+Ignoring wrong pointing object 79 0 (offset 0)
+Ignoring wrong pointing object 84 0 (offset 0)
+Ignoring wrong pointing object 118 0 (offset 0)
+Ignoring wrong pointing object 120 0 (offset 0)
+Ignoring wrong pointing object 144 0 (offset 0)
+Ignoring wrong pointing object 6 0 (offset 0)
+Ignoring wrong pointing object 8 0 (offset 0)
+Ignoring wrong pointing object 10 0 (offset 0)
+Ignoring wrong pointing object 12 0 (offset 0)
+Ignoring wrong pointing object 14 0 (offset 0)
+Ignoring wrong pointing object 16 0 (offset 0)
+Ignoring wrong pointing object 27 0 (offset 0)
+Ignoring wrong pointing object 29 0 (offset 0)
+Ignoring wrong pointing object 33 0 (offset 0)
+Ignoring wrong pointing object 36 0 (offset 0)
+Ignoring wrong pointing object 39 0 (offset 0)
+Ignoring wrong pointing object 80 0 (offset 0)
+Ignoring wrong pointing object 88 0 (offset 0)
+Ignoring wrong pointing object 93 0 (offset 0)
+Ignoring wrong pointing object 95 0 (offset 0)
+Ignoring wrong pointing object 97 0 (offset 0)
+Ignoring wrong pointing object 110 0 (offset 0)
+Ignoring wrong pointing object 112 0 (offset 0)
+Ignoring wrong pointing object 114 0 (offset 0)
+Ignoring wrong pointing object 116 0 (offset 0)
+Ignoring wrong pointing object 118 0 (offset 0)
+Ignoring wrong pointing object 130 0 (offset 0)
+Ignoring wrong pointing object 143 0 (offset 0)
+Ignoring wrong pointing object 145 0 (offset 0)
+Ignoring wrong pointing object 151 0 (offset 0)
+Ignoring wrong pointing object 250 0 (offset 0)
+Ignoring wrong pointing object 270 0 (offset 0)
+Ignoring wrong pointing object 281 0 (offset 0)
+Ignoring wrong pointing object 332 0 (offset 0)
+Ignoring wrong pointing object 529 0 (offset 0)
+Ignoring wrong pointing object 530 0 (offset 0)
+Ignoring wrong pointing object 6 0 (offset 0)
+Ignoring wrong pointing object 8 0 (offset 0)
+Ignoring wrong pointing object 10 0 (offset 0)
+Ignoring wrong pointing object 12 0 (offset 0)
+Ignoring wrong pointing object 14 0 (offset 0)
+Ignoring wrong pointing object 16 0 (offset 0)
+Ignoring wrong pointing object 27 0 (offset 0)
+Ignoring wrong pointing object 29 0 (offset 0)
+Ignoring wrong pointing object 33 0 (offset 0)
+Ignoring wrong pointing object 36 0 (offset 0)
+Ignoring wrong pointing object 39 0 (offset 0)
+Ignoring wrong pointing object 80 0 (offset 0)
+Ignoring wrong pointing object 88 0 (offset 0)
+Ignoring wrong pointing object 93 0 (offset 0)
+Ignoring wrong pointing object 95 0 (offset 0)
+Ignoring wrong pointing object 97 0 (offset 0)
+Ignoring wrong pointing object 110 0 (offset 0)
+Ignoring wrong pointing object 112 0 (offset 0)
+Ignoring wrong pointing object 114 0 (offset 0)
+Ignoring wrong pointing object 116 0 (offset 0)
+Ignoring wrong pointing object 118 0 (offset 0)
+Ignoring wrong pointing object 130 0 (offset 0)
+Ignoring wrong pointing object 143 0 (offset 0)
+Ignoring wrong pointing object 145 0 (offset 0)
+Ignoring wrong pointing object 151 0 (offset 0)
+Ignoring wrong pointing object 250 0 (offset 0)
+Ignoring wrong pointing object 270 0 (offset 0)
+Ignoring wrong pointing object 281 0 (offset 0)
+Ignoring wrong pointing object 332 0 (offset 0)
+Ignoring wrong pointing object 529 0 (offset 0)
+Ignoring wrong pointing object 530 0 (offset 0)
+Ignoring wrong pointing object 6 0 (offset 0)
+Ignoring wrong pointing object 9 0 (offset 0)
+Ignoring wrong pointing object 21 0 (offset 0)
+Ignoring wrong pointing object 25 0 (offset 0)
+Ignoring wrong pointing object 47 0 (offset 0)
+Ignoring wrong pointing object 52 0 (offset 0)
+Ignoring wrong pointing object 71 0 (offset 0)
+Ignoring wrong pointing object 73 0 (offset 0)
+Ignoring wrong pointing object 75 0 (offset 0)
+Ignoring wrong pointing object 81 0 (offset 0)
+Ignoring wrong pointing object 83 0 (offset 0)
+Ignoring wrong pointing object 6 0 (offset 0)
+Ignoring wrong pointing object 8 0 (offset 0)
+Ignoring wrong pointing object 18 0 (offset 0)
+Ignoring wrong pointing object 20 0 (offset 0)
+Ignoring wrong pointing object 22 0 (offset 0)
+Ignoring wrong pointing object 24 0 (offset 0)
+Ignoring wrong pointing object 26 0 (offset 0)
+Ignoring wrong pointing object 28 0 (offset 0)
+Ignoring wrong pointing object 30 0 (offset 0)
+Ignoring wrong pointing object 32 0 (offset 0)
+Ignoring wrong pointing object 34 0 (offset 0)
+Ignoring wrong pointing object 39 0 (offset 0)
+Ignoring wrong pointing object 44 0 (offset 0)
+Ignoring wrong pointing object 46 0 (offset 0)
+Ignoring wrong pointing object 48 0 (offset 0)
+Ignoring wrong pointing object 57 0 (offset 0)
+Ignoring wrong pointing object 66 0 (offset 0)
+Ignoring wrong pointing object 6 0 (offset 0)
+Ignoring wrong pointing object 8 0 (offset 0)
+Ignoring wrong pointing object 10 0 (offset 0)
+Ignoring wrong pointing object 20 0 (offset 0)
+Ignoring wrong pointing object 22 0 (offset 0)
+Ignoring wrong pointing object 24 0 (offset 0)
+Ignoring wrong pointing object 26 0 (offset 0)
+Ignoring wrong pointing object 28 0 (offset 0)
+Ignoring wrong pointing object 30 0 (offset 0)
+Ignoring wrong pointing object 32 0 (offset 0)
+Ignoring wrong pointing object 34 0 (offset 0)
+Ignoring wrong pointing object 42 0 (offset 0)
+Ignoring wrong pointing object 44 0 (offset 0)
+Ignoring wrong pointing object 46 0 (offset 0)
+Ignoring wrong pointing object 55 0 (offset 0)
+Ignoring wrong pointing object 64 0 (offset 0)
+Ignoring wrong pointing object 6 0 (offset 0)
+Ignoring wrong pointing object 8 0 (offset 0)
+Ignoring wrong pointing object 10 0 (offset 0)
+Ignoring wrong pointing object 12 0 (offset 0)
+Ignoring wrong pointing object 15 0 (offset 0)
+Ignoring wrong pointing object 17 0 (offset 0)
+Ignoring wrong pointing object 19 0 (offset 0)
+Ignoring wrong pointing object 28 0 (offset 0)
+Ignoring wrong pointing object 6 0 (offset 0)
+Ignoring wrong pointing object 8 0 (offset 0)
+Ignoring wrong pointing object 10 0 (offset 0)
+Ignoring wrong pointing object 12 0 (offset 0)
+Ignoring wrong pointing object 15 0 (offset 0)
+Ignoring wrong pointing object 17 0 (offset 0)
+Ignoring wrong pointing object 19 0 (offset 0)
+Ignoring wrong pointing object 21 0 (offset 0)
+Ignoring wrong pointing object 27 0 (offset 0)
+Ignoring wrong pointing object 32 0 (offset 0)
+Ignoring wrong pointing object 6 0 (offset 0)
+Ignoring wrong pointing object 8 0 (offset 0)
+Ignoring wrong pointing object 10 0 (offset 0)
+Ignoring wrong pointing object 12 0 (offset 0)
+Ignoring wrong pointing object 15 0 (offset 0)
+Ignoring wrong pointing object 17 0 (offset 0)
+Ignoring wrong pointing object 19 0 (offset 0)
+Ignoring wrong pointing object 21 0 (offset 0)
+Ignoring wrong pointing object 27 0 (offset 0)
+Ignoring wrong pointing object 29 0 (offset 0)
+Processing request of type CallToolRequest
+
+[rl] state=general_lookup action=documents_first
+
+[tool] search_local_documents({'query': 'Find the requirements most similar to REQ-31-008 and suggest the most appropriate project for it, with your confidence and reasoning.', 'max_files': 50, 'max_hits_per_file': 10})
+
+[tool] get_similar_assigned_requirements({'requirement_id': 'REQ-31-008'})
+
+Assistant: The tool response provides details about similar requirements to the source requirement "REQ-31-008" under ADR-31, clause 5.1.1.4. Here's a summary of the information provided:
+
+- **Source Requirement:** REQ-31-008
+- **ADR:** ADR-31
+- **Source Clause:** 5.1.1.4
+- **Candidate Count:** 85
+- **Similar Requirement Count:** 85
+- **Shown Similar Requirements:** 5
+
+The similar requirements are as follows:
+
+1. **REQ-31-007**
+   - **Requirement Name:** Braking Equipment
+   - **Clause:** 5.1.1.4
+   - **Applicable:** True
+   - **Assigned Projects:** SRP8-045
+   - **Score:** 2.0
+   - **Clause Adjacent:** True
+   - **Name Overlap:** 1.0
+   - **Shared Words:** braking, equipment
+
+2. **REQ-31-001**
+   - **Requirement Name:** Braking Equipment
+   - **Clause:** 5.1.1.1
+   - **Applicable:** True
+   - **Assigned Projects:** SRP8-045
+   - **Score:** 1.0
+   - **Clause Adjacent:** False
+   - **Name Overlap:** 1.0
+   - **Shared Words:** braking, equipment
+
+3. **REQ-31-002**
+   - **Requirement Name:** Braking Equipment
+   - **Clause:** 5.1.1.1
+   - **Applicable:** True
+   - **Assigned Projects:** SRP8-046
+   - **Score:** 1.0
+   - **Clause Adjacent:** False
+   - **Name Overlap:** 1.0
+   - **Shared Words:** braking, equipment
+
+4. **REQ-31-003**
+   - **Requirement Name:** Braking Equipment
+   - **Clause:** 5.1.1.2
+   - **Applicable:** True
+   - **Assigned Projects:** SRP8-045
+   - **Score:** 1.0
+   - **Clause Adjacent:** False
+   - **Name Overlap:** 1.0
+   - **Shared Words:** braking, equipment
+
+5. **REQ-31-004**
+   - **Requirement Name:** Braking Equipment
+   - **Clause:** 5.1.1.2
+   - **Applicable:** True
+   - **Assigned Projects:** SRP8-046
+   - **Score:** 1.0
+   - **Clause Adjacent:** False
+   - **Name Overlap:** 1.0
+   - **Shared Words:** braking, equipment
+
+The scoring mechanism is defined as:
+- **Score = clause_adjacent (0/1) + name_overlap (Jaccard of content words, 0-1)**
+
+This means that the score is calculated by adding the binary value of whether the clauses are adjacent (1 if adjacent, 0 otherwise) and the Jaccard similarity of the content words in the requirement names.
+
+You: 

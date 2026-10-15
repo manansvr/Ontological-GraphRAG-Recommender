@@ -1,0 +1,4 @@
+You: reject link REQ-31-008 -> SRP8-048 because overconfident proposal to the wrong project
+Reviewer name (recorded on every review decision this session): Ilina
+
+[review] Rejected REQ-31-008 -> SRP8-048 as Ilina; reward -2.0 (overconfidence penalty).

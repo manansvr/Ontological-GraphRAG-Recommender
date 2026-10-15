@@ -1,0 +1,45 @@
+Cypher: MATCH ()-[a:assignedToProject {source:'extracted'}]->() RETURN count(a) AS extracted
+Output: extracted = 172
+
+Cypher: MATCH ()-[a:assignedToProject]->() WHERE a.source <> 'extracted' RETURN count(a) AS non_extracted
+Output: non_extracted = 0
+
+Cypher: MATCH ()-[s:suggestedProject]->() RETURN count(s) AS suggestions
+Output: suggestions = 0
+
+Cypher: MATCH (fe:FeedbackEvent) RETURN count(fe) AS feedback_events
+Output: feedback_events = 0
+
+Cypher: MATCH (r:ExtractedEssentialRequirement) WHERE NOT (r)-[:assignedToProject]->() RETURN count(r) AS unassigned
+Output: unassigned = 45
+
+You: show me the rl policy
+
+[route rl_policy] get_rl_policy({})
+Processing request of type CallToolRequest
+
+SR8 RL Policy Report
+================================================
+Exploration rate (epsilon) : 0.0200
+Discount factor            : 0.0 (single-step)
+Converged                  : Yes (threshold: 0.05)
+
+State                                   Greedy action             Q-values (↑ keep ↓)
+------------------------------------------------------------------------------------------
+inference_strong_no_high                decrease_confidence       ↑-0.475  keep+0.188  ↓+0.598
+inference_strong_no_low                 decrease_confidence       ↑-0.363  keep+0.208  ↓+0.649
+inference_strong_no_mid                 decrease_confidence       ↑-0.508  keep+0.163  ↓+0.720
+inference_strong_yes_high               increase_confidence       ↑+0.754  keep+0.486  ↓-0.226
+inference_strong_yes_low                increase_confidence       ↑+0.787  keep+0.728  ↓-0.126
+inference_strong_yes_mid                increase_confidence       ↑+0.821  keep+0.720  ↓-0.149
+inference_weak_no_high                  keep_confidence           ↑-0.253  keep+0.376  ↓+0.281
+inference_weak_no_low                   keep_confidence           ↑-0.280  keep+0.373  ↓+0.267
+inference_weak_no_mid                   keep_confidence           ↑-0.385  keep+0.336  ↓+0.170
+inference_weak_yes_high                 keep_confidence           ↑+0.048  keep+0.493  ↓-0.102
+inference_weak_yes_low                  keep_confidence           ↑+0.049  keep+0.482  ↓-0.139
+inference_weak_yes_mid                  keep_confidence           ↑+0.093  keep+0.475  ↓-0.153
+
+Total feedback events      : 0
+Average reward             : 0.0
+
+Recommendation: promote inferred links only when confidence >= 0.6 and the greedy action is 'keep_confidence' or 'increase_confidence'.
