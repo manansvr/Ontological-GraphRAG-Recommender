@@ -1,0 +1,10 @@
+.
+.
+.
+Ignoring wrong pointing object 17 0 (offset 0)
+Ignoring wrong pointing object 19 0 (offset 0)
+Ignoring wrong pointing object 21 0 (offset 0)
+Ignoring wrong pointing object 27 0 (offset 0)
+Ignoring wrong pointing object 29 0 (offset 0)
+
+Assistant: It seems there were no matches found for the query related to confirming the link between REQ-A and PROJ-1. Could you please provide more details or another query to proceed further?

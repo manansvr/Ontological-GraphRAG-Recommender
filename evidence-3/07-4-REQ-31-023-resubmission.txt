@@ -1,0 +1,22 @@
+{
+  "status": "written",
+  "write_mode": "resubmitted",
+  "req_id": "REQ-31-023",
+  "project_id": "SRP8-045",
+  "original_confidence": 0.65,
+  "adjusted_confidence": 0.65,
+  "rl_action": "keep_confidence",
+  "inference_state": "inference_strong_yes_mid",
+  "best_neighbour_score": 2.0,
+  "best_neighbour_id": "REQ-31-021",
+  "candidate_count": 84,
+  "project_has_same_adr": true,
+  "reasoning": "Re-evaluated deliberately wrong project before human correction.",
+  "revision_count": null,
+  "resubmission_of": "2026-10-15T04:16:00.616000000+00:00",
+  "warning": "Requirement is already assignedToProject to SRP8-047; this suggestion would add a further project.",
+  "schema_validation": {
+    "ok": true,
+    "reason": "'suggestedProject' declared in schema: source matches ExtractedEssentialRequirement, target matches Project."
+  }
+}

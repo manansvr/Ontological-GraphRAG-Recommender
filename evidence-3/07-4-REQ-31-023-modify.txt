@@ -1,0 +1,17 @@
+manan@Manans-MacBook Ontological-GraphRAG-Recommender % .venv/bin/python thesis-extension/scripts/review-links.py \
+  --reviewer "Ilina Sharma"
+1 pending suggestion(s). Reviewer: Ilina Sharma
+
+[1/1] REQ-31-023 -> SRP8-045 (Front Brakes)
+  Requirement:     Brake Controls
+  ADR:             ADR-31
+  Confidence:      0.65
+  Inference state: inference_strong_yes_mid
+  Inferred at:     2026-10-15T04:25:25.635Z by Ollama-MCP
+  Reasoning:       Re-evaluated deliberately wrong project before human correction.
+  [c]onfirm / [m]odify / [r]eject / [s]kip / [q]uit: m
+  Assign to which project ID instead? (blank to go back): SRP8-047
+  Reason (optional): Corrected from the wrong front-brakes project to the connected project SRP8-047 after human review.
+  modified (link already existed; left unchanged); reward 0.5
+
+Summary: promoted 0, modified 1, rejected 0, skipped 0, error 0

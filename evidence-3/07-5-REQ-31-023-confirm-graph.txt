@@ -1,0 +1,31 @@
+properties(s)
+"{
+  inferredAt: 2026-10-15T04:20:28.796000000Z,
+  reasoning: brake controls are strongly related to vehicle wheel safety,
+  confidence: 0.8,
+  reviewedAt: 2026-10-15T04:20:54.672000000Z,
+  inferredBy: Ollama-MCP,
+  baseConfidence: 0.9,
+  schemaValidated: TRUE,
+  rlAction: decrease_confidence,
+  reviewedBy: Ilina,
+  schemaCheckedAt: 2026-10-15T04:20:28.796000000Z,
+  rejectionReason: overconfidence test,
+  inferenceState: inference_strong_no_high,
+  status: rejected
+}"
+"{
+  inferredAt: 2026-10-15T04:28:56.753000000Z,
+  confidence: 0.55,
+  reasoning: Brake controls are relevant to vehicle safety verification.,
+  reviewedAt: 2026-10-15T04:29:18.520000000Z,
+  inferredBy: Ollama-MCP,
+  baseConfidence: 0.65,
+  rlAction: decrease_confidence,
+  schemaValidated: TRUE,
+  reviewedBy: Ilina Sharma,
+  schemaCheckedAt: 2026-10-15T04:28:56.753000000Z,
+  inferenceState: inference_strong_no_mid,
+  status: promoted,
+  resubmissionOf: 2026-10-15T04:20:28.796000000Z[UTC]
+}"

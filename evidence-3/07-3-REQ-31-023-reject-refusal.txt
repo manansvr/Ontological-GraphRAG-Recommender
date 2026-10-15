@@ -1,0 +1,4 @@
+You: reject link REQ-31-023 -> SRP8-045 because the requirement is connected to the rear-brakes project SRP8-047
+
+[review] Not recorded: Suggestion between 'REQ-31-023' and 'SRP8-045' was already reviewed (status 'rejected'); feedback not recorded again.
+Earlier decision: {"status": "rejected", "reviewed_by": "Ilina", "reviewed_at": "2026-10-15T04:17:55.445Z", "rejection_reason": "the requirement is connected to the rear-brakes project SRP8-047"}

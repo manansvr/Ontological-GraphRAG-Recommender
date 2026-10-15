@@ -1,0 +1,17 @@
+You: Suggest that requirement REQ-31-023 belongs to project SRP8-045 with confidence 0.65 because brake controls are directly related to the front-brakes system
+
+[route suggest_link] write_inferred_project_link({'requirement_id': 'REQ-31-023', 'project_id': 'SRP8-045', 'confidence': 0.65, 'reasoning': 'brake controls are directly related to the front-brakes system'})
+Processing request of type CallToolRequest
+
+{
+  "status": "previously_reviewed",
+  "req_id": "REQ-31-023",
+  "project_id": "SRP8-045",
+  "previous_decision": {
+    "status": "rejected",
+    "reviewed_by": "Ilina",
+    "reviewed_at": "2026-10-15T04:17:55.445Z",
+    "rejection_reason": "the requirement is connected to the rear-brakes project SRP8-047"
+  },
+  "message": "A reviewer already decided on this suggestion; it was not modified. Pass resubmit=True to submit a new suggestion alongside it."
+}

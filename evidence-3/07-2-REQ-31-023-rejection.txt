@@ -1,0 +1,4 @@
+You: reject link REQ-31-023 -> SRP8-045 because the requirement is connected to the rear-brakes project SRP8-047
+Reviewer name (recorded on every review decision this session): Ilina
+
+[review] Rejected REQ-31-023 -> SRP8-045 as Ilina; reward -1.0.

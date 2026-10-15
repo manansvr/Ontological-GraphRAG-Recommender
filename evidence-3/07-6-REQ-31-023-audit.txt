@@ -1,0 +1,25 @@
+Cypher:
+MATCH (r:ExtractedEssentialRequirement)
+      -[a:assignedToProject {source: 'inferred'}]->
+      (p:Project)
+MATCH (r)-[s:suggestedProject {status: 'promoted'}]->(p)
+RETURN count(*) AS human_confirmed;
+
+Output:
+human_confirmed
+2
+
+Cypher:
+MATCH (r:ExtractedEssentialRequirement)
+      -[a:assignedToProject {source: 'inferred-modified'}]->
+      (p:Project)
+MATCH (r)-[s:suggestedProject {status: 'modified', modifiedTo: p.projectID}]->(sp:Project)
+RETURN r.hasID,
+       sp.projectID AS suggested,
+       p.projectID AS assigned,
+       a.promotedBy,
+       a.modificationReason;
+
+Output:
+r.hasID,suggested,assigned,a.promotedBy,a.modificationReason
+REQ-10-001,SRP8-043,SRP8-046,Ilina Sharma,Corrected from the wrong front-suspension project to the rear-brakes project after human review.

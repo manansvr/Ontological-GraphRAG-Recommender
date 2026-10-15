@@ -1,0 +1,30 @@
+You: show me the rl policy
+
+[route rl_policy] get_rl_policy({})
+Processing request of type CallToolRequest
+
+SR8 RL Policy Report
+================================================
+Exploration rate (epsilon) : 0.1441
+Discount factor            : 0.0 (single-step)
+Converged                  : No (threshold: 0.05)
+
+State                                   Greedy action             Q-values (↑ keep ↓)
+------------------------------------------------------------------------------------------
+inference_strong_no_high                decrease_confidence       ↑-0.475  keep+0.188  ↓+0.278
+inference_strong_no_low                 decrease_confidence       ↑-0.363  keep+0.208  ↓+0.649
+inference_strong_no_mid                 decrease_confidence       ↑-0.508  keep+0.163  ↓+0.776
+inference_strong_yes_high               increase_confidence       ↑+0.754  keep+0.486  ↓-0.226
+inference_strong_yes_low                increase_confidence       ↑+0.787  keep+0.728  ↓-0.126
+inference_strong_yes_mid                keep_confidence           ↑+0.457  keep+0.676  ↓-0.149
+inference_weak_no_high                  decrease_confidence       ↑-0.253  keep-0.100  ↓+0.281
+inference_weak_no_low                   keep_confidence           ↑-0.280  keep+0.373  ↓+0.267
+inference_weak_no_mid                   decrease_confidence       ↑-0.385  keep+0.155  ↓+0.336
+inference_weak_yes_high                 keep_confidence           ↑+0.048  keep+0.493  ↓-0.102
+inference_weak_yes_low                  keep_confidence           ↑+0.049  keep+0.482  ↓-0.139
+inference_weak_yes_mid                  keep_confidence           ↑+0.093  keep+0.475  ↓-0.153
+
+Total feedback events      : 8
+Average reward             : -0.25
+
+Recommendation: promote inferred links only when confidence >= 0.6 and the greedy action is 'keep_confidence' or 'increase_confidence'.

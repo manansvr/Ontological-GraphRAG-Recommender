@@ -1,0 +1,33 @@
+p.projectID,properties(s)
+SRP8-045,"{
+  inferredAt: 2026-10-15T04:16:00.616000000Z,
+  reasoning: brake controls are directly related to the front-brakes system,
+  confidence: 0.75,
+  reviewedAt: 2026-10-15T04:17:55.445000000Z,
+  inferredBy: Ollama-MCP,
+  baseConfidence: 0.65,
+  schemaValidated: TRUE,
+  rlAction: increase_confidence,
+  reviewedBy: Ilina,
+  schemaCheckedAt: 2026-10-15T04:16:00.616000000Z,
+  rejectionReason: the requirement is connected to the rear-brakes project SRP8-047,
+  inferenceState: inference_strong_yes_mid,
+  status: rejected
+}"
+SRP8-045,"{
+  inferredAt: 2026-10-15T04:25:25.635000000Z,
+  modificationReason: Corrected from the wrong front-brakes project to the connected project SRP8-047 after human review.,
+  confidence: 0.65,
+  reasoning: Re-evaluated deliberately wrong project before human correction.,
+  reviewedAt: 2026-10-15T04:25:49.919000000Z,
+  inferredBy: Ollama-MCP,
+  baseConfidence: 0.65,
+  schemaValidated: TRUE,
+  rlAction: keep_confidence,
+  reviewedBy: Ilina Sharma,
+  schemaCheckedAt: 2026-10-15T04:25:25.635000000Z,
+  modifiedTo: SRP8-047,
+  inferenceState: inference_strong_yes_mid,
+  status: modified,
+  resubmissionOf: 2026-10-15T04:16:00.616000000Z[UTC]
+}"

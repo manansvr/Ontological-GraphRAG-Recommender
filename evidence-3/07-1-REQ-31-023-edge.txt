@@ -1,0 +1,12 @@
+properties(s)
+"{
+  inferredAt: 2026-10-15T04:16:00.616000000Z,
+  reasoning: brake controls are directly related to the front-brakes system,
+  confidence: 0.75,
+  inferredBy: Ollama-MCP,
+  baseConfidence: 0.65,
+  schemaValidated: TRUE,
+  rlAction: increase_confidence,
+  inferenceState: inference_strong_yes_mid,
+  schemaCheckedAt: 2026-10-15T04:16:00.616000000Z
+}"
