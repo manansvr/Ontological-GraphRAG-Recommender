@@ -4,7 +4,7 @@
     "config": {
       "learning_rate": 0.2,
       "discount_factor": 0.9,
-      "exploration_rate": 0.14925,
+      "exploration_rate": 0.1343380486100817,
       "min_exploration_rate": 0.02,
       "exploration_decay": 0.995,
       "optimistic_initial_q": 0.0
@@ -20,6 +20,27 @@
       }
     },
     "episode_rewards": [
+      0.0,
+      0.0,
+      0.0,
+      0.0,
+      0.0,
+      0.0,
+      0.0,
+      0.0,
+      0.0,
+      0.0,
+      0.0,
+      0.0,
+      0.0,
+      0.0,
+      0.0,
+      0.0,
+      0.0,
+      0.0,
+      0.0,
+      0.0,
+      0.0,
       0.0
     ]
   },
@@ -27,7 +48,7 @@
     "config": {
       "learning_rate": 0.2,
       "discount_factor": 0.0,
-      "exploration_rate": 0.14850375,
+      "exploration_rate": 0.14702242509375,
       "min_exploration_rate": 0.02,
       "exploration_decay": 0.995,
       "optimistic_initial_q": 0.0
@@ -85,8 +106,8 @@
       },
       "inference_weak_no_mid": {
         "increase_confidence": -0.3853515543334729,
-        "keep_confidence": 0.0690608419394565,
-        "decrease_confidence": 0.17037832252085783
+        "keep_confidence": 0.15524867355156519,
+        "decrease_confidence": 0.33630265801668624
       },
       "inference_weak_no_low": {
         "increase_confidence": -0.27951348935383713,
