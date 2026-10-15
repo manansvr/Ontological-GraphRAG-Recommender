@@ -25,5 +25,3 @@ Processing request of type CallToolRequest
     "reason": "'suggestedProject' declared in schema: source matches ExtractedEssentialRequirement, target matches Project."
   }
 }
-
-You: 
