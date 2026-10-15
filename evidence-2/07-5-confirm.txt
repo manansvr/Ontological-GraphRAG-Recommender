@@ -1,0 +1,18 @@
+((.venv) ) manan@Manans-MacBook Ontological-GraphRAG-Recommender % cd /Users/manan/Documents/GitHub/Ontological-GraphRAG-Recommender
+
+source .venv/bin/activate
+
+.venv/bin/python thesis-extension/scripts/review-links.py --reviewer "Ilina Sharma"
+1 pending suggestion(s). Reviewer: Ilina Sharma
+
+[1/1] REQ-10-001 -> SRP8-049 (Steering Rack)
+  Requirement:     Collision Testing
+  ADR:             ADR-10
+  Confidence:      0.55
+  Inference state: inference_weak_no_mid
+  Inferred at:     2026-10-15T01:01:19.411Z by Ollama-MCP
+  Reasoning:       it shares ADR and wording with requirements already assigned to SRP8-049
+  [c]onfirm / [m]odify / [r]eject / [s]kip / [q]uit: c
+  promoted; reward 1.0
+
+Summary: promoted 1, modified 0, rejected 0, skipped 0, error 0

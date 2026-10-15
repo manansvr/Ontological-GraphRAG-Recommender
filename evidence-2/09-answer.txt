@@ -1,0 +1,59 @@
+You: What are the verification methods for ADR-31 braking requirements?
+
+[rl] state=adr_lookup action=hybrid
+
+[tool] search_local_documents({'query': 'ADR-31', 'max_files': 50, 'max_hits_per_file': 10})
+Processing request of type CallToolRequest
+Ignoring wrong pointing object 6 0 (offset 0)
+Ignoring wrong pointing object 8 0 (offset 0)
+Ignoring wrong pointing object 10 0 (offset 0)
+Ignoring wrong pointing object 6 0 (offset 0)
+Ignoring wrong pointing object 8 0 (offset 0)
+Ignoring wrong pointing object 10 0 (offset 0)
+Ignoring wrong pointing object 12 0 (offset 0)
+Ignoring wrong pointing object 23 0 (offset 0)
+Ignoring wrong pointing object 47 0 (offset 0)
+Ignoring wrong pointing object 49 0 (offset 0)
+Ignoring wrong pointing object 72 0 (offset 0)
+Ignoring wrong pointing object 74 0 (offset 0)
+Ignoring wrong pointing object 79 0 (offset 0)
+Ignoring wrong pointing object 84 0 (offset 0)
+.
+.
+.
+Ignoring wrong pointing object 21 0 (offset 0)
+Ignoring wrong pointing object 27 0 (offset 0)
+Ignoring wrong pointing object 29 0 (offset 0)
+
+Assistant: Based on the provided information, here are the key requirements related to braking systems from the ADR31 regulation:
+
+1. **Brake Control and Operation**:
+   - There must be at least two controls for the braking system, independent of each other and readily accessible to the driver from the normal driving position. Each brake control must return to the fully off position when released (Requirement 67).
+
+2. **Brake Fluid Identification**:
+   - The type of fluid used in hydraulic transmission braking systems must be identified by a symbol in accordance with ISO 9128:2006 and the appropriate DOT marking (e.g., DOT 3). This symbol and marking must be affixed in a visible position within 100 mm of the filling ports of the fluid reservoirs (Requirements 65 and 66).
+
+3. **Automatic Wear Adjustment**:
+   - The service brakes must have automatic wear adjustment devices that ensure effective braking even after heating and cooling of the brakes. The vehicle must remain capable of normal running after the tests conducted in accordance with Annex 3, paragraph 1.5 (Type-I test) (Requirements 72 and 73).
+
+4. **Brake Wear Compensation**:
+   - The brakes must be capable of automatic wear adjustment. Additionally, the control and components of the transmission and brakes must have a reserve of travel and suitable means of compensation to ensure effective braking even when the brakes are heated or the brake linings are worn (Requirement 74).
+
+5. **Energy Source for Braking Systems**:
+   - If an auxiliary source of energy is essential to the functioning of a braking system, the reserve of energy must ensure adequate braking performance even if the engine stops or the energy source fails. If a parking braking system is reinforced by a servo device, the actuation of parking braking must be ensured in the event of a failure of the servo device, using a reserve of energy independent of the normal supply (Requirements 76 and 77).
+
+6. **Common Components for Service and Parking Brakes**:
+   - The service braking system and parking braking system may use common components in their transmissions, provided that in the event of a failure in any part of the transmission, the requirements for secondary braking are still met (Requirement 78).
+
+7. **Optical Warning Signals**:
+   - If the operation of the electric component of braking is ensured by a relation established between information from the service brake control and the braking force to the wheels, a failure of this relation must be warned to the driver by an optical warning signal (Requirement 79).
+
+8. **Service Brake Control**:
+   - The service braking system must have only one control device (Requirement 80).
+
+9. **Service Brake Independence**:
+   - The service braking system must not be adversely affected by the disengagement of the motor(s) or by the gear ratio used (Requirement 81).
+
+These requirements ensure that the braking systems in vehicles are reliable, safe, and capable of maintaining performance under various conditions.
+
+You: 

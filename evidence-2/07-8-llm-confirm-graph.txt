@@ -1,0 +1,6 @@
+Cypher:
+MATCH (r {hasID:'REQ-A'})-[a:assignedToProject]->(p {projectID:'PROJ-1'})
+RETURN count(a) AS assigned_edges;
+
+Output:
+assigned_edges = 0

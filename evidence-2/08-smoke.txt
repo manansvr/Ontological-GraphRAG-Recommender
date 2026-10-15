@@ -1,0 +1,50 @@
+SELF-TEST PASSED
+greedy_action=arm_high q=0.657
+test_adjust_returns_the_chosen_action_and_clamps (test_inference_review.RlCreditTests.test_adjust_returns_the_chosen_action_and_clamps) ... ok
+test_confirmation_credits_the_stored_action_even_if_it_was_decrease (test_inference_review.RlCreditTests.test_confirmation_credits_the_stored_action_even_if_it_was_decrease) ... ok
+test_feedback_event_records_the_credited_action (test_inference_review.RlCreditTests.test_feedback_event_records_the_credited_action) ... ok
+test_legacy_suggestion_without_stored_action_does_not_update_q (test_inference_review.RlCreditTests.test_legacy_suggestion_without_stored_action_does_not_update_q) ... ok
+test_many_unrelated_neighbours_are_weak_evidence (test_inference_review.RlCreditTests.test_many_unrelated_neighbours_are_weak_evidence) ... ok
+test_no_feedback_mapping_table_remains (test_inference_review.RlCreditTests.test_no_feedback_mapping_table_remains) ... ok
+test_one_close_neighbour_is_strong_evidence (test_inference_review.RlCreditTests.test_one_close_neighbour_is_strong_evidence) ... ok
+test_overconfidence_penalty_kept (test_inference_review.RlCreditTests.test_overconfidence_penalty_kept) ... ok
+test_project_feature_comes_from_the_candidates_assigned_projects (test_inference_review.RlCreditTests.test_project_feature_comes_from_the_candidates_assigned_projects) ... ok
+test_rejection_credits_the_stored_action_not_a_mapped_one (test_inference_review.RlCreditTests.test_rejection_credits_the_stored_action_not_a_mapped_one) ... ok
+test_revision_stores_new_action_and_base_confidence (test_inference_review.RlCreditTests.test_revision_stores_new_action_and_base_confidence) ... ok
+test_write_stores_chosen_action_and_base_confidence (test_inference_review.RlCreditTests.test_write_stores_chosen_action_and_base_confidence) ... ok
+
+----------------------------------------------------------------------
+Ran 12 tests in 0.006s
+
+OK
+test_in_memory_copy_is_refreshed_after_each_save (test_rl_persistence.CrossProcessOverwriteTests.test_in_memory_copy_is_refreshed_after_each_save) ... ok
+test_stale_ollama_copy_does_not_overwrite_review_feedback (test_rl_persistence.CrossProcessOverwriteTests.test_stale_ollama_copy_does_not_overwrite_review_feedback) ... ok
+test_stale_sr8_copy_does_not_overwrite_retrieval_update (test_rl_persistence.CrossProcessOverwriteTests.test_stale_sr8_copy_does_not_overwrite_retrieval_update) ... ok
+test_coverage_phase_is_180_updates_before_the_episodes (test_rl_persistence.InferencePriorTests.test_coverage_phase_is_180_updates_before_the_episodes) ... ok
+test_every_state_action_pair_is_visited (test_rl_persistence.InferencePriorTests.test_every_state_action_pair_is_visited) ... ok
+test_greedy_action_matches_the_reward_models_best_action (test_rl_persistence.InferencePriorTests.test_greedy_action_matches_the_reward_models_best_action) ... ok
+test_prior_is_single_step_deterministic_and_bounded (test_rl_persistence.InferencePriorTests.test_prior_is_single_step_deterministic_and_bounded) ... ok
+test_reward_model_is_a_named_constant (test_rl_persistence.InferencePriorTests.test_reward_model_is_a_named_constant) ... ok
+test_action_is_chosen_from_the_latest_saved_model (test_rl_persistence.LatestModelTests.test_action_is_chosen_from_the_latest_saved_model) ... ok
+test_get_rl_policy_shows_an_update_saved_by_another_process (test_rl_persistence.LatestModelTests.test_get_rl_policy_shows_an_update_saved_by_another_process) ... ok
+test_reading_does_not_change_the_file (test_rl_persistence.LatestModelTests.test_reading_does_not_change_the_file) ... ok
+test_saves_still_merge_into_the_latest_file (test_rl_persistence.LatestModelTests.test_saves_still_merge_into_the_latest_file) ... ok
+test_concurrent_processes_lose_no_updates (test_rl_persistence.LockedUpdateTests.test_concurrent_processes_lose_no_updates) ... ok
+test_save_is_atomic_and_leaves_no_temp_files (test_rl_persistence.LockedUpdateTests.test_save_is_atomic_and_leaves_no_temp_files) ... ok
+test_load_problem_migrates_in_memory_only (test_rl_persistence.MigrationTests.test_load_problem_migrates_in_memory_only) ... ok
+test_migrate_model_file_rewrites_once (test_rl_persistence.MigrationTests.test_migrate_model_file_rewrites_once) ... ok
+test_unknown_problem_name_is_rejected (test_rl_persistence.MigrationTests.test_unknown_problem_name_is_rejected) ... ok
+test_v2_document_splits_by_state_name (test_rl_persistence.MigrationTests.test_v2_document_splits_by_state_name) ... ok
+test_version_3_is_returned_unchanged (test_rl_persistence.MigrationTests.test_version_3_is_returned_unchanged) ... ok
+test_epsilon_decay_in_one_problem_does_not_affect_the_other (test_rl_persistence.ProblemSeparationTests.test_epsilon_decay_in_one_problem_does_not_affect_the_other) ... ok
+test_file_is_migrated_to_version_3_with_two_sections (test_rl_persistence.ProblemSeparationTests.test_file_is_migrated_to_version_3_with_two_sections) ... ok
+test_problem_b_is_single_step_and_problem_a_keeps_its_discount (test_rl_persistence.ProblemSeparationTests.test_problem_b_is_single_step_and_problem_a_keeps_its_discount) ... ok
+test_repeated_reward_converges_to_the_reward_not_r_over_one_minus_gamma (test_rl_persistence.ProblemSeparationTests.test_repeated_reward_converges_to_the_reward_not_r_over_one_minus_gamma) ... ok
+test_sr8_loads_the_problem_b_agent_with_priors (test_rl_persistence.Sr8LoaderTests.test_sr8_loads_the_problem_b_agent_with_priors)
+Regression: sr8-mcp's loader used to fail silently and return None (RL disabled). ... ok
+
+----------------------------------------------------------------------
+Ran 24 tests in 1.142s
+
+OK
+model file unchanged

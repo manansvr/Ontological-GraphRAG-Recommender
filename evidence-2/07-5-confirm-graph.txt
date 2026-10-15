@@ -1,0 +1,24 @@
+Cypher: MATCH (r {hasID:'REQ-10-001'})-[a:assignedToProject]->(p {projectID:'SRP8-049'})
+RETURN properties(a);
+
+Output:
+{
+    inferredAt:2026-10-15T01:01:19.411000000Z,
+    inferenceReasoning:"it shares ADR and wording with requirements already assigned to SRP8-049",
+    promotedAt:2026-10-15T01:01:51.493000000Z,
+    inferredBy:"Ollama-MCP",
+    source:"inferred",
+    promotedBy:"Ilina Sharma",
+    inferenceState:"inference_weak_no_mid",
+    promotedFromConfidence:0.55
+}
+
+Cypher: MATCH (r {hasID:'REQ-10-001'})-[s:suggestedProject]->(p {projectID:'SRP8-049'})
+RETURN s.status, s.reviewedBy;
+
+Output:
+╒══════════╤══════════════╕
+│s.status  │s.reviewedBy  │
+╞══════════╪══════════════╡
+│"promoted"│"Ilina Sharma"│
+└──────────┴──────────────┘

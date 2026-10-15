@@ -4,15 +4,15 @@
     "config": {
       "learning_rate": 0.2,
       "discount_factor": 0.9,
-      "exploration_rate": 0.12905762878720434,
+      "exploration_rate": 0.12586329155558681,
       "min_exploration_rate": 0.02,
       "exploration_decay": 0.995,
       "optimistic_initial_q": 0.0
     },
     "q_table": {
       "adr_lookup": {
-        "graph_first": 0.5579526355328001,
-        "documents_first": 0.0,
+        "graph_first": 1.0988761458035394,
+        "documents_first": 0.10043147439590401,
         "hybrid": 0.0
       },
       "general_lookup": {
@@ -49,6 +49,11 @@
       0.0,
       0.0,
       0.0,
+      1.0,
+      0.0,
+      1.0,
+      0.0,
+      1.0,
       1.0
     ]
   },

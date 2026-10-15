@@ -1,0 +1,99 @@
+{
+  "schema_version": 3,
+  "problem_a": {
+    "config": {
+      "learning_rate": 0.2,
+      "discount_factor": 0.9,
+      "exploration_rate": 0.14925,
+      "min_exploration_rate": 0.02,
+      "exploration_decay": 0.995,
+      "optimistic_initial_q": 0.0
+    },
+    "q_table": {
+      "adr_lookup": {
+        "graph_first": 0.0,
+        "documents_first": 0.0,
+        "hybrid": 0.0
+      },
+      "general_lookup": {
+        "documents_first": -0.6210547200000001
+      }
+    },
+    "episode_rewards": [
+      0.0
+    ]
+  },
+  "problem_b": {
+    "config": {
+      "learning_rate": 0.2,
+      "discount_factor": 0.0,
+      "exploration_rate": 0.14702242509375,
+      "min_exploration_rate": 0.02,
+      "exploration_decay": 0.995,
+      "optimistic_initial_q": 0.0
+    },
+    "q_table": {
+      "inference_strong_yes_high": {
+        "increase_confidence": 0.7540193761269371,
+        "keep_confidence": 0.4857573864580931,
+        "decrease_confidence": -0.22588786846153563
+      },
+      "inference_strong_yes_mid": {
+        "increase_confidence": 0.8214542606044718,
+        "keep_confidence": 0.7203960497766119,
+        "decrease_confidence": -0.1485327790213335
+      },
+      "inference_strong_yes_low": {
+        "increase_confidence": 0.7873601683795387,
+        "keep_confidence": 0.7284938390818518,
+        "decrease_confidence": -0.12641614438969462
+      },
+      "inference_strong_no_high": {
+        "increase_confidence": -0.47502507124310217,
+        "keep_confidence": 0.18760561096211545,
+        "decrease_confidence": 0.5981062219005703
+      },
+      "inference_strong_no_mid": {
+        "increase_confidence": -0.5079981730796224,
+        "keep_confidence": 0.1627475240061329,
+        "decrease_confidence": 0.7201821406232647
+      },
+      "inference_strong_no_low": {
+        "increase_confidence": -0.3632306405911256,
+        "keep_confidence": 0.20836896467760824,
+        "decrease_confidence": 0.6489789211888037
+      },
+      "inference_weak_yes_high": {
+        "increase_confidence": 0.048314670601195306,
+        "keep_confidence": 0.4930597488726234,
+        "decrease_confidence": -0.10203137276751825
+      },
+      "inference_weak_yes_mid": {
+        "increase_confidence": 0.09272281377777271,
+        "keep_confidence": 0.47480007183373546,
+        "decrease_confidence": -0.15335751185013483
+      },
+      "inference_weak_yes_low": {
+        "increase_confidence": 0.04896732469188907,
+        "keep_confidence": 0.48170233884750757,
+        "decrease_confidence": -0.1391409828920474
+      },
+      "inference_weak_no_high": {
+        "increase_confidence": -0.2526809382573192,
+        "keep_confidence": -0.09957859926980756,
+        "decrease_confidence": 0.2807541704095692
+      },
+      "inference_weak_no_mid": {
+        "increase_confidence": -0.3853515543334729,
+        "keep_confidence": 0.15524867355156519,
+        "decrease_confidence": 0.33630265801668624
+      },
+      "inference_weak_no_low": {
+        "increase_confidence": -0.27951348935383713,
+        "keep_confidence": 0.3734010392460409,
+        "decrease_confidence": 0.2670130419860828
+      }
+    },
+    "episode_rewards": []
+  }
+}

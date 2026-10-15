@@ -1,0 +1,46 @@
+Cypher: 
+MATCH (r {hasID:'REQ-10-001'})-[s:suggestedProject]->(p)
+WHERE p.projectID IN ['SRP8-043','SRP8-046']
+RETURN p.projectID, properties(s)
+ORDER BY p.projectID;
+
+Output:
+
+╒═══════════╤════════════════════════════════════════════════════════════════════════════════════════════════════╕
+│p.projectID│properties(s)                                                                                       │
+╞═══════════╪════════════════════════════════════════════════════════════════════════════════════════════════════╡
+│"SRP8-043" │{                                                                                                   │
+│           │  inferredAt: 2026-10-14T15:06:45.154000000Z,                                                       │
+│           │  reasoning: "it shares ADR and wording with requirements already assigned to SRP8-043",            │
+│           │  confidence: 0.65,                                                                                 │
+│           │  reviewedAt: 2026-10-14T15:10:12.911000000Z,                                                       │
+│           │  inferredBy: "Ollama-MCP",                                                                         │
+│           │  baseConfidence: 0.65,                                                                             │
+│           │  rlAction: "keep_confidence",                                                                      │
+│           │  schemaValidated: TRUE,                                                                            │
+│           │  reviewedBy: "Ilina",                                                                              │
+│           │  schemaCheckedAt: 2026-10-14T15:06:45.154000000Z,                                                  │
+│           │  rejectionReason: "the requirement belongs to the rear assembly",                                  │
+│           │  inferenceState: "inference_weak_no_mid",                                                          │
+│           │  status: "rejected"                                                                                │
+│           │}                                                                                                   │
+├───────────┼────────────────────────────────────────────────────────────────────────────────────────────────────┤
+│"SRP8-043" │{                                                                                                   │
+│           │  inferredAt: 2026-10-15T00:57:17.435000000Z,                                                       │
+│           │  modificationReason: "Corrected from the wrong front-suspension project to the rear-brakes project │
+│           │after human review.",                                                                               │
+│           │  confidence: 0.65,                                                                                 │
+│           │  reasoning: "Re-evaluated deliberately wrong project before human correction.",                    │
+│           │  reviewedAt: 2026-10-15T00:57:59.992000000Z,                                                       │
+│           │  inferredBy: "Ollama-MCP",                                                                         │
+│           │  baseConfidence: 0.65,                                                                             │
+│           │  schemaValidated: TRUE,                                                                            │
+│           │  rlAction: "keep_confidence",                                                                      │
+│           │  reviewedBy: "Ilina Sharma",                                                                       │
+│           │  schemaCheckedAt: 2026-10-15T00:57:17.435000000Z,                                                  │
+│           │  modifiedTo: "SRP8-046",                                                                           │
+│           │  inferenceState: "inference_weak_no_mid",                                                          │
+│           │  status: "modified",                                                                               │
+│           │  resubmissionOf: 2026-10-14T15:06:45.154000000Z[UTC]                                               │
+│           │}                                                                                                   │
+└───────────┴────────────────────────────────────────────────────────────────────────────────────────────────────┘

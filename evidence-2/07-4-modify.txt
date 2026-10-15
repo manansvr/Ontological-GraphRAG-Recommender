@@ -1,0 +1,16 @@
+((.venv) ) manan@Manans-MacBook Ontological-GraphRAG-Recommender % .venv/bin/python thesis-extension/scripts/review-links.py --reviewer "Ilina Sharma"
+1 pending suggestion(s). Reviewer: Ilina Sharma
+
+[1/1] REQ-10-001 -> SRP8-043 (Front Suspension)
+  Requirement:     Collision Testing
+  ADR:             ADR-10
+  Confidence:      0.65
+  Inference state: inference_weak_no_mid
+  Inferred at:     2026-10-15T00:57:17.435Z by Ollama-MCP
+  Reasoning:       Re-evaluated deliberately wrong project before human correction.
+  [c]onfirm / [m]odify / [r]eject / [s]kip / [q]uit: m
+  Assign to which project ID instead? (blank to go back): SRP8-046
+  Reason (optional): Corrected from the wrong front-suspension project to the rear-brakes project after human review.
+  modified; reward 0.5
+
+Summary: promoted 0, modified 1, rejected 0, skipped 0, error 0
