@@ -1,0 +1,17 @@
+{
+  "schema_version": 2,
+  "config": {
+    "learning_rate": 0.2,
+    "discount_factor": 0.9,
+    "exploration_rate": 0.14925,
+    "min_exploration_rate": 0.02,
+    "exploration_decay": 0.995,
+    "optimistic_initial_q": 0.0
+  },
+  "q_table": {
+    "general_lookup": {
+      "documents_first": 0.2
+    }
+  },
+  "episode_rewards": []
+}
