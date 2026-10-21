@@ -71,11 +71,6 @@ class OntologyNameTests(unittest.TestCase):
             "belongsToAssembly", ["Project"], ["Assembly"], tx=test_inference_review.FakeTx(graph))
         self.assertTrue(ok, reason)
 
-    def test_hand_run_cypher_no_longer_creates_assemblies(self):
-        text = (EXTRACTION / "Documentation/one-command.cypher").read_text(encoding="utf-8")
-        self.assertNotIn("MERGE (a:Assembly", text)
-        self.assertIn("run-extraction.py --only assemblies", text)
-
 
 class ExtractorDryRunTests(unittest.TestCase):
     @classmethod

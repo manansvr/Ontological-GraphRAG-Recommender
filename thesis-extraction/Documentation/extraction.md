@@ -11,7 +11,7 @@ Extractors in `Scripts/`, run from the `thesis-extraction` folder, writing one n
 | `extract_assemblies.py` | `data/assemblies.csv` | Assembly, Project -[:belongsToAssembly]-> Assembly (`--only assemblies`) |
 | `run-extraction.py` | orchestrates them | with no `--only`, runs in order: adrs, projects, parts, failure-modes, assemblies |
 
-The `projects` and `parts` steps are **NOT IMPLEMENTED**: `run-extraction.py` imports `extract_projects` and `extract_parts`, which do not exist in `Scripts/`. Their input files (`data/project-tracking-system.csv`, `data/parts-management.csv`) are also absent, so those steps currently print "file not found" and are skipped instead of failing. (`Scripts/extract-project.py` exists but is not called by `run-extraction.py`.)
+The `projects` and `parts` steps are **NOT IMPLEMENTED**: `run-extraction.py` imports `extract_projects` and `extract_parts`, which do not exist in `Scripts/`. Their input files (`data/project-tracking-system.csv`, `data/parts-management.csv`) are also absent, so those steps currently print "file not found" and are skipped instead of failing.
 
 `extract-ADR.py` sets `source = 'extracted'` on each `assignedToProject` edge it creates (`ON CREATE SET`, so edges that already exist are not changed). Edges promoted from inferred suggestions by sr8-mcp's `promote_inferred_link` (a human review function reached through `thesis-extension/scripts/review-links.py` or the typed `confirm link` command, not an MCP tool) carry `source = 'inferred'` instead.
 
@@ -50,7 +50,6 @@ thesis-extraction/
 │   ├── extract-ADR.py
 │   ├── extract_failure_modes.py
 │   ├── extract_assemblies.py
-│   ├── extract-project.py        ← not called by run-extraction.py
 │   └── run-extraction.py         ← master orchestrator
 ```
 

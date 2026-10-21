@@ -8,7 +8,7 @@ An ontology, extraction pipeline and LLM assistant for Sunswift Racing SR8 regul
 | `thesis-extraction/` | ADR checklists (`csv/`), the FMEA workbook, assemblies (`data/assemblies.csv`) and the extractors that load them into Neo4j | `thesis-extraction/Documentation/extraction.md` |
 | `thesis-extension/` | `sr8-mcp` (MCP server, 39 tools), `ollama-mcp` (chat client with a deterministic routing table), `reinforcemnt-learning.py` (tabular Q-learning), review scripts, experiments and offline tests | `thesis-extension/README.md`, `thesis-extension/testing_rl_steps.md` |
 
-`CHANGES-FOR-PAPER.md` lists every change on the `paper-fixes` branch with the old and new values of each reported number.
+`architecture.md` shows how the parts fit together: the runtime path of a question, the build from the ontology and source data to the graph, and the experiments.
 
 ## Setup
 

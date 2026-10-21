@@ -37,7 +37,7 @@ AustralianDesignRule
 python3 -m pip install -r requirements.txt   # from the repository root
 ```
 
-`requirements.txt` at the repository root lists every third-party package; `thesis-extension/requirements.txt` only includes it.
+`requirements.txt` at the repository root lists every third-party package.
 
 ### 2. Environment configuration
 
